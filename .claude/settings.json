@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/Way_To_Job/RideShareAIUB/Temp/**)",
+      "Bash(powershell -command 'Get-ChildItem *.zip | ForEach-Object { Write-Host '\\\\''=== '\\\\'' $_.Name '\\\\'' ==='\\\\''; $zip = [System.IO.Compression.ZipFile]::OpenRead\\($_.FullName\\); $zip.Entries | Select-Object -ExpandProperty FullName; $zip.Dispose\\(\\) }')",
+      "Bash(powershell -command \"Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory\\('D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\RideShareAIUB-Enterprise-v2.zip', 'D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\extracted_v2'\\)\")",
+      "Bash(powershell -command ' *)",
+      "Bash(powershell -command 'Get-ChildItem -Path '\\\\''D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\RideShareAIUB-Session4\\\\RideShareAIUB-Session4'\\\\'' -Recurse -File | Where-Object { $_.Extension -match '\\\\''\\\\.\\(ts|tsx|js|json|md\\)$'\\\\'' } | Measure-Object | Select-Object -ExpandProperty Count')",
+      "Bash(powershell -command \"Get-ChildItem 'D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\RideShareAIUB-Session4\\\\RideShareAIUB-Session4\\\\src\\\\services\\\\user'\")",
+      "Bash(powershell -command 'Get-ChildItem '\\\\''D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\extracted_v2\\\\RideShareAIUB\\\\src'\\\\'' -Recurse -File | Where-Object { $_.Length -eq 0 } | Measure-Object | Select-Object -ExpandProperty Count')",
+      "Bash(powershell -command 'Get-ChildItem '\\\\''D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\extracted_v2\\\\RideShareAIUB\\\\src'\\\\'' -Recurse -File | Where-Object { $_.Length -gt 0 } | Select-Object -ExpandProperty FullName')",
+      "Bash(powershell -command 'Get-ChildItem '\\\\''D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\RideShareAIUB-Session4\\\\RideShareAIUB-Session4\\\\src'\\\\'' -Recurse -File | Where-Object { $_.Length -eq 0 } | Select-Object -ExpandProperty FullName')",
+      "Bash(powershell -command \"Get-ChildItem 'D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\RideShareAIUB-Session4\\\\RideShareAIUB-Session4\\\\src\\\\store' | Select-Object Name, Length\")",
+      "Bash(powershell -command \"Get-ChildItem 'D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\RideShareAIUB-Session4\\\\RideShareAIUB-Session4\\\\src\\\\services\\\\location' | Select-Object Name, Length\")",
+      "Bash(powershell -command \"Get-ChildItem 'D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\RideShareAIUB-Session4\\\\RideShareAIUB-Session4\\\\src\\\\types' | Select-Object Name, Length\")",
+      "Bash(powershell -command \"Get-ChildItem 'D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\RideShareAIUB-Session4\\\\RideShareAIUB-Session4\\\\src\\\\components\\\\common' | Select-Object Name, Length\")",
+      "Bash(powershell -command 'Get-ChildItem '\\\\''D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\RideShareAIUB-Session4\\\\RideShareAIUB-Session4\\\\src'\\\\'' -Recurse -File | Where-Object { $_.Length -eq 0 -and $_.Name -notlike '\\\\''*.gitkeep'\\\\'' } | Select-Object -ExpandProperty FullName')"
+    ]
+  }
+}

@@ -1,14 +1,9 @@
-/**
- * Firebase Configuration
- * Production-ready Firebase setup with error handling
- */
-
-import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { initializeAuth, getReactNativePersistence, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getDatabase, Database } from 'firebase/database';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
-import { getMessaging, Messaging, isSupported } from 'firebase/messaging';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import ENV from './env';
 
 const firebaseConfig = {
@@ -18,38 +13,32 @@ const firebaseConfig = {
   storageBucket: ENV.firebaseStorageBucket,
   messagingSenderId: ENV.firebaseMessagingSenderId,
   appId: ENV.firebaseAppId,
-  measurementId: ENV.firebaseMeasurementId,
+  databaseURL: `https://${ENV.firebaseProjectId}-default-rtdb.firebaseio.com`,
 };
 
-// Initialize Firebase
-let app: FirebaseApp;
-let auth: Auth;
-let db: Firestore;
-let realtimeDb: Database;
-let storage: FirebaseStorage;
-let messaging: Messaging | null = null;
+const app: FirebaseApp = getApps().length === 0
+  ? initializeApp(firebaseConfig)
+  : getApp();
 
-try {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-  realtimeDb = getDatabase(app);
-  storage = getStorage(app);
-  
-  // Messaging is only supported in web contexts
-  isSupported().then(supported => {
-    if (supported) {
-      messaging = getMessaging(app);
-    }
-  });
-
-  if (__DEV__) {
-    console.log('✅ Firebase initialized successfully');
+// ONE call to initializeAuth, guarded so it never runs twice
+const auth: Auth = (() => {
+  const existing = getApps();
+  // If the app instance was just created (only 1 app and it's brand new),
+  // initialize auth with persistence. Otherwise retrieve the already-registered auth.
+  try {
+    return initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } catch (e: any) {
+    // "auth/already-initialized" — return what's already there via modular API
+    const { getAuth } = require('firebase/auth');
+    return getAuth(app);
   }
-} catch (error) {
-  console.error('❌ Firebase initialization error:', error);
-  throw new Error('Failed to initialize Firebase');
-}
+})();
 
-export { app, auth, db, realtimeDb, storage, messaging };
+const db: Firestore = getFirestore(app);
+const realtimeDb: Database = getDatabase(app);
+const storage: FirebaseStorage = getStorage(app);
+
+export { app, auth, db, realtimeDb, storage };
 export default app;
