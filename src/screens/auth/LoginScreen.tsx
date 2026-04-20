@@ -12,9 +12,14 @@ import { useNavigation } from '@react-navigation/native';
 import { RootNavProp } from '@/navigation/types';
 import authService from '@/services/firebase/authService';
 import { isValidAIUBEmail } from '@/utils/validators';
+import { useAuthStore } from '@/store';
+import { useAuthStore } from '@/store';
 
 const LoginScreen = () => {
+
   const navigation = useNavigation<RootNavProp>();
+  const { setUser } = useAuthStore();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,7 +36,9 @@ const LoginScreen = () => {
     }
     setLoading(true);
     try {
-      await authService.login({ email, password });
+      const user = await authService.login({ email, password });
+      setUser(user);
+      setUser(user);
       navigation.reset({ index: 0, routes: [{ name: 'MainApp' }] });
     } catch (error: any) {
       Alert.alert('Login Failed', error.message);

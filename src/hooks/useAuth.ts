@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
-import auth from '@react-native-firebase/auth';
+import { signOut as firebaseSignOut } from 'firebase/auth';
+import { auth } from '@/config/firebase.config';
 import { useAuthStore } from '@/store';
-import { User } from '@/types';
+import { User } from '@/types/auth.types';
 import { logger } from '@/utils/logger';
 
 interface UseAuthResult {
@@ -11,21 +12,17 @@ interface UseAuthResult {
   signOut: () => Promise<void>;
 }
 
-/**
- * Exposes authentication state and actions from the global authStore.
- */
 export function useAuth(): UseAuthResult {
-  const { user, isLoading, isAuthenticated, setUser, setLoading, logout } =
+  const { user, isLoading, isAuthenticated, setLoading, logout } =
     useAuthStore();
 
   const signOut = useCallback(async () => {
     try {
       setLoading(true);
-      await auth().signOut();
+      await firebaseSignOut(auth);
       logout();
     } catch (error) {
       logger.error('useAuth.signOut', error);
-      // Force local logout even on error so the UI isn't stuck
       logout();
     } finally {
       setLoading(false);

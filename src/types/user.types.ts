@@ -1,4 +1,4 @@
-export type UserBadge = 'New Rider' | 'Regular' | 'Trusted' | 'Elite Rider';
+export type UserBadge = 'New Rider' | 'Regular' | 'Trusted' | 'Elite Rider' | 'Unreliable';
 
 export interface User {
   uid: string;

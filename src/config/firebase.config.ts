@@ -3,16 +3,15 @@ import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getDatabase, Database } from 'firebase/database';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
-import ENV from './env';
 
 const firebaseConfig = {
-  apiKey: ENV.firebaseApiKey,
-  authDomain: ENV.firebaseAuthDomain,
-  projectId: ENV.firebaseProjectId,
-  storageBucket: ENV.firebaseStorageBucket,
-  messagingSenderId: ENV.firebaseMessagingSenderId,
-  appId: ENV.firebaseAppId,
-  databaseURL: `https://${ENV.firebaseProjectId}-default-rtdb.firebaseio.com`,
+  apiKey: 'AIzaSyB6Xce4UW1l1rTcoU8VINQlRgF3Wd5pV5M',
+  authDomain: 'rideshare-aiub.firebaseapp.com',
+  projectId: 'rideshare-aiub',
+  storageBucket: 'rideshare-aiub.firebasestorage.app',
+  messagingSenderId: '612454425143',
+  appId: '1:612454425143:web:b9f88eba7614aecc7115b2',
+  databaseURL: 'https://rideshare-aiub-default-rtdb.asia-southeast1.firebasedatabase.app',
 };
 
 const app: FirebaseApp = getApps().length === 0

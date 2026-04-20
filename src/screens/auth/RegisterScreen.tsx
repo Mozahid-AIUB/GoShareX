@@ -13,11 +13,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import authService from '@/services/firebase/authService';
 import { isValidAIUBEmail, isValidStudentId } from '@/utils/validators';
+import { useAuthStore } from '@/store';
+
 
 const DEPARTMENTS = ['CSE', 'EEE', 'BBA', 'LLB', 'Architecture', 'English', 'Other'];
 
 const RegisterScreen = () => {
   const navigation = useNavigation<RootNavProp>();
+  const { setUser } = useAuthStore();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [studentId, setStudentId] = useState('');
@@ -45,7 +48,9 @@ const RegisterScreen = () => {
 
     setLoading(true);
     try {
-      await authService.register({ name: name.trim(), email, studentId, department, password });
+      const user = const user = await authService.register({ name: name.trim(), email, studentId, department, password });
+      setUser(user);
+      setUser(user);
       navigation.reset({ index: 0, routes: [{ name: 'MainApp' }] });
     } catch (err: any) {
       Alert.alert('Registration Failed', err.message);

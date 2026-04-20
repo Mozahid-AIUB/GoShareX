@@ -43,38 +43,38 @@ export type RootStackParamList = {
   LiveMap: undefined;
 };
 
-export type RootNavProp
+export type RootNavProp<
   T extends keyof RootStackParamList = keyof RootStackParamList
-  > = StackNavigationProp<RootStackParamList, T>;
+> = StackNavigationProp<RootStackParamList, T>;
 
-export type RootRouteProp<T extends keyof RootStackParamList> = RouteProp
-RootStackParamList,
+export type RootRouteProp<T extends keyof RootStackParamList> = RouteProp<
+  RootStackParamList,
   T
-  >;
+>;
 
-export type RootScreenProps<T extends keyof RootStackParamList> = StackScreenProps
-RootStackParamList,
+export type RootScreenProps<T extends keyof RootStackParamList> = StackScreenProps<
+  RootStackParamList,
   T
-  >;
+>;
 
-export type MainTabNavProp = CompositeNavigationProp
-BottomTabNavigationProp<MainTabParamList>,
-  StackNavigationProp < RootStackParamList >
+export type MainTabNavProp = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList>,
+  StackNavigationProp<RootStackParamList>
 >;
 
 // Aliases for backward compatibility
-export type RootStackNavigationProp
+export type RootStackNavigationProp<
   T extends keyof RootStackParamList = keyof RootStackParamList
-  > = StackNavigationProp<RootStackParamList, T>;
+> = StackNavigationProp<RootStackParamList, T>;
 
-export type RootStackRouteProp<T extends keyof RootStackParamList> = RouteProp
-RootStackParamList,
+export type RootStackRouteProp<T extends keyof RootStackParamList> = RouteProp<
+  RootStackParamList,
   T
-  >;
+>;
 
-export type RootStackScreenProps<T extends keyof RootStackParamList> = StackScreenProps
-RootStackParamList,
+export type RootStackScreenProps<T extends keyof RootStackParamList> = StackScreenProps<
+  RootStackParamList,
   T
-  >;
+>;
 
 export type MainTabScreenNavigationProp = MainTabNavProp;

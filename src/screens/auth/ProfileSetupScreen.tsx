@@ -47,7 +47,7 @@ const ProfileSetupScreen = () => {
         studentId,
         department,
       });
-      navigation.reset({ index: 0, routes: [{ name: 'MainApp' }] });
+      navigation.reset({ index: 0, routes: [{ name: 'MainApp' as any }] });
     } catch (err: any) {
       Alert.alert('Error', err.message);
     } finally {
