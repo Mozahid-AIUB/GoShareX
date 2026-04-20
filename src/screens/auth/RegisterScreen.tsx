@@ -1,3 +1,4 @@
+import { RootNavProp } from '@/navigation/types';
 import React, { useState } from 'react';
 import {
   View,
@@ -16,7 +17,7 @@ import { isValidAIUBEmail, isValidStudentId } from '@/utils/validators';
 const DEPARTMENTS = ['CSE', 'EEE', 'BBA', 'LLB', 'Architecture', 'English', 'Other'];
 
 const RegisterScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<RootNavProp>();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [studentId, setStudentId] = useState('');

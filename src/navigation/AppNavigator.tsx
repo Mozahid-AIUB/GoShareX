@@ -1,11 +1,12 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { RootStackParamList } from './types';
+
 import AuthNavigator from './AuthNavigator';
 import BottomTabNavigator from './BottomTabNavigator';
 import SplashScreen from '@/screens/auth/SplashScreen';
 import SuspensionScreen from '@/screens/auth/SuspensionScreen';
-
 import ChatScreen from '@/screens/chat/ChatScreen';
 import RideConfirmedScreen from '@/screens/ride/RideConfirmedScreen';
 import RideActiveScreen from '@/screens/ride/RideActiveScreen';
@@ -13,29 +14,21 @@ import RideCompleteScreen from '@/screens/ride/RideCompleteScreen';
 import RideHistoryScreen from '@/screens/profile/RideHistoryScreen';
 import SettingsScreen from '@/screens/profile/SettingsScreen';
 
-const Stack = createStackNavigator();
+// Typed stack — VSCode now knows every valid screen name & params
+const Stack = createStackNavigator<RootStackParamList>();
 
 const AppNavigator = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {/* Entry point — routes based on auth + suspension state */}
         <Stack.Screen name="Splash" component={SplashScreen} />
-
-        {/* Auth flow */}
         <Stack.Screen name="Auth" component={AuthNavigator} />
-
-        {/* Suspension wall — no back gesture */}
         <Stack.Screen
           name="Suspension"
           component={SuspensionScreen}
           options={{ gestureEnabled: false }}
         />
-
-        {/* Main app */}
         <Stack.Screen name="MainApp" component={BottomTabNavigator} />
-
-        {/* Modal / overlay screens */}
         <Stack.Screen
           name="Chat"
           component={ChatScreen}

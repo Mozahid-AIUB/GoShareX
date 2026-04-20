@@ -9,11 +9,12 @@ import {
 import { TextInput, Button, Text, HelperText } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { RootNavProp } from '@/navigation/types';
 import authService from '@/services/firebase/authService';
 import { isValidAIUBEmail } from '@/utils/validators';
 
 const LoginScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<RootNavProp>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,28 +25,19 @@ const LoginScreen = () => {
       Alert.alert('Error', 'Please fill all fields');
       return;
     }
-
     if (!isValidAIUBEmail(email)) {
       Alert.alert('Error', 'শুধু AIUB email দিয়ে login করা যাবে');
       return;
     }
-
     setLoading(true);
     try {
       await authService.login({ email, password });
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'MainApp' }],
-      });
+      navigation.reset({ index: 0, routes: [{ name: 'MainApp' }] });
     } catch (error: any) {
       Alert.alert('Login Failed', error.message);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleRegister = () => {
-    navigation.navigate('Register');
   };
 
   return (
@@ -68,9 +60,7 @@ const LoginScreen = () => {
             mode="outlined"
             style={styles.input}
           />
-          <HelperText type="info">
-            Use your @aiub.edu.bd email
-          </HelperText>
+          <HelperText type="info">Use your @aiub.edu.bd email</HelperText>
 
           <TextInput
             label="Password"
@@ -99,7 +89,7 @@ const LoginScreen = () => {
 
           <Button
             mode="text"
-            onPress={handleRegister}
+            onPress={() => navigation.navigate('Register' as any)}
             disabled={loading}
           >
             Don't have an account? Register
@@ -111,42 +101,14 @@ const LoginScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'center',
-  },
-  logo: {
-    fontSize: 60,
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    color: '#1A73E8',
-  },
-  subtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-    color: '#666',
-    marginBottom: 40,
-  },
-  form: {
-    width: '100%',
-  },
-  input: {
-    marginBottom: 10,
-  },
-  loginButton: {
-    marginTop: 20,
-    marginBottom: 10,
-  },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  content: { flex: 1, padding: 20, justifyContent: 'center' },
+  logo: { fontSize: 60, textAlign: 'center', marginBottom: 10 },
+  title: { fontSize: 28, fontWeight: 'bold', textAlign: 'center', color: '#1A73E8' },
+  subtitle: { fontSize: 14, textAlign: 'center', color: '#666', marginBottom: 40 },
+  form: { width: '100%' },
+  input: { marginBottom: 10 },
+  loginButton: { marginTop: 20, marginBottom: 10 },
 });
 
 export default LoginScreen;
