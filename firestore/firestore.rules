@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAIUBUser() {
+      return request.auth != null
+        && request.auth.token.email.matches('.*@aiub\\.edu\\.bd');
+    }
+
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    function isRideParticipant() {
+      return request.auth.uid == resource.data.rider1
+          || request.auth.uid == resource.data.rider2;
+    }
+
+    function isChatParticipant() {
+      return request.auth.uid in resource.data.participants;
+    }
+
+    match /users/{userId} {
+      allow read:  if isAIUBUser();
+      allow write: if isOwner(userId);
+    }
+
+    match /active_riders/{userId} {
+      allow read:  if isAIUBUser();
+      allow write: if isOwner(userId);
+    }
+
+    match /rides/{rideId} {
+      allow read, write: if isAIUBUser() && isRideParticipant();
+    }
+
+    match /chats/{chatId} {
+      allow read, write: if isAIUBUser() && isChatParticipant();
+    }
+
+    match /posts/{postId} {
+      allow read:  if isAIUBUser();
+      allow create: if isAIUBUser() && isOwner(request.resource.data.authorId);
+      allow update: if isAIUBUser() && isOwner(resource.data.authorId);
+      allow delete: if isOwner(resource.data.authorId);
+    }
+
+    match /fare_table/{fareId} {
+      allow read: if isAIUBUser();
+      allow write: if false; // admin-only via Cloud Functions
+    }
+  }
+}

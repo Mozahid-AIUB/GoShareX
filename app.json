@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "RideShare AIUB",
+    "slug": "rideshare-aiub",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1A73E8"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#1A73E8"
+      },
+      "package": "com.aiub.rideshare",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED"
+      ],
+      "googleServicesFile": "./google-services.json"
+    },
+    "plugins": [
+      "expo-location",
+      "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "34.0.0"
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "FIREBASE_API_KEY": "AIzaSyB6Xce4UW1l1rTcoU8VINQlRgF3Wd5pV5M",
+      "FIREBASE_AUTH_DOMAIN": "rideshare-aiub.firebaseapp.com",
+      "FIREBASE_DATABASE_URL": "https://rideshare-aiub-default-rtdb.asia-southeast1.firebasedatabase.app",
+      "FIREBASE_PROJECT_ID": "rideshare-aiub",
+      "FIREBASE_STORAGE_BUCKET": "rideshare-aiub.firebasestorage.app",
+      "FIREBASE_MESSAGING_SENDER_ID": "612454425143",
+      "FIREBASE_APP_ID": "1:612454425143:web:b9f88eba7614aecc7115b2",
+      "FIREBASE_MEASUREMENT_ID": "G-4C79S2EWJF",
+      "GOOGLE_MAPS_API_KEY": "placeholder_key",
+      "eas": {
+        "projectId": "your-eas-project-id"
+      }
+    }
+  }
+}
