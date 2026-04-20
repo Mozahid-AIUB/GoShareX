@@ -7,7 +7,7 @@ export function useLocation() {
 
   useEffect(() => {
     getCurrentLocation().then((loc) => {
-      setLocation(loc.coords.latitude, loc.coords.longitude);
+      setLocation(loc.coords.latitude, loc.coords.longitude, loc.coords.accuracy ?? 0);
     }).catch(console.error);
   }, []);
 

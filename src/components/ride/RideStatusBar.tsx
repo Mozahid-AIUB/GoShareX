@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import AppText from '../common/AppText';
 
 type RideStep = 'searching' | 'matched' | 'confirmed' | 'active' | 'complete';
@@ -66,7 +66,7 @@ const RideStatusBar: React.FC<RideStatusBarProps> = ({ currentStep }) => {
                   />
                 ) : (
                   <MaterialCommunityIcons
-                    name={step.icon}
+                    name={step.icon as any}
                     size={14}
                     color={iconColor}
                   />

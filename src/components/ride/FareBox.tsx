@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import AppText from '../common/AppText';
 
 interface FareBoxProps {
@@ -20,12 +19,7 @@ const FareBox: React.FC<FareBoxProps> = ({
   const splitAmount = Math.ceil(totalFare / riders);
 
   return (
-    <LinearGradient
-      colors={['#1A73E8', '#1557B0']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <View style={styles.routeRow}>
         <AppText variant="caption" style={styles.routeLabel} numberOfLines={1}>
           {pickup}
@@ -74,12 +68,13 @@ const FareBox: React.FC<FareBoxProps> = ({
           প্রতিজনের ভাগ
         </AppText>
       </View>
-    </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: '#1A73E8',
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingVertical: 18,

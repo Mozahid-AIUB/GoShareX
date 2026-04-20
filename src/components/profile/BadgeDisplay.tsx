@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import AppText from '../common/AppText';
 import { UserBadge } from '../../types';
 
@@ -46,7 +46,7 @@ const BadgeDisplay: React.FC<BadgeDisplayProps> = ({
       <View style={styles.header}>
         <View style={[styles.iconCircle, { backgroundColor: currentTier.color }]}>
           <MaterialCommunityIcons
-            name={currentTier.icon}
+            name={currentTier.icon as any}
             size={26}
             color="#FFFFFF"
           />
@@ -65,7 +65,7 @@ const BadgeDisplay: React.FC<BadgeDisplayProps> = ({
               Next
             </AppText>
             <MaterialCommunityIcons
-              name={nextTier.icon}
+              name={nextTier.icon as any}
               size={18}
               color={nextTier.color}
             />

@@ -17,7 +17,7 @@
 
 import { getDoc, getDocs, collection, query, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/config/firebase.config';
-import { DESTINATIONS, Destination } from '@/constants/destinations';
+import { DESTINATIONS } from '@/constants/destinations';
 import { FARE_TABLE } from '@/constants/fareTable';
 import type { User } from '@/types/auth.types';
 
@@ -109,7 +109,7 @@ class AIService {
     const hour = new Date().getHours();
 
     // Fetch user's last 10 rides
-    let userHistory: Record<string, number> = {};
+    const userHistory: Record<string, number> = {};
     try {
       const q = query(
         collection(db, 'rides'),

@@ -1,3 +1,5 @@
+import type { Coordinates } from '@/types';
+
 /**
  * Calculate distance between two coordinates using Haversine formula
  * @param lat1 Latitude of first point
@@ -27,19 +29,77 @@ export const calculateDistance = (
   return R * c; // Distance in meters
 };
 
+export function haversineDistance(start: Coordinates, end: Coordinates): number;
+export function haversineDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number;
+export function haversineDistance(
+  startOrLat1: Coordinates | number,
+  endOrLon1: Coordinates | number,
+  lat2?: number,
+  lon2?: number
+): number {
+  if (typeof startOrLat1 === 'object' && typeof endOrLon1 === 'object') {
+    return calculateDistance(
+      startOrLat1.lat,
+      startOrLat1.lng,
+      endOrLon1.lat,
+      endOrLon1.lng
+    );
+  }
+
+  if (
+    typeof startOrLat1 === 'number' &&
+    typeof endOrLon1 === 'number' &&
+    typeof lat2 === 'number' &&
+    typeof lon2 === 'number'
+  ) {
+    return calculateDistance(startOrLat1, endOrLon1, lat2, lon2);
+  }
+
+  throw new Error('Invalid arguments passed to haversineDistance');
+}
+
 /**
  * Check if a point is within a certain radius of another point
  */
-export const isWithinRadius = (
+export function isWithinRadius(
+  start: Coordinates,
+  end: Coordinates,
+  radiusMeters: number
+): boolean;
+export function isWithinRadius(
   lat1: number,
   lon1: number,
   lat2: number,
   lon2: number,
   radiusMeters: number
-): boolean => {
-  const distance = calculateDistance(lat1, lon1, lat2, lon2);
-  return distance <= radiusMeters;
-};
+): boolean;
+export function isWithinRadius(
+  startOrLat1: Coordinates | number,
+  endOrLon1: Coordinates | number,
+  lat2OrRadius: number,
+  lon2?: number,
+  radiusMeters?: number
+): boolean {
+  if (typeof startOrLat1 === 'object' && typeof endOrLon1 === 'object') {
+    return haversineDistance(startOrLat1, endOrLon1) <= lat2OrRadius;
+  }
+
+  if (
+    typeof startOrLat1 === 'number' &&
+    typeof endOrLon1 === 'number' &&
+    typeof lon2 === 'number' &&
+    typeof radiusMeters === 'number'
+  ) {
+    return calculateDistance(startOrLat1, endOrLon1, lat2OrRadius, lon2) <= radiusMeters;
+  }
+
+  throw new Error('Invalid arguments passed to isWithinRadius');
+}
 
 /**
  * Format distance for display

@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Message } from '../../types';
 import AppText from '../common/AppText';
 
@@ -56,16 +55,11 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, isOwn }) => {
     <View style={[styles.row, isOwn ? styles.rowRight : styles.rowLeft]}>
       {isOwn ? (
         <View style={styles.ownGroup}>
-          <LinearGradient
-            colors={['#1A73E8', '#1557B0']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.bubble, styles.ownBubble]}
-          >
+          <View style={[styles.bubble, styles.ownBubble, styles.ownBubbleFill]}>
             <AppText variant="body2" style={styles.ownText}>
               {message.text}
             </AppText>
-          </LinearGradient>
+          </View>
           <View style={styles.metaRow}>
             <AppText variant="caption" style={styles.timestamp}>
               {formatTime(message.timestamp)}
@@ -113,6 +107,9 @@ const styles = StyleSheet.create({
   },
   ownBubble: {
     borderBottomRightRadius: 4,
+  },
+  ownBubbleFill: {
+    backgroundColor: '#1A73E8',
   },
   theirBubble: {
     backgroundColor: '#FFFFFF',

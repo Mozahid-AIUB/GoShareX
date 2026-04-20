@@ -15,16 +15,12 @@ import authService from '@/services/firebase/authService';
 import { isValidAIUBEmail, isValidStudentId } from '@/utils/validators';
 import { useAuthStore } from '@/store';
 
-
-const DEPARTMENTS = ['CSE', 'EEE', 'BBA', 'LLB', 'Architecture', 'English', 'Other'];
-
 const RegisterScreen = () => {
   const navigation = useNavigation<RootNavProp>();
   const { setUser } = useAuthStore();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [studentId, setStudentId] = useState('');
-  const [department, setDepartment] = useState('CSE');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -32,7 +28,7 @@ const RegisterScreen = () => {
 
   const validate = (): string | null => {
     if (!name.trim()) return 'Name is required';
-    if (!isValidAIUBEmail(email)) return 'Use your @aiub.edu.bd email';
+    if (!isValidAIUBEmail(email)) return 'Use your @student.aiub.edu email';
     if (!isValidStudentId(studentId)) return 'Student ID format: 12-34567-1';
     if (password.length < 6) return 'Password must be at least 6 characters';
     if (password !== confirmPassword) return 'Passwords do not match';
@@ -48,9 +44,9 @@ const RegisterScreen = () => {
 
     setLoading(true);
     try {
-      const user = const user = await authService.register({ name: name.trim(), email, studentId, department, password });
-      setUser(user);
-      setUser(user);
+      const newUser = await authService.register({ name: name.trim(), email, studentId, password });
+
+      setUser(newUser);
       navigation.reset({ index: 0, routes: [{ name: 'MainApp' }] });
     } catch (err: any) {
       Alert.alert('Registration Failed', err.message);
@@ -87,7 +83,7 @@ const RegisterScreen = () => {
             keyboardType="email-address"
             autoCapitalize="none"
           />
-          <HelperText type="info">Use your @aiub.edu.bd email</HelperText>
+          <HelperText type="info">Use your @student.aiub.edu email</HelperText>
 
           <TextInput
             label="Student ID (e.g. 12-34567-1)"
@@ -96,22 +92,6 @@ const RegisterScreen = () => {
             mode="outlined"
             style={styles.input}
           />
-
-          <Text style={styles.label}>Department</Text>
-          <View style={styles.deptRow}>
-            {DEPARTMENTS.map((d) => (
-              <Button
-                key={d}
-                mode={department === d ? 'contained' : 'outlined'}
-                onPress={() => setDepartment(d)}
-                style={styles.deptBtn}
-                labelStyle={styles.deptLabel}
-                compact
-              >
-                {d}
-              </Button>
-            ))}
-          </View>
 
           <TextInput
             label="Password"
@@ -166,10 +146,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 26, fontWeight: 'bold', textAlign: 'center', color: '#1A73E8', marginTop: 20 },
   subtitle: { fontSize: 13, textAlign: 'center', color: '#666', marginBottom: 24 },
   input: { marginBottom: 8 },
-  label: { fontSize: 14, color: '#444', marginBottom: 8, marginTop: 4 },
-  deptRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 16 },
-  deptBtn: { marginBottom: 4 },
-  deptLabel: { fontSize: 11 },
   registerButton: { marginTop: 16, marginBottom: 10 },
 });
 

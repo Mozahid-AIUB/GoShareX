@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 interface RatingStarsProps {
   rating: number;
@@ -46,7 +46,7 @@ const RatingStars: React.FC<RatingStarsProps> = ({
               activeOpacity={0.7}
             >
               <MaterialCommunityIcons
-                name={iconName}
+                name={iconName as any}
                 size={size}
                 color={isFilled ? '#FF8F00' : '#D1D5DB'}
               />
@@ -57,7 +57,7 @@ const RatingStars: React.FC<RatingStarsProps> = ({
         return (
           <MaterialCommunityIcons
             key={i}
-            name={iconName}
+            name={iconName as any}
             size={size}
             color={isFilled ? '#FF8F00' : '#D1D5DB'}
           />

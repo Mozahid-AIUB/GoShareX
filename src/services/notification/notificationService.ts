@@ -11,10 +11,6 @@
 import notifee, {
   AndroidImportance,
   AndroidVisibility,
-  IOSAuthorizationStatus,
-  TriggerType,
-  TimestampTrigger,
-  AndroidNotificationSetting,
 } from '@notifee/react-native';
 
 // ─── Channel / Category IDs ───────────────────────────────────────────────────

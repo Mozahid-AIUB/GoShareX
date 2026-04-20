@@ -6,6 +6,7 @@ import {
   check,
   PERMISSIONS,
   request,
+  requestNotifications,
   RESULTS,
   Permission,
 } from 'react-native-permissions';
@@ -63,14 +64,14 @@ export async function checkLocationPermission(): Promise<boolean> {
 export async function requestNotificationPermission(): Promise<boolean> {
   try {
     if (Platform.OS === 'ios') {
-      const result = await request(PERMISSIONS.IOS.NOTIFICATIONS);
-      return result === RESULTS.GRANTED || result === RESULTS.LIMITED;
+      const { status } = await requestNotifications(['alert', 'sound', 'badge']);
+      return status === RESULTS.GRANTED || status === RESULTS.LIMITED;
     }
 
     // Android 13+
     if (Platform.OS === 'android' && Platform.Version >= 33) {
-      const result = await request(PERMISSIONS.ANDROID.POST_NOTIFICATIONS);
-      return result === RESULTS.GRANTED;
+      const { status } = await requestNotifications(['alert', 'sound', 'badge']);
+      return status === RESULTS.GRANTED;
     }
 
     // Android < 13: permission not required

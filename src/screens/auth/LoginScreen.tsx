@@ -13,7 +13,7 @@ import { RootNavProp } from '@/navigation/types';
 import authService from '@/services/firebase/authService';
 import { isValidAIUBEmail } from '@/utils/validators';
 import { useAuthStore } from '@/store';
-import { useAuthStore } from '@/store';
+
 
 const LoginScreen = () => {
 
@@ -99,7 +99,7 @@ const LoginScreen = () => {
             onPress={() => navigation.navigate('Register' as any)}
             disabled={loading}
           >
-            Don't have an account? Register
+            Don&apos;t have an account? Register
           </Button>
         </View>
       </KeyboardAvoidingView>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ActiveRider } from '../../types';
 import Avatar from '../common/Avatar';
 import AppText from '../common/AppText';
@@ -93,7 +93,7 @@ const RiderCard: React.FC<RiderCardProps> = ({
               {rider.name}
             </AppText>
             <MaterialCommunityIcons
-              name={badgeIcon}
+              name={badgeIcon as any}
               size={16}
               color={badgeColor}
             />

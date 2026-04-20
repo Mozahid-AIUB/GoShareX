@@ -1,3 +1,5 @@
+
+import type { RootNavProp } from '@/navigation/types';
 import React, { useState } from 'react';
 import {
   View,
@@ -9,19 +11,15 @@ import {
 } from 'react-native';
 import { TextInput, Button, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import authService from '@/services/firebase/authService';
 import { auth } from '@/config/firebase.config';
 import { isValidStudentId } from '@/utils/validators';
 
-const DEPARTMENTS = ['CSE', 'EEE', 'BBA', 'LLB', 'Architecture', 'English', 'Other'];
-
 const ProfileSetupScreen = () => {
-  const navigation = useNavigation();
-  const route = useRoute();
+  const navigation = useNavigation<RootNavProp>();
   const [name, setName] = useState('');
   const [studentId, setStudentId] = useState('');
-  const [department, setDepartment] = useState('CSE');
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
@@ -45,9 +43,11 @@ const ProfileSetupScreen = () => {
       await authService.completeProfile(uid, {
         name: name.trim(),
         studentId,
-        department,
       });
-      navigation.reset({ index: 0, routes: [{ name: 'MainApp' as any }] });
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainApp', params: undefined }],
+      });
     } catch (err: any) {
       Alert.alert('Error', err.message);
     } finally {
@@ -82,22 +82,6 @@ const ProfileSetupScreen = () => {
             style={styles.input}
           />
 
-          <Text style={styles.label}>Department</Text>
-          <View style={styles.deptRow}>
-            {DEPARTMENTS.map((d) => (
-              <Button
-                key={d}
-                mode={department === d ? 'contained' : 'outlined'}
-                onPress={() => setDepartment(d)}
-                style={styles.deptBtn}
-                labelStyle={styles.deptLabel}
-                compact
-              >
-                {d}
-              </Button>
-            ))}
-          </View>
-
           <Button
             mode="contained"
             onPress={handleSave}
@@ -119,10 +103,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 26, fontWeight: 'bold', textAlign: 'center', color: '#1A73E8', marginTop: 20 },
   subtitle: { fontSize: 13, textAlign: 'center', color: '#666', marginBottom: 30 },
   input: { marginBottom: 12 },
-  label: { fontSize: 14, color: '#444', marginBottom: 8, marginTop: 4 },
-  deptRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 24 },
-  deptBtn: { marginBottom: 4 },
-  deptLabel: { fontSize: 11 },
   saveButton: { marginTop: 8 },
 });
 

@@ -17,4 +17,5 @@ export interface Chat {
   lastTimestamp?: number;
   unreadCount: Record<string, number>;
   dealConfirmed: Record<string, boolean>;
+  createdAt?: number;
 }

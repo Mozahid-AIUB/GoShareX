@@ -5,7 +5,7 @@ export interface User {
   name: string;
   email: string;
   studentId: string;
-  department: string;
+  department?: string;
   photoURL?: string;
   rating: number;
   totalRides: number;
@@ -32,4 +32,5 @@ export interface ActiveRider {
   rating: number;
   badge: UserBadge;
   photoURL?: string;
+  distanceMeters?: number;
 }

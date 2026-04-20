@@ -2,7 +2,7 @@ import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firest
 import { db } from '@config/firebase';
 import { haversineDistance } from '@utils/haversine';
 import { PROXIMITY_RADIUS_METERS, LOCATION_UPDATE_INTERVAL_MS } from '@constants/index';
-import type { ActiveRider } from '@types/index';
+import type { ActiveRider } from '@/types';
 
 /**
  * Subscribe to nearby riders within PROXIMITY_RADIUS_METERS

@@ -5,7 +5,7 @@ export interface FirebaseUser {
   email: string;
   name: string;
   studentId: string;
-  department: string;
+  department?: string;
   phoneNumber?: string;
   photoURL?: string;
   rating: number;

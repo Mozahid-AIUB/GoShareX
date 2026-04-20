@@ -40,7 +40,7 @@ export type RootStackParamList = {
   PostBoard: { highlightPostId?: string };
   CreatePost: undefined;
   Report: { reportedUserId: string; rideId?: string };
-  LiveMap: undefined;
+  LiveMap: { destination?: string; pickup?: string } | undefined;
 };
 
 export type RootNavProp<
@@ -78,3 +78,8 @@ export type RootStackScreenProps<T extends keyof RootStackParamList> = StackScre
 >;
 
 export type MainTabScreenNavigationProp = MainTabNavProp;
+
+export type RideStackParamList = Pick<
+  RootStackParamList,
+  'RideConfirmed' | 'RideActive' | 'RideComplete'
+>;

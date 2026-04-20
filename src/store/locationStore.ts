@@ -8,6 +8,8 @@ interface LocationState {
 }
 
 interface LocationStore extends LocationState {
+  readonly lat: number | null;
+  readonly lng: number | null;
   setLocation: (lat: number, lng: number, accuracy: number) => void;
   setTracking: (tracking: boolean) => void;
   clearLocation: () => void;
@@ -18,6 +20,12 @@ export const useLocationStore = create<LocationStore>((set) => ({
   longitude: null,
   accuracy: null,
   isTracking: false,
+  get lat() {
+    return this.latitude;
+  },
+  get lng() {
+    return this.longitude;
+  },
   
   setLocation: (lat, lng, accuracy) =>
     set({

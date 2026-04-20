@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import AppText from '../common/AppText';
 import { RideStatus } from '../../types';
 
@@ -59,7 +59,7 @@ const RideStatusBanner: React.FC<RideStatusBannerProps> = ({
     <View style={[styles.banner, { backgroundColor: config.bg }]}>
       <View style={[styles.iconCircle, { backgroundColor: config.color }]}>
         <MaterialCommunityIcons
-          name={config.icon}
+          name={config.icon as any}
           size={16}
           color="#FFFFFF"
         />

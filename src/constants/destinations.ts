@@ -6,6 +6,7 @@ export interface Destination {
   lng: number;
   baseFare: number;
   estimatedTime: number;
+  geofenceRadius?: number;
 }
 
 export const DESTINATIONS: Destination[] = [
@@ -17,6 +18,7 @@ export const DESTINATIONS: Destination[] = [
     lng: 90.4274,
     baseFare: 40,
     estimatedTime: 15,
+    geofenceRadius: 100,
   },
   {
     id: 'badda',
@@ -26,6 +28,7 @@ export const DESTINATIONS: Destination[] = [
     lng: 90.4267,
     baseFare: 30,
     estimatedTime: 10,
+    geofenceRadius: 100,
   },
   {
     id: 'rampura',
@@ -35,6 +38,7 @@ export const DESTINATIONS: Destination[] = [
     lng: 90.4241,
     baseFare: 50,
     estimatedTime: 20,
+    geofenceRadius: 100,
   },
   {
     id: 'notun_bazar',
@@ -44,6 +48,7 @@ export const DESTINATIONS: Destination[] = [
     lng: 90.4328,
     baseFare: 35,
     estimatedTime: 12,
+    geofenceRadius: 100,
   },
   {
     id: 'gulshan',
@@ -53,6 +58,7 @@ export const DESTINATIONS: Destination[] = [
     lng: 90.4078,
     baseFare: 60,
     estimatedTime: 25,
+    geofenceRadius: 100,
   },
   {
     id: 'banani',
@@ -62,6 +68,7 @@ export const DESTINATIONS: Destination[] = [
     lng: 90.4066,
     baseFare: 70,
     estimatedTime: 30,
+    geofenceRadius: 100,
   },
   {
     id: 'uttara',
@@ -71,6 +78,7 @@ export const DESTINATIONS: Destination[] = [
     lng: 90.3795,
     baseFare: 55,
     estimatedTime: 35,
+    geofenceRadius: 100,
   },
 ];
 

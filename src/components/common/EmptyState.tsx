@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import AppText from './AppText';
 import AppButton from './AppButton';
 
@@ -28,7 +28,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
   return (
     <View style={[styles.container, style]}>
       <View style={[styles.iconContainer, { width: iconSize + 32, height: iconSize + 32, borderRadius: (iconSize + 32) / 2 }]}>
-        <Icon name={icon} size={iconSize} color={iconColor} />
+        <Icon name={icon as any} size={iconSize} color={iconColor} />
       </View>
 
       <AppText variant="h3" bold style={styles.title}>

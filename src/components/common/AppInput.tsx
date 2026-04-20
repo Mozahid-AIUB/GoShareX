@@ -10,7 +10,7 @@ import {
   Platform,
   Animated,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import AppText from './AppText';
 
 const COLORS = {
@@ -125,7 +125,7 @@ const AppInput: React.FC<AppInputProps> = ({
       >
         {leftIcon ? (
           <Icon
-            name={leftIcon}
+            name={leftIcon as any}
             size={20}
             color={iconColor}
             style={styles.leftIcon}

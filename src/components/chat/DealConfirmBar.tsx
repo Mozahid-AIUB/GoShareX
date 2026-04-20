@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import AppText from '../common/AppText';
 
 interface DealConfirmBarProps {
@@ -23,12 +22,7 @@ const DealConfirmBar: React.FC<DealConfirmBarProps> = ({
   if (bothConfirmed) {
     return (
       <View style={styles.confirmedContainer}>
-        <LinearGradient
-          colors={['#43A047', '#2E7D32']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.confirmedBanner}
-        >
+        <View style={[styles.confirmedBanner, styles.confirmedBannerFill]}>
           <MaterialCommunityIcons
             name="check-circle"
             size={22}
@@ -37,7 +31,7 @@ const DealConfirmBar: React.FC<DealConfirmBarProps> = ({
           <AppText variant="body1" bold style={styles.confirmedText}>
             Deal Confirmed! Ride শুরু হবে।
           </AppText>
-        </LinearGradient>
+        </View>
       </View>
     );
   }
@@ -88,12 +82,7 @@ const DealConfirmBar: React.FC<DealConfirmBarProps> = ({
           activeOpacity={0.8}
           style={styles.buttonWrapper}
         >
-          <LinearGradient
-            colors={['#1A73E8', '#1557B0']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.button}
-          >
+          <View style={[styles.button, styles.buttonFill]}>
             <MaterialCommunityIcons
               name="handshake"
               size={20}
@@ -102,7 +91,7 @@ const DealConfirmBar: React.FC<DealConfirmBarProps> = ({
             <AppText variant="button" bold style={styles.buttonText}>
               Deal Confirm করো
             </AppText>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
       )}
 
@@ -170,6 +159,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
   },
+  buttonFill: {
+    backgroundColor: '#1A73E8',
+  },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
@@ -199,6 +191,9 @@ const styles = StyleSheet.create({
     gap: 10,
     borderRadius: 12,
     paddingVertical: 14,
+  },
+  confirmedBannerFill: {
+    backgroundColor: '#43A047',
   },
   confirmedText: {
     color: '#FFFFFF',

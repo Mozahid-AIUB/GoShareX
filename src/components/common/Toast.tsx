@@ -2,12 +2,11 @@ import React, { Component } from 'react';
 import {
   Animated,
   StyleSheet,
-  View,
   TouchableOpacity,
   Dimensions,
   Platform,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import AppText from './AppText';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -63,10 +62,8 @@ interface ToastState {
   type: ToastType;
 }
 
-// Singleton reference
-let _toastRef: Toast | null = null;
-
 class Toast extends Component<Record<string, never>, ToastState> {
+  private static instance: Toast | null = null;
   private translateY: Animated.Value;
   private opacity: Animated.Value;
   private dismissTimer: ReturnType<typeof setTimeout> | null = null;
@@ -83,19 +80,19 @@ class Toast extends Component<Record<string, never>, ToastState> {
   }
 
   componentDidMount(): void {
-    _toastRef = this;
+    Toast.instance = this;
   }
 
   componentWillUnmount(): void {
-    _toastRef = null;
+    Toast.instance = null;
     if (this.dismissTimer) {
       clearTimeout(this.dismissTimer);
     }
   }
 
   static show(options: ToastOptions): void {
-    if (_toastRef) {
-      _toastRef.showToast(options);
+    if (Toast.instance) {
+      Toast.instance.showToast(options);
     }
   }
 
@@ -166,7 +163,7 @@ class Toast extends Component<Record<string, never>, ToastState> {
         pointerEvents="box-none"
       >
         <Icon
-          name={config.icon}
+          name={config.icon as any}
           size={22}
           color={config.iconColor}
           style={styles.icon}

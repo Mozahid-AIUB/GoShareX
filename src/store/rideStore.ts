@@ -16,6 +16,8 @@ interface RideStore extends RideState {
   setPartner: (partner: any) => void;
   setDestination: (destination: string) => void;
   setPickupPoint: (pickup: string) => void;
+  nearbyRiders: any[];
+  setNearbyRiders: (riders: any[]) => void;
   clearRide: () => void;
 
   // aliases used by HomeScreen (src/screens/main/HomeScreen & src/screens/home/HomeScreen)
@@ -29,6 +31,7 @@ export const useRideStore = create<RideStore>((set, get) => ({
   partner: null,
   destination: null,
   pickupPoint: null,
+  nearbyRiders: [],
 
   // Computed aliases — read-through to canonical state
   get selectedDestination() { return get().destination; },
@@ -39,6 +42,7 @@ export const useRideStore = create<RideStore>((set, get) => ({
   setPartner: (partner) => set({ partner }),
   setDestination: (destination) => set({ destination }),
   setPickupPoint: (pickup) => set({ pickupPoint: pickup }),
+  setNearbyRiders: (riders) => set({ nearbyRiders: riders }),
 
   clearRide: () =>
     set({
@@ -47,5 +51,6 @@ export const useRideStore = create<RideStore>((set, get) => ({
       partner: null,
       destination: null,
       pickupPoint: null,
+      nearbyRiders: [],
     }),
 }));

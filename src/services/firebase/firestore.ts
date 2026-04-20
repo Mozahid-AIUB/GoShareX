@@ -26,6 +26,7 @@ import {
   DocumentSnapshot,
   Unsubscribe,
   CollectionReference,
+  WhereFilterOp,
 } from 'firebase/firestore';
 import { db } from '@/services/firebase/config';
 
@@ -55,11 +56,11 @@ export async function setDoc<T extends DocumentData>(
   data: WithFieldValue<T>,
   options?: { merge?: boolean },
 ): Promise<void> {
-  const ref = doc(db, collectionPath, docId);
+  const ref = doc(db, collectionPath, docId) as ReturnType<typeof doc>;
   if (options?.merge) {
-    await firestoreSetDoc(ref, data, { merge: true });
+    await firestoreSetDoc(ref, data as WithFieldValue<DocumentData>, { merge: true });
   } else {
-    await firestoreSetDoc(ref, data);
+    await firestoreSetDoc(ref, data as WithFieldValue<DocumentData>);
   }
 }
 
@@ -92,7 +93,7 @@ export async function deleteDoc(
 
 export interface QueryOptions {
   /** Array of [field, operator, value] triples — maps to Firestore `where()` */
-  filters?: Array<[string, FirebaseFirestore.WhereFilterOp | string, unknown]>;
+  filters?: Array<[string, WhereFilterOp, unknown]>;
   /** Field name to order by */
   orderByField?: string;
   /** Direction for orderBy ('asc' | 'desc'). Defaults to 'asc'. */

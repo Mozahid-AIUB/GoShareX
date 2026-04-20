@@ -8,8 +8,7 @@ import {
   StyleProp,
   View,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import AppText from './AppText';
 
 const COLORS = {
@@ -74,7 +73,7 @@ const AppButton: React.FC<AppButtonProps> = ({
           style={styles.spinner}
         />
       ) : icon ? (
-        <Icon name={icon} size={18} color={textColor} style={styles.icon} />
+        <Icon name={icon as any} size={18} color={textColor} style={styles.icon} />
       ) : null}
       <AppText variant="button" style={[{ color: textColor }, textStyle]}>
         {title}
@@ -90,18 +89,14 @@ const AppButton: React.FC<AppButtonProps> = ({
         activeOpacity={0.85}
         style={[styles.touchBase, style]}
       >
-        <LinearGradient
-          colors={
-            isDisabled
-              ? [COLORS.disabledBg, COLORS.disabledBg]
-              : ['#1A73E8', '#1557B0']
-          }
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.gradient}
+        <View
+          style={[
+            styles.gradient,
+            { backgroundColor: isDisabled ? COLORS.disabledBg : COLORS.primary },
+          ]}
         >
           {renderInner()}
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
     );
   }

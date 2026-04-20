@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import AppText from './AppText';
 
 export type BadgeType = 'NEW_RIDER' | 'REGULAR' | 'TRUSTED' | 'ELITE';
@@ -67,7 +67,7 @@ const Badge: React.FC<BadgeProps> = ({ type, compact = false, style }) => {
       ]}
     >
       <Icon
-        name={config.icon}
+        name={config.icon as any}
         size={iconSize}
         color={config.textColor}
         style={compact ? styles.iconCompact : styles.iconFull}

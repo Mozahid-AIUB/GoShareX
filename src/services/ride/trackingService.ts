@@ -6,9 +6,10 @@
  * All tracking stops automatically when the returned cleanup functions are called.
  */
 
-import Geolocation, {
-  GeoPosition,
-  GeoError,
+import Geolocation from '@react-native-community/geolocation';
+import type {
+  GeolocationResponse,
+  GeolocationError,
 } from '@react-native-community/geolocation';
 import { updateRiderLocation } from '@/services/firebase/realtimeDb';
 import { getNearbyRiders } from '@/services/firebase/realtimeDb';
@@ -65,11 +66,10 @@ export function startMovementTracking(
   onMovementDetected: () => void,
 ): () => void {
   let lastPosition: { lat: number; lng: number; time: number } | null = null;
-  let intervalId: ReturnType<typeof setInterval>;
 
   const poll = () => {
     Geolocation.getCurrentPosition(
-      (pos: GeoPosition) => {
+      (pos: GeolocationResponse) => {
         const { latitude: lat, longitude: lng } = pos.coords;
         const now = Date.now();
 
@@ -90,14 +90,14 @@ export function startMovementTracking(
           logError(err as Error, { fn: 'startMovementTracking:updateRiderLocation' }),
         );
       },
-      (err: GeoError) => logError(new Error(err.message), { fn: 'startMovementTracking:poll' }),
+      (err: GeolocationError) => logError(new Error(err.message), { fn: 'startMovementTracking:poll' }),
       { enableHighAccuracy: true, timeout: 4_000, maximumAge: 2_000 },
     );
   };
 
   // First poll immediately, then on interval
   poll();
-  intervalId = setInterval(poll, POLL_INTERVAL_MS);
+  const intervalId = setInterval(poll, POLL_INTERVAL_MS);
 
   return () => clearInterval(intervalId);
 }
@@ -116,11 +116,9 @@ export function startSeparationTracking(
   partnerUid: string,
   onSeparated: () => void,
 ): () => void {
-  let intervalId: ReturnType<typeof setInterval>;
-
   const check = () => {
     Geolocation.getCurrentPosition(
-      async (pos: GeoPosition) => {
+      async (pos: GeolocationResponse) => {
         try {
           const { latitude: myLat, longitude: myLng } = pos.coords;
 
@@ -142,13 +140,13 @@ export function startSeparationTracking(
           logError(error as Error, { fn: 'startSeparationTracking:check' });
         }
       },
-      (err: GeoError) => logError(new Error(err.message), { fn: 'startSeparationTracking:gps' }),
+      (err: GeolocationError) => logError(new Error(err.message), { fn: 'startSeparationTracking:gps' }),
       { enableHighAccuracy: true, timeout: 4_000, maximumAge: 3_000 },
     );
   };
 
   check();
-  intervalId = setInterval(check, POLL_INTERVAL_MS * 2); // Less aggressive for separation
+  const intervalId = setInterval(check, POLL_INTERVAL_MS * 2); // Less aggressive for separation
 
   return () => clearInterval(intervalId);
 }

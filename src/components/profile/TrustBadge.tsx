@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import AppText from '../common/AppText';
 import { UserBadge } from '../../types';
 
@@ -36,6 +36,12 @@ const BADGE_CONFIG: Record<UserBadge, BadgeConfig> = {
     bg: '#FFFBEA',
     label: 'Elite Rider',
   },
+  Unreliable: {
+    icon: 'alert-circle',
+    color: '#D93025',
+    bg: '#FCE8E6',
+    label: 'Unreliable',
+  },
 };
 
 interface TrustBadgeProps {
@@ -53,7 +59,7 @@ const TrustBadge: React.FC<TrustBadgeProps> = ({
     return (
       <View style={[styles.compact, { backgroundColor: config.bg }]}>
         <MaterialCommunityIcons
-          name={config.icon}
+          name={config.icon as any}
           size={13}
           color={config.color}
         />
@@ -70,7 +76,7 @@ const TrustBadge: React.FC<TrustBadgeProps> = ({
   return (
     <View style={[styles.full, { backgroundColor: config.bg, borderColor: config.color }]}>
       <View style={[styles.fullIcon, { backgroundColor: config.color }]}>
-        <MaterialCommunityIcons name={config.icon} size={22} color="#FFFFFF" />
+        <MaterialCommunityIcons name={config.icon as any} size={22} color="#FFFFFF" />
       </View>
       <View style={styles.fullText}>
         <AppText variant="body1" bold style={{ color: config.color }}>

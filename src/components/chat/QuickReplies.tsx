@@ -5,7 +5,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import AppText from '../common/AppText';
 
 interface QuickReply {
@@ -49,7 +49,7 @@ const QuickReplies: React.FC<QuickRepliesProps> = ({ onSelect, disabled }) => {
             activeOpacity={disabled ? 1 : 0.7}
           >
             <MaterialCommunityIcons
-              name={reply.icon}
+              name={reply.icon as any}
               size={16}
               color={
                 disabled

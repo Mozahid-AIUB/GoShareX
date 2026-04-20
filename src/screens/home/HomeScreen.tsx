@@ -9,6 +9,7 @@ import {
 import { Text, Button, Card } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import type { RootNavProp } from '@/navigation/types';
 import { DESTINATIONS } from '@/constants/destinations';
 import { PICKUP_POINTS } from '@/constants/pickupPoints';
 import { getFare, getSplitFare } from '@/constants/fareTable';
@@ -16,7 +17,7 @@ import locationService from '@/services/firebase/locationService';
 import { auth } from '@/config/firebase.config';
 
 const HomeScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<RootNavProp<'LiveMap'>>();
   const [userName, setUserName] = useState('');
   const [selectedDestination, setSelectedDestination] = useState('');
   const [selectedPickup, setSelectedPickup] = useState('main_gate');

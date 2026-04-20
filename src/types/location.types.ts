@@ -14,4 +14,5 @@ export interface Destination {
   label: string;
   coordinates: Coordinates;
   baseFareFromMainGate: number;
+  geofenceRadius?: number;
 }

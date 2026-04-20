@@ -3,7 +3,7 @@ export interface User {
   email: string;
   name: string;
   studentId: string;
-  department: string;
+  department?: string;
   phoneNumber?: string;
   photoURL?: string;
   rating: number;
@@ -35,14 +35,14 @@ export interface LoginCredentials {
 export interface RegisterData extends LoginCredentials {
   name: string;
   studentId: string;
-  department: string;
+  department?: string;
   phoneNumber?: string;
 }
 
 export interface ProfileSetupData {
   name: string;
   studentId: string;
-  department: string;
+  department?: string;
   phoneNumber?: string;
   photoURL?: string;
 }

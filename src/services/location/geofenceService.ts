@@ -5,7 +5,7 @@ import { DESTINATIONS } from '@constants/destinations';
 export const GEOFENCE_TASK = 'RIDESHARE_GEOFENCE_TASK';
 
 export const registerGeofenceTask = (onArrive: (destinationId: string) => void) => {
-  TaskManager.defineTask(GEOFENCE_TASK, ({ data, error }: any) => {
+  TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }: any) => {
     if (error) return;
     const { eventType, region } = data;
     if (eventType === Location.GeofencingEventType.Enter) {
@@ -23,7 +23,7 @@ export const startGeofencingForDestination = async (destinationId: string) => {
       identifier: dest.id,
       latitude: dest.lat,
       longitude: dest.lng,
-      radius: dest.geofenceRadius,
+      radius: dest.geofenceRadius ?? 100,
     },
   ]);
 };

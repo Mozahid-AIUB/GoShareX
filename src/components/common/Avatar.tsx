@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Image, StyleSheet, ViewStyle } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import { View, Image, StyleSheet, ViewStyle, ImageStyle } from 'react-native';
 import AppText from './AppText';
 
 type AvatarSize = 'small' | 'medium' | 'large' | 'xlarge';
@@ -78,21 +77,27 @@ const Avatar: React.FC<AvatarProps> = ({
     height: dimension,
     borderRadius,
   };
+  const imageStyle: ImageStyle = {
+    width: dimension,
+    height: dimension,
+    borderRadius,
+  };
 
   return (
     <View style={[styles.wrapper, style]}>
       {photoURL ? (
         <Image
           source={{ uri: photoURL }}
-          style={[styles.image, containerStyle]}
+          style={[styles.image, imageStyle]}
           resizeMode="cover"
         />
       ) : (
-        <LinearGradient
-          colors={gradientColors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.gradient, containerStyle]}
+        <View
+          style={[
+            styles.gradient,
+            containerStyle,
+            { backgroundColor: gradientColors[0] },
+          ]}
         >
           <AppText
             variant="body1"
@@ -101,7 +106,7 @@ const Avatar: React.FC<AvatarProps> = ({
           >
             {initials}
           </AppText>
-        </LinearGradient>
+        </View>
       )}
 
       {showOnlineIndicator && (

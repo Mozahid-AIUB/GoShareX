@@ -6,9 +6,11 @@
  * Validate AIUB email address
  */
 export const isValidAIUBEmail = (email: string): boolean => {
-  const aiubEmailRegex = /^[a-zA-Z0-9._%+-]+@aiub\.edu\.bd$/;
+  const aiubEmailRegex = /^[a-zA-Z0-9._%+-]+@(?:student\.)?aiub\.edu$/i;
   return aiubEmailRegex.test(email.toLowerCase());
 };
+
+export const isAIUBEmail = isValidAIUBEmail;
 
 /**
  * Validate student ID format

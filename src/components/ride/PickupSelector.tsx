@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScrollView, TouchableOpacity, StyleSheet, View } from 'react-native';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { PICKUP_POINTS } from '../../constants/pickupPoints';
 import AppText from '../common/AppText';
 

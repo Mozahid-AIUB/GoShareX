@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import AppText from '../common/AppText';
 
 interface StatCardProps {
@@ -21,7 +21,7 @@ const StatCard: React.FC<StatCardProps> = ({
   return (
     <View style={styles.card}>
       <View style={[styles.iconCircle, { backgroundColor: iconBg }]}>
-        <MaterialCommunityIcons name={icon} size={22} color={iconColor} />
+        <MaterialCommunityIcons name={icon as any} size={22} color={iconColor} />
       </View>
       <AppText variant="h3" bold style={styles.value}>
         {value}
