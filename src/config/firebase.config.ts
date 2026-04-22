@@ -9,15 +9,26 @@ import {
 import { getDatabase, Database } from 'firebase/database';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+
+const {
+  FIREBASE_API_KEY,
+  FIREBASE_AUTH_DOMAIN,
+  FIREBASE_PROJECT_ID,
+  FIREBASE_STORAGE_BUCKET,
+  FIREBASE_MESSAGING_SENDER_ID,
+  FIREBASE_APP_ID,
+  FIREBASE_DATABASE_URL,
+} = Constants.expoConfig?.extra ?? {};
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyCb6OObgC57uJKq8s4u3uP06AhJBoJCMhQ',
-  authDomain: 'rideshare-aiub.firebaseapp.com',
-  projectId: 'rideshare-aiub',
-  storageBucket: 'rideshare-aiub.firebasestorage.app',
-  messagingSenderId: '612454425143',
-  appId: '1:612454425143:android:c6ae709d57451c8c7115b2',
-  databaseURL: 'https://rideshare-aiub-default-rtdb.asia-southeast1.firebasedatabase.app',
+  apiKey: FIREBASE_API_KEY,
+  authDomain: FIREBASE_AUTH_DOMAIN,
+  projectId: FIREBASE_PROJECT_ID,
+  storageBucket: FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: FIREBASE_MESSAGING_SENDER_ID,
+  appId: FIREBASE_APP_ID,
+  databaseURL: FIREBASE_DATABASE_URL,
 };
 
 const app: FirebaseApp = getApps().length === 0
