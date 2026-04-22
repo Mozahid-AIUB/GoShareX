@@ -28,10 +28,10 @@ export type RootStackParamList = {
   Auth: NavigatorScreenParams<AuthStackParamList>;
   Suspension: { remainingHours?: number; suspendedUntil?: number; reason?: string };
   MainApp: NavigatorScreenParams<MainTabParamList>;
-  RideConfirmed: { rideId: string };
-  RideActive: { rideId: string };
-  RideComplete: { rideId: string };
-  Chat: { chatId: string; partnerName: string };
+  RideConfirmed: { rideId?: string; rider?: any; chatId?: string; fare?: number; splitFare?: number };
+  RideActive: { rideId?: string; rider?: any; fare?: number; splitFare?: number };
+  RideComplete: { rideId?: string; rider?: any; fare?: number; splitFare?: number };
+  Chat: { chatId: string; partnerName: string; rider?: any };
   ChatList: undefined;
   Profile: { userId?: string };
   EditProfile: undefined;

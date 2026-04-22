@@ -1,259 +1,197 @@
-# 🚀 RideShare AIUB - Complete Setup Guide
+# RideShare AIUB Setup Guide
 
-## Step 1: Install Dependencies
+This guide reflects the current workspace as it exists today, including the Google API service layer and the current Expo-based config flow.
+
+## 1. Install Dependencies
 
 ```bash
-cd RideShareAIUB
 npm install
 ```
 
-## Step 2: Firebase Setup
+## 2. Firebase Setup
 
-### 2.1 Create Firebase Project
-1. Go to https://console.firebase.google.com
-2. Click "Add Project"
-3. Name: "RideShare AIUB"
-4. Enable Google Analytics (optional)
-5. Create project
+### 2.1 Create a Firebase project
 
-### 2.2 Enable Authentication
-1. In Firebase Console → Authentication
-2. Click "Get Started"
-3. Enable "Email/Password"
-4. Save
+1. Open `https://console.firebase.google.com`
+2. Create a project for RideShare AIUB
+3. Enable Google Analytics only if you want it for this project
 
-### 2.3 Create Firestore Database
-1. In Firebase Console → Firestore Database
-2. Click "Create Database"
-3. Start in "Production Mode"
-4. Choose location (asia-south1 for Bangladesh)
-5. Enable
+### 2.2 Enable Firebase products
 
-### 2.4 Create Realtime Database
-1. In Firebase Console → Realtime Database
-2. Click "Create Database"
-3. Start in "Locked Mode"
-4. Enable
+Enable these services:
 
-### 2.5 Enable Cloud Messaging
-1. In Firebase Console → Cloud Messaging
-2. Enable API
-3. Done
+- Authentication with `Email/Password`
+- Firestore
+- Realtime Database
+- Cloud Messaging
+- Storage
 
-### 2.6 Get Firebase Config
-1. Project Settings → General
-2. Scroll to "Your apps"
-3. Click "Web" (</>) icon
-4. Register app name: "RideShare AIUB Web"
-5. Copy the config object
+### 2.3 Add Android app
 
-### 2.7 Download google-services.json
-1. Project Settings → General
-2. Under "Your apps" → Android
-3. If not added, click "Add app"
-   - Package name: com.aiub.rideshare
-   - App nickname: RideShare AIUB
-   - Click "Register app"
-4. Download `google-services.json`
-5. Place in `android/app/` directory
+Use the Android package from the current Expo config:
 
-## Step 3: Google Maps Setup
+- package name: `com.aiub.rideshare`
 
-### 3.1 Enable Maps API
-1. Go to https://console.cloud.google.com
-2. Select your project (or create new)
-3. Enable these APIs:
-   - Maps SDK for Android
-   - Maps SDK for iOS
-   - Places API
-   - Distance Matrix API
+Then download `google-services.json` and place it in the project root path currently referenced by Expo:
 
-### 3.2 Create API Key
-1. APIs & Services → Credentials
-2. Create Credentials → API Key
-3. Copy the API key
-4. Restrict the key (optional but recommended):
-   - Application restrictions → Android apps
-   - Add your package name: com.aiub.rideshare
-   - API restrictions → Select enabled APIs
+- [google-services.json](/d:/Way_To_Job/GoShareX/google-services.json)
 
-## Step 4: Configure Environment
+Current reference:
+- [app.json](/d:/Way_To_Job/GoShareX/app.json)
 
-### 4.1 Create .env file
+## 3. Google Maps Platform Setup
+
+Open `https://console.cloud.google.com` and enable the APIs the workspace already supports:
+
+- `Maps SDK for Android`
+- `Maps SDK for iOS`
+- `Places API`
+- `Distance Matrix API`
+- `Directions API`
+- `Routes API`
+
+The app can run with:
+
+- one shared key via `GOOGLE_MAPS_API_KEY`
+
+or
+
+- split keys via `GOOGLE_PLACES_API_KEY`
+- `GOOGLE_DISTANCE_MATRIX_API_KEY`
+- `GOOGLE_DIRECTIONS_API_KEY`
+- `GOOGLE_ROUTES_API_KEY`
+
+Recommended restriction strategy:
+
+- application restriction for Android package `com.aiub.rideshare`
+- API restrictions limited to only the APIs you enabled
+
+## 4. Environment Variables
+
+Copy the example file:
+
 ```bash
-cp .env.example .env
+Copy-Item .env.example .env
 ```
 
-### 4.2 Fill in credentials
-Open `.env` and add your Firebase config:
+Then fill in values in [.env](/d:/Way_To_Job/GoShareX/.env).
+
+### Important runtime note
+
+The current app reads config from Expo `extra` through [src/config/env.ts](/d:/Way_To_Job/GoShareX/src/config/env.ts).
+
+That means:
+
+- documenting keys in `.env` is useful
+- but the values must also be available to Expo config in your workflow
+- Firebase runtime values are currently hardcoded in `env.ts` and also partially present in `app.json`
+
+Documented variables:
 
 ```env
-FIREBASE_API_KEY=AIzaSy...
-FIREBASE_AUTH_DOMAIN=rideshare-aiub.firebaseapp.com
-FIREBASE_PROJECT_ID=rideshare-aiub
-FIREBASE_STORAGE_BUCKET=rideshare-aiub.appspot.com
-FIREBASE_MESSAGING_SENDER_ID=123456789
-FIREBASE_APP_ID=1:123456789:android:abc123
-GOOGLE_MAPS_API_KEY=AIzaSy...
+FIREBASE_API_KEY=
+FIREBASE_AUTH_DOMAIN=
+FIREBASE_DATABASE_URL=
+FIREBASE_PROJECT_ID=
+FIREBASE_STORAGE_BUCKET=
+FIREBASE_MESSAGING_SENDER_ID=
+FIREBASE_APP_ID=
+FIREBASE_MEASUREMENT_ID=
+
+GOOGLE_MAPS_API_KEY=
+GOOGLE_PLACES_API_KEY=
+GOOGLE_ROUTES_API_KEY=
+GOOGLE_DIRECTIONS_API_KEY=
+GOOGLE_DISTANCE_MATRIX_API_KEY=
+
+APP_ENV=development
+APP_VERSION=1.0.0
+API_TIMEOUT=30000
+ENABLE_ANALYTICS=true
+ENABLE_CRASHLYTICS=true
+ENABLE_PERFORMANCE_MONITORING=true
+LOCATION_UPDATE_INTERVAL=5000
+PROXIMITY_RADIUS_METERS=30
+GEOFENCE_RADIUS_METERS=100
+RIDE_CONFIRMATION_TIMEOUT_SECONDS=30
+RIDE_WAITING_TIMEOUT_MINUTES=10
+AUTO_CANCEL_INACTIVE_MINUTES=5
+NOTIFICATION_SOUND_ENABLED=true
+VIBRATION_ENABLED=true
+HIGH_PRIORITY_NOTIFICATIONS=true
 ```
 
-### 4.3 Update app.json
-```json
-{
-  "expo": {
-    "extra": {
-      "FIREBASE_API_KEY": "AIzaSy...",
-      "FIREBASE_AUTH_DOMAIN": "rideshare-aiub.firebaseapp.com",
-      // ... add all env vars here
-    }
-  }
-}
-```
+## 5. What Is Already Wired In Code
 
-## Step 5: Setup Firebase Security Rules
+### Google-backed services
 
-### 5.1 Firestore Rules
-Go to Firestore → Rules and paste:
+- Places autocomplete service
+- Distance Matrix service
+- Directions service
+- Routes service
 
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read: if request.auth != null 
-        && request.auth.token.email.matches('.*@aiub\\.edu\\.bd');
-      allow write: if request.auth.uid == userId;
-    }
-    
-    match /rides/{rideId} {
-      allow read, write: if request.auth != null;
-    }
-    
-    match /chats/{chatId} {
-      allow read, write: if request.auth != null;
-    }
-    
-    match /posts/{postId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == resource.data.authorId;
-    }
-  }
-}
-```
+Source files:
 
-### 5.2 Realtime Database Rules
-Go to Realtime Database → Rules and paste:
+- [src/services/google/placesService.ts](/d:/Way_To_Job/GoShareX/src/services/google/placesService.ts)
+- [src/services/google/distanceMatrixService.ts](/d:/Way_To_Job/GoShareX/src/services/google/distanceMatrixService.ts)
+- [src/services/google/directionsService.ts](/d:/Way_To_Job/GoShareX/src/services/google/directionsService.ts)
+- [src/services/google/routesService.ts](/d:/Way_To_Job/GoShareX/src/services/google/routesService.ts)
 
-```json
-{
-  "rules": {
-    "active_riders": {
-      "$uid": {
-        ".read": "auth != null",
-        ".write": "auth.uid == $uid"
-      }
-    }
-  }
-}
-```
+### Current UI usage
 
-## Step 6: Initialize Firestore Collections
+- Home destination search uses `Places API`
+- Home partner ranking uses `Distance Matrix API`
 
-Run this in Firebase Console → Firestore → Start Collection:
+Not fully consumed everywhere yet:
 
-### Collection: fare_table
-```json
-{
-  "main_gate_kuril": 40,
-  "main_gate_badda": 30,
-  "main_gate_rampura": 50,
-  "main_gate_notun_bazar": 35,
-  "main_gate_gulshan": 60,
-  "main_gate_banani": 70,
-  "main_gate_uttara": 55
-}
-```
+- meetup route UX for `Directions API`
+- ride route and fare UX for `Routes API`
 
-## Step 7: Run the App
+## 6. Start The App
 
-### Development Mode
 ```bash
-# Start Expo
 npm start
+```
 
-# Run on Android
+Android:
+
+```bash
 npm run android
+```
 
-# Run on iOS (Mac only)
+iOS:
+
+```bash
 npm run ios
 ```
 
-### Build for Production
+## 7. Known Workspace Caveats
 
-#### Android APK
-```bash
-# Install EAS CLI
-npm install -g eas-cli
+- `app.json` still has a placeholder EAS project ID
+- some native Firebase and notification packages are referenced in the codebase but may not be installed in the current workspace
+- because of that, `npm run type-check` may still fail for reasons unrelated to Google API setup
 
-# Login to Expo
-eas login
+## 8. Troubleshooting
 
-# Configure build
-eas build:configure
+### Maps not loading
 
-# Build APK
-eas build --platform android --profile preview
-```
+- confirm the key is valid
+- confirm `Maps SDK for Android` is enabled
+- confirm your key restrictions allow package `com.aiub.rideshare`
+- confirm the key is actually available to Expo config at runtime
 
-#### Production Release
-```bash
-# Build for Play Store
-eas build --platform android --profile production
-```
+### Places autocomplete not returning results
 
-## Step 8: Test the App
+- confirm `Places API` is enabled
+- confirm billing is enabled on the Google Cloud project if required by Google
+- confirm `GOOGLE_PLACES_API_KEY` or fallback `GOOGLE_MAPS_API_KEY` is available
 
-### Test User Account
-Create a test account:
-- Email: test@aiub.edu.bd (use your actual AIUB email)
-- Password: Test@123
+### Partner distance not updating
 
-### Test Features
-1. ✅ Login with AIUB email
-2. ✅ Select destination
-3. ✅ Search for riders
-4. ⏳ View live map
-5. ⏳ Chat with riders
-6. ⏳ Confirm ride
-7. ⏳ Complete ride
-8. ⏳ Rate partner
+- confirm `Distance Matrix API` is enabled
+- confirm location permission is granted
 
-## 🐛 Troubleshooting
+### Directions or Routes calls fail
 
-### Issue: Firebase not connecting
-- Check `.env` file has correct credentials
-- Verify `google-services.json` is in `android/app/`
-- Rebuild app: `npm run android`
-
-### Issue: Maps not showing
-- Verify Google Maps API key is correct
-- Check if Maps SDK is enabled in Google Cloud
-- Ensure API key restrictions allow your app
-
-### Issue: Location not working
-- Check location permissions in Settings
-- Ensure app has background location permission
-- Verify `expo-location` is installed
-
-### Issue: Build fails
-- Clear cache: `expo start -c`
-- Delete node_modules: `rm -rf node_modules && npm install`
-- Update Expo: `npm install expo@latest`
-
-## 📞 Support
-
-For issues, contact: mozahid@aiub.edu.bd
-
----
-
-**Next Steps**: Complete remaining screens and features! 🚀
+- confirm `Directions API` and `Routes API` are both enabled
+- confirm the key you are using is restricted to include those APIs

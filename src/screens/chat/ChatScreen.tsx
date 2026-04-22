@@ -28,6 +28,7 @@ export default function ChatScreen() {
   const { destination, pickupPoint } = useRideStore();
 
   const rider = route.params?.rider;
+  const partnerName = rider?.name ?? route.params?.partnerName ?? 'Rider';
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [chatId, setChatId] = useState<string | null>(null);
@@ -100,6 +101,27 @@ export default function ChatScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.headerButtonText}>Back</Text>
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>{partnerName}</Text>
+          <Text style={styles.headerSubtitle}>{destination ?? rider?.destination ?? 'Ride Chat'}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() =>
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'MainApp', params: { screen: 'Home' } }],
+            })
+          }
+        >
+          <Text style={styles.headerButtonText}>Home</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Fare split box */}
       <View style={styles.fareBox}>
         <Text style={styles.fareBoxText}>🛺 {destination ?? rider?.destination}</Text>
@@ -167,6 +189,28 @@ export default function ChatScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8EAED',
+  },
+  headerButton: {
+    minWidth: 62,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: '#F1F3F4',
+    alignItems: 'center',
+  },
+  headerButtonText: { fontSize: 13, fontWeight: '700', color: '#202124' },
+  headerCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 10 },
+  headerTitle: { fontSize: 16, fontWeight: '800', color: '#202124' },
+  headerSubtitle: { fontSize: 12, color: '#5F6368', marginTop: 2 },
   fareBox: { backgroundColor: '#1A73E8', padding: 12, alignItems: 'center' },
   fareBoxText: { color: '#fff', fontSize: 13, opacity: 0.85 },
   fareBoxFare: { color: '#fff', fontSize: 18, fontWeight: '800', marginTop: 2 },

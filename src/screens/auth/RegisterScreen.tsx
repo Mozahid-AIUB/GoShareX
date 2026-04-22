@@ -27,15 +27,18 @@ const RegisterScreen = () => {
   const [loading, setLoading] = useState(false);
 
   const validate = (): string | null => {
+    const normalizedEmail = email.trim().toLowerCase();
+
     if (!name.trim()) return 'Name is required';
-    if (!isValidAIUBEmail(email)) return 'Use your @student.aiub.edu email';
-    if (!isValidStudentId(studentId)) return 'Student ID format: 12-34567-1';
+    if (!isValidAIUBEmail(normalizedEmail)) return 'Use your @student.aiub.edu email';
+    if (!isValidStudentId(studentId.trim())) return 'Student ID format: 12-34567-1';
     if (password.length < 6) return 'Password must be at least 6 characters';
     if (password !== confirmPassword) return 'Passwords do not match';
     return null;
   };
 
   const handleRegister = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
     const error = validate();
     if (error) {
       Alert.alert('Validation Error', error);
@@ -44,7 +47,12 @@ const RegisterScreen = () => {
 
     setLoading(true);
     try {
-      const newUser = await authService.register({ name: name.trim(), email, studentId, password });
+      const newUser = await authService.register({
+        name: name.trim(),
+        email: normalizedEmail,
+        studentId: studentId.trim(),
+        password,
+      });
 
       setUser(newUser);
       navigation.reset({ index: 0, routes: [{ name: 'MainApp' }] });

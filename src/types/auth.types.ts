@@ -14,8 +14,11 @@ export interface User {
   strikes: number;
   isSuspended: boolean;
   suspendedUntil?: number;
+  suspensionReason?: string;
   createdAt: string;
   lastActive?: number;
+  profileStatus?: 'live' | 'fallback';
+  profileWarning?: string;
 }
 
 export type UserBadge = 'New Rider' | 'Regular' | 'Trusted' | 'Elite Rider' | 'Unreliable';

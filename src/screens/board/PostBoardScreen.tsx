@@ -1,180 +1,198 @@
-import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity, Modal, Alert } from 'react-native';
-import { Text, Avatar, Divider } from 'react-native-paper';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Avatar, Button, Text } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { collection, onSnapshot, addDoc, query, orderBy, where, serverTimestamp, updateDoc, doc, arrayUnion } from 'firebase/firestore';
-import { db } from '@/config/firebase.config';
-import { useAuthStore } from '@/store/authStore';
 import { DESTINATIONS } from '@/constants/destinations';
-
-interface Post {
-  id: string;
-  authorId: string;
-  authorName: string;
-  destination: string;
-  scheduledTime: string;
-  note: string;
-  status: string;
-  interested: string[];
-  createdAt: number;
-}
+import { useAuthStore } from '@/store/authStore';
+import type { RootNavProp } from '@/navigation/types';
+import type { Post } from '@/types/post.types';
+import {
+  cancelPost,
+  joinPost,
+  subscribeToOpenPosts,
+} from '@/services/firebase/postService';
 
 export default function PostBoardScreen() {
+  const navigation = useNavigation<RootNavProp>();
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const { user } = useAuthStore();
   const [posts, setPosts] = useState<Post[]>([]);
-  const [showCreate, setShowCreate] = useState(false);
-  const [selDest, setSelDest] = useState('');
-  const [note, setNote] = useState('');
   const [filter, setFilter] = useState('');
+  const [busyPostId, setBusyPostId] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, 'posts'), where('status', '==', 'open'), orderBy('createdAt', 'desc'));
-    const unsub = onSnapshot(q, (snap) => {
-      setPosts(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Post)));
-    });
-    return unsub;
+    const unsubscribe = subscribeToOpenPosts(setPosts);
+    return unsubscribe;
   }, []);
 
-  const createPost = async () => {
-    if (!selDest || !user) return;
-    await addDoc(collection(db, 'posts'), {
-      authorId: user.uid,
-      authorName: user.name ?? 'Student',
-      destination: selDest,
-      scheduledTime: 'এখনই',
-      note: note || 'এখনই যাবো',
-      status: 'open',
-      interested: [],
-      createdAt: Date.now(),
-      expiresAt: Date.now() + 1800000,
-      createdAtServer: serverTimestamp(),
-    });
-    setShowCreate(false);
-    setSelDest('');
-    setNote('');
+  const filteredPosts = useMemo(() => {
+    if (!filter) return posts;
+    return posts.filter((post) => post.destination === filter);
+  }, [filter, posts]);
+
+  const handleJoin = async (post: Post) => {
+    if (!user) {
+      Alert.alert('Login Required', 'Please login to join a board post.');
+      return;
+    }
+
+    if (post.authorId === user.uid) {
+      Alert.alert('Own Post', 'You cannot join your own board post.');
+      return;
+    }
+
+    setBusyPostId(post.postId);
+    try {
+      await joinPost(post.postId, user.uid);
+      Alert.alert('Joined', `Your request for ${post.destination} has been sent.`);
+    } catch (error: any) {
+      Alert.alert('Join Failed', error.message ?? 'Please try again.');
+    } finally {
+      setBusyPostId(null);
+    }
   };
 
-  const joinPost = async (post: Post) => {
-    if (!user || post.authorId === user.uid) return;
-    await updateDoc(doc(db, 'posts', post.id), { interested: arrayUnion(user.uid) });
-    Alert.alert('✅ Joined!', `${post.authorName}-এর সাথে ${post.destination} যাওয়ার request পাঠানো হয়েছে।`);
+  const handleCancel = async (post: Post) => {
+    if (!user) return;
+
+    setBusyPostId(post.postId);
+    try {
+      await cancelPost(post.postId, user.uid);
+      Alert.alert('Post Cancelled', 'Your board post has been cancelled.');
+    } catch (error: any) {
+      Alert.alert('Cancel Failed', error.message ?? 'Please try again.');
+    } finally {
+      setBusyPostId(null);
+    }
   };
 
-  const filtered = filter ? posts.filter((p) => p.destination === filter) : posts;
+  const renderPost = ({ item }: { item: Post }) => {
+    const joined = item.interested.includes(user?.uid ?? '');
+    const isOwner = item.authorId === user?.uid;
 
-  const renderPost = ({ item }: { item: Post }) => (
-    <View style={styles.postCard}>
-      <View style={styles.postHeader}>
-        <Avatar.Text size={40} label={item.authorName.charAt(0)} style={{ backgroundColor: '#1A73E8' }} labelStyle={{ color: '#fff', fontWeight: '700' }} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.postName}>{item.authorName}</Text>
-          <Text style={styles.postTime}>{item.scheduledTime}</Text>
+    return (
+      <View style={styles.postCard}>
+        <View style={styles.postHeader}>
+          <Avatar.Text
+            size={42}
+            label={(item.authorName || 'U').charAt(0).toUpperCase()}
+            style={styles.avatar}
+            labelStyle={styles.avatarLabel}
+          />
+          <View style={styles.postMeta}>
+            <Text style={styles.authorName}>{item.authorName}</Text>
+            <Text style={styles.metaText}>{item.pickupPoint} to {item.destination}</Text>
+            <Text style={styles.metaText}>{item.scheduledTime}</Text>
+          </View>
+          <View style={styles.destinationBadge}>
+            <Text style={styles.destinationBadgeText}>{item.destination}</Text>
+          </View>
         </View>
-        <View style={styles.destBadge}>
-          <Text style={styles.destBadgeText}>{item.destination}</Text>
+
+        {item.note ? <Text style={styles.note}>{item.note}</Text> : null}
+
+        <View style={styles.footer}>
+          <Text style={styles.interestedText}>{item.interested.length} interested</Text>
+          {isOwner ? (
+            <Button
+              mode="contained-tonal"
+              onPress={() => handleCancel(item)}
+              loading={busyPostId === item.postId}
+              disabled={busyPostId === item.postId}
+            >
+              Cancel
+            </Button>
+          ) : (
+            <Button
+              mode="contained"
+              onPress={() => handleJoin(item)}
+              loading={busyPostId === item.postId}
+              disabled={joined || busyPostId === item.postId}
+            >
+              {joined ? 'Joined' : 'Join'}
+            </Button>
+          )}
         </View>
       </View>
-      {item.note ? <Text style={styles.postNote}>{item.note}</Text> : null}
-      <View style={styles.postFooter}>
-        <Text style={styles.interestedText}>👋 {item.interested.length} interested</Text>
-        {item.authorId !== user?.uid && (
-          <TouchableOpacity
-            style={[styles.joinBtn, item.interested.includes(user?.uid ?? '') && styles.joinBtnDone]}
-            onPress={() => joinPost(item)}
-            disabled={item.interested.includes(user?.uid ?? '')}
-          >
-            <Text style={styles.joinBtnText}>
-              {item.interested.includes(user?.uid ?? '') ? '✅ Joined' : '+ Join'}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Filter row */}
       <View style={styles.filterRow}>
-        <TouchableOpacity style={[styles.filterChip, !filter && styles.filterChipActive]} onPress={() => setFilter('')}>
-          <Text style={[styles.filterChipText, !filter && { color: '#fff' }]}>সব</Text>
+        <TouchableOpacity
+          style={[styles.filterChip, !filter && styles.filterChipActive]}
+          onPress={() => setFilter('')}
+        >
+          <Text style={[styles.filterChipText, !filter && styles.filterChipTextActive]}>All</Text>
         </TouchableOpacity>
-        {DESTINATIONS.map((d) => (
-          <TouchableOpacity key={d.id} style={[styles.filterChip, filter === d.name && styles.filterChipActive]} onPress={() => setFilter(filter === d.name ? '' : d.name)}>
-            <Text style={[styles.filterChipText, filter === d.name && { color: '#fff' }]}>{d.name}</Text>
+        {DESTINATIONS.map((destination) => (
+          <TouchableOpacity
+            key={destination.id}
+            style={[styles.filterChip, filter === destination.name && styles.filterChipActive]}
+            onPress={() => setFilter(filter === destination.name ? '' : destination.name)}
+          >
+            <Text
+              style={[
+                styles.filterChipText,
+                filter === destination.name && styles.filterChipTextActive,
+              ]}
+            >
+              {destination.name}
+            </Text>
           </TouchableOpacity>
         ))}
       </View>
 
       <FlatList
-        data={filtered}
-        keyExtractor={(p) => p.id}
+        data={filteredPosts}
+        keyExtractor={(item) => item.postId}
         renderItem={renderPost}
-        contentContainerStyle={{ padding: 14, gap: 10 }}
-        ListEmptyComponent={<View style={styles.empty}><Text style={{ fontSize: 40 }}>📋</Text><Text style={styles.emptyText}>কোনো post নেই</Text></View>}
+        contentContainerStyle={[styles.listContent, { paddingBottom: tabBarHeight + 32 }]}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No board posts yet</Text>
+            <Text style={styles.emptySubtitle}>Create the first ride-share post for your destination.</Text>
+          </View>
+        }
       />
 
-      {/* FAB */}
-      <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 16 }]} onPress={() => setShowCreate(true)}>
+      <TouchableOpacity
+        style={[styles.fab, { bottom: tabBarHeight + 16 }]}
+        onPress={() => navigation.navigate('CreatePost')}
+      >
         <Text style={styles.fabText}>+ Post</Text>
       </TouchableOpacity>
-
-      {/* Create Post Modal */}
-      <Modal visible={showCreate} transparent animationType="slide" onRequestClose={() => setShowCreate(false)}>
-        <TouchableOpacity style={styles.overlay} onPress={() => setShowCreate(false)} />
-        <View style={[styles.modal, { paddingBottom: insets.bottom + 20 }]}>
-          <Text style={styles.modalTitle}>নতুন Post করো</Text>
-          <Divider style={{ marginBottom: 16 }} />
-          <Text style={styles.modalLabel}>Destination বেছে নাও:</Text>
-          <View style={styles.destGrid}>
-            {DESTINATIONS.map((d) => (
-              <TouchableOpacity key={d.id} style={[styles.destOption, selDest === d.name && styles.destOptionActive]} onPress={() => setSelDest(d.name)}>
-                <Text style={[styles.destOptionText, selDest === d.name && { color: '#fff' }]}>{d.name}</Text>
-                <Text style={[styles.destFare, selDest === d.name && { color: '#cff' }]}>৳{d.baseFare}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <TouchableOpacity style={[styles.createBtn, !selDest && { backgroundColor: '#DADCE0' }]} onPress={createPost} disabled={!selDest}>
-            <Text style={styles.createBtnText}>Post করো 🚀</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  filterRow: { flexDirection: 'row', padding: 10, gap: 6, flexWrap: 'wrap', backgroundColor: '#fff', elevation: 2 },
-  filterChip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: '#F0F0F0' },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 12, backgroundColor: '#FFFFFF' },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: '#ECEFF1' },
   filterChipActive: { backgroundColor: '#1A73E8' },
-  filterChipText: { fontSize: 12, fontWeight: '600', color: '#555' },
-  postCard: { backgroundColor: '#fff', borderRadius: 16, padding: 14, elevation: 2 },
-  postHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  postName: { fontSize: 15, fontWeight: '700', color: '#202124' },
-  postTime: { fontSize: 12, color: '#9E9E9E' },
-  destBadge: { backgroundColor: '#E8F0FE', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  destBadgeText: { fontSize: 12, color: '#1A73E8', fontWeight: '700' },
-  postNote: { fontSize: 13, color: '#555', marginBottom: 10 },
-  postFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  interestedText: { fontSize: 12, color: '#9E9E9E' },
-  joinBtn: { backgroundColor: '#1A73E8', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 10 },
-  joinBtnDone: { backgroundColor: '#34A853' },
-  joinBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  empty: { alignItems: 'center', marginTop: 60, gap: 12 },
-  emptyText: { fontSize: 15, color: '#9E9E9E' },
-  fab: { position: 'absolute', right: 20, backgroundColor: '#1A73E8', paddingHorizontal: 20, paddingVertical: 14, borderRadius: 28, elevation: 6 },
-  fabText: { color: '#fff', fontSize: 15, fontWeight: '800' },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-  modal: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#202124', marginBottom: 4 },
-  modalLabel: { fontSize: 14, fontWeight: '600', color: '#555', marginBottom: 12 },
-  destGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  destOption: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, backgroundColor: '#F0F0F0', alignItems: 'center' },
-  destOptionActive: { backgroundColor: '#1A73E8' },
-  destOptionText: { fontSize: 13, fontWeight: '600', color: '#202124' },
-  destFare: { fontSize: 10, color: '#9E9E9E', marginTop: 2 },
-  createBtn: { backgroundColor: '#34A853', padding: 16, borderRadius: 14, alignItems: 'center' },
-  createBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  filterChipText: { fontSize: 12, fontWeight: '600', color: '#455A64' },
+  filterChipTextActive: { color: '#FFFFFF' },
+  listContent: { padding: 14, gap: 12, paddingBottom: 100 },
+  postCard: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, gap: 12, elevation: 2 },
+  postHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatar: { backgroundColor: '#1A73E8' },
+  avatarLabel: { color: '#FFFFFF', fontWeight: '700' },
+  postMeta: { flex: 1, gap: 2 },
+  authorName: { fontSize: 15, fontWeight: '700', color: '#202124' },
+  metaText: { fontSize: 12, color: '#5F6368' },
+  destinationBadge: { backgroundColor: '#E8F0FE', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  destinationBadgeText: { color: '#1A73E8', fontSize: 12, fontWeight: '700' },
+  note: { fontSize: 13, color: '#444', lineHeight: 20 },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  interestedText: { fontSize: 12, color: '#5F6368' },
+  emptyState: { padding: 32, alignItems: 'center', gap: 8 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#202124' },
+  emptySubtitle: { fontSize: 14, color: '#5F6368', textAlign: 'center' },
+  fab: { position: 'absolute', right: 20, backgroundColor: '#1A73E8', paddingHorizontal: 20, paddingVertical: 14, borderRadius: 999, elevation: 6 },
+  fabText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
 });

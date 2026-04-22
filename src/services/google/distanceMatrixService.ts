@@ -1,0 +1,49 @@
+import ENV from '@/config/env';
+
+import { buildQueryString, fetchJson, GOOGLE_API_ENDPOINTS } from './base';
+
+type LatLng = {
+  latitude: number;
+  longitude: number;
+};
+
+interface DistanceMatrixResponse {
+  rows?: Array<{
+    elements?: Array<{
+      status?: string;
+      distance?: { text?: string; value?: number };
+      duration?: { text?: string; value?: number };
+    }>;
+  }>;
+  status: string;
+  error_message?: string;
+}
+
+class DistanceMatrixService {
+  async getWalkingMatrix(origin: LatLng, destinations: LatLng[]) {
+    const query = buildQueryString({
+      origins: `${origin.latitude},${origin.longitude}`,
+      destinations: destinations.map((item) => `${item.latitude},${item.longitude}`).join('|'),
+      mode: 'walking',
+      key: ENV.googleDistanceMatrixApiKey,
+    });
+
+    const data = await fetchJson<DistanceMatrixResponse>(
+      `${GOOGLE_API_ENDPOINTS.distanceMatrix}?${query}`
+    );
+
+    if (data.status !== 'OK') {
+      throw new Error(data.error_message || `Distance Matrix request failed: ${data.status}`);
+    }
+
+    return (data.rows?.[0]?.elements ?? []).map((element) => ({
+      status: element.status ?? 'UNKNOWN',
+      distanceText: element.distance?.text ?? '',
+      distanceMeters: element.distance?.value ?? 0,
+      durationText: element.duration?.text ?? '',
+      durationSeconds: element.duration?.value ?? 0,
+    }));
+  }
+}
+
+export default new DistanceMatrixService();

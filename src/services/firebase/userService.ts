@@ -9,11 +9,28 @@ import {
   setDoc,
   updateDoc,
   increment,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '@/services/firebase/config';
-import { User, UserBadge } from '@/types/user.types';
+import { User, UserBadge } from '@/types/auth.types';
 
 const COLLECTION = 'users';
+
+function isRecoverableFirestoreError(error: any): boolean {
+  const normalizedCode = String(error?.code ?? '').toLowerCase();
+  const normalizedMessage = String(error?.message ?? '').toLowerCase();
+
+  return (
+    normalizedCode.includes('unavailable') ||
+    normalizedCode.includes('deadline-exceeded') ||
+    normalizedCode.includes('failed-precondition') ||
+    normalizedCode.includes('network-request-failed') ||
+    normalizedMessage.includes('offline') ||
+    normalizedMessage.includes('network') ||
+    normalizedMessage.includes('client is offline') ||
+    normalizedMessage.includes('server connection is unstable')
+  );
+}
 
 // ─── Badge computation ────────────────────────────────────────────────────────
 
@@ -28,14 +45,87 @@ function computeBadge(totalRides: number, rating: number, strikes: number): User
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export type UserProfile = User;
+export interface UserProfileInput {
+  email: string;
+  name: string;
+  studentId: string;
+  department?: string;
+  phoneNumber?: string;
+  photoURL?: string;
+}
+
+function normalizeProfile(uid: string, data: Partial<UserProfile>): UserProfile {
+  return {
+    uid,
+    email: data.email ?? '',
+    name: data.name ?? 'AIUB Student',
+    studentId: data.studentId ?? '',
+    department: data.department ?? '',
+    phoneNumber: data.phoneNumber ?? '',
+    photoURL: data.photoURL,
+    rating: data.rating ?? 5,
+    totalRides: data.totalRides ?? 0,
+    totalSaved: data.totalSaved ?? 0,
+    completionRate: data.completionRate ?? 100,
+    badge: data.badge ?? 'New Rider',
+    strikes: data.strikes ?? 0,
+    isSuspended: data.isSuspended ?? false,
+    suspendedUntil: data.suspendedUntil,
+    createdAt: data.createdAt ?? new Date().toISOString(),
+    lastActive: data.lastActive,
+  };
+}
 
 /**
  * Fetch a user profile by UID. Returns `null` if not found.
  */
 export async function getUser(uid: string): Promise<UserProfile | null> {
-  const snap = await getDoc(doc(db, COLLECTION, uid));
-  if (!snap.exists()) return null;
-  return { uid: snap.id, ...snap.data() } as UserProfile;
+  try {
+    const snap = await getDoc(doc(db, COLLECTION, uid));
+    if (!snap.exists()) return null;
+    return normalizeProfile(snap.id, snap.data() as Partial<UserProfile>);
+  } catch (error) {
+    if (isRecoverableFirestoreError(error)) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+export async function createUser(uid: string, data: UserProfileInput): Promise<UserProfile> {
+  const profile = normalizeProfile(uid, {
+    ...data,
+    email: data.email.trim().toLowerCase(),
+    name: data.name.trim(),
+    studentId: data.studentId.trim(),
+  });
+
+  await setDoc(doc(db, COLLECTION, uid), {
+    ...profile,
+    lastActive: Date.now(),
+    createdAt: profile.createdAt,
+    updatedAt: serverTimestamp(),
+  });
+
+  return profile;
+}
+
+export async function ensureUserProfile(
+  uid: string,
+  fallback: Partial<UserProfileInput> & { email: string },
+): Promise<UserProfile> {
+  const existing = await getUser(uid);
+  if (existing) return existing;
+
+  return createUser(uid, {
+    email: fallback.email,
+    name: fallback.name ?? fallback.email.split('@')[0] ?? 'AIUB Student',
+    studentId: fallback.studentId ?? '',
+    department: fallback.department ?? '',
+    phoneNumber: fallback.phoneNumber ?? '',
+    photoURL: fallback.photoURL,
+  });
 }
 
 /**
@@ -44,9 +134,17 @@ export async function getUser(uid: string): Promise<UserProfile | null> {
 export async function updateUser(
   uid: string,
   data: Partial<UserProfile>,
-): Promise<void> {
+): Promise<UserProfile> {
   const ref = doc(db, COLLECTION, uid);
-  await updateDoc(ref, { ...data, lastActive: Date.now() });
+  await updateDoc(ref, {
+    ...data,
+    lastActive: Date.now(),
+    updatedAt: serverTimestamp(),
+  });
+
+  const updated = await getUser(uid);
+  if (!updated) throw new Error('Updated user profile could not be loaded');
+  return updated;
 }
 
 /**

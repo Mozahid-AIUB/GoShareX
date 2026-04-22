@@ -1,16 +1,14 @@
 /**
  * ride/fareService.ts
- * Client-side fare table and formatting utilities.
+ * Client-side fare table and route-aware pricing helpers.
  *
  * This module provides synchronous fare lookups without a Firestore round-trip,
  * using a hard-coded table that mirrors the database seed data.
  * Use services/firebase/fareService.ts for admin-editable remote fares.
  */
 
-// ─── Fare table ───────────────────────────────────────────────────────────────
-
 /**
- * All pickup → destination combinations and their full rickshaw fares in BDT.
+ * All pickup -> destination combinations and their full rickshaw fares in BDT.
  * Keys follow the pattern `"${pickup}__${destination}"`.
  */
 export const FARE_TABLE: Record<string, number> = {
@@ -40,27 +38,16 @@ export const FARE_TABLE: Record<string, number> = {
   'Airport__Dhanmondi': 50,
 };
 
-// ─── Public API ───────────────────────────────────────────────────────────────
-
 /**
  * Synchronous fare lookup. Checks both directions.
- * Returns 0 if the route is not in the table (callers should handle gracefully).
+ * Returns 0 if the route is not in the table.
  */
 export function getFare(pickup: string, destination: string): number {
-  return (
-    FARE_TABLE[`${pickup}__${destination}`] ??
-    FARE_TABLE[`${destination}__${pickup}`] ??
-    0
-  );
+  return FARE_TABLE[`${pickup}__${destination}`] ?? FARE_TABLE[`${destination}__${pickup}`] ?? 0;
 }
 
 /**
  * Get the per-person split fare for a given route.
- *
- * @param pickup       Pickup point name
- * @param destination  Destination name
- * @param riders       Number of riders sharing the rickshaw (default: 2)
- * @returns            Amount each rider pays, rounded up to the nearest integer
  */
 export function getSplitFare(
   pickup: string,
@@ -72,11 +59,43 @@ export function getSplitFare(
   return Math.ceil(total / riders);
 }
 
-/**
- * Format a BDT amount with the Bengali taka sign.
- *
- * @example formatFare(20) → "৳20"
- */
 export function formatFare(amount: number): string {
-  return `৳${amount}`;
+  return `BDT ${amount}`;
+}
+
+/**
+ * Estimate a route-aware solo fare from routed distance.
+ * Falls back to the route table when the API distance is unavailable.
+ */
+export function estimateRouteFare(
+  pickup: string,
+  destination: string,
+  distanceMeters?: number,
+): number {
+  const tableFare = getFare(pickup, destination);
+
+  if (!distanceMeters || distanceMeters <= 0) {
+    return tableFare;
+  }
+
+  const distanceKm = distanceMeters / 1000;
+  const estimated = Math.round(18 + distanceKm * 14);
+
+  if (!tableFare) {
+    return Math.max(estimated, 20);
+  }
+
+  const lowerBound = Math.round(tableFare * 0.85);
+  const upperBound = Math.round(tableFare * 1.5);
+  return Math.max(lowerBound, Math.min(upperBound, estimated));
+}
+
+export function estimateRouteSplitFare(
+  pickup: string,
+  destination: string,
+  distanceMeters?: number,
+  riders: number = 2,
+): number {
+  if (riders <= 0) throw new RangeError('riders must be a positive integer');
+  return Math.ceil(estimateRouteFare(pickup, destination, distanceMeters) / riders);
 }

@@ -10,16 +10,15 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-  deleteDoc,
   getDocs,
   query,
   where,
   orderBy,
   onSnapshot,
   arrayUnion,
-  Timestamp,
   QuerySnapshot,
   DocumentData,
+  arrayRemove,
 } from 'firebase/firestore';
 import { db } from '@/services/firebase/config';
 import { Post, PostStatus } from '@/types/post.types';
@@ -38,6 +37,8 @@ export interface PostData {
   note?: string;
   maxRiders?: number;
 }
+
+export interface CreatePostInput extends PostData {}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,12 @@ export async function createPost(post: PostData): Promise<string> {
   });
 
   return id;
+}
+
+export async function getPostById(postId: string): Promise<Post | null> {
+  const snap = await getDoc(doc(db, COLLECTION, postId));
+  if (!snap.exists()) return null;
+  return snapToPost(snap.id, snap.data());
 }
 
 /**
@@ -141,6 +148,20 @@ export async function joinPost(postId: string, userId: string): Promise<void> {
   }
 }
 
+export async function leavePost(postId: string, userId: string): Promise<void> {
+  const ref = doc(db, COLLECTION, postId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error('Post not found');
+
+  const data = snap.data() as Post;
+  if (!data.interested.includes(userId)) return;
+
+  await updateDoc(ref, {
+    interested: arrayRemove(userId),
+    status: 'open' as PostStatus,
+  });
+}
+
 /**
  * Soft-delete a post by marking its status as `cancelled`.
  * Actual Firestore deletion is reserved for admin cleanup jobs.
@@ -148,6 +169,13 @@ export async function joinPost(postId: string, userId: string): Promise<void> {
 export async function deletePost(postId: string): Promise<void> {
   const ref = doc(db, COLLECTION, postId);
   await updateDoc(ref, { status: 'cancelled' as PostStatus });
+}
+
+export async function cancelPost(postId: string, userId: string): Promise<void> {
+  const post = await getPostById(postId);
+  if (!post) throw new Error('Post not found');
+  if (post.authorId !== userId) throw new Error('Only the author can cancel this post');
+  await deletePost(postId);
 }
 
 /**
@@ -162,6 +190,21 @@ export function subscribeToDestinationPosts(
   const q = query(
     collection(db, COLLECTION),
     where('destination', '==', destination),
+    where('status', '==', 'open'),
+    where('expiresAt', '>', now),
+    orderBy('expiresAt', 'asc'),
+    orderBy('createdAt', 'desc'),
+  );
+
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => snapToPost(d.id, d.data())));
+  });
+}
+
+export function subscribeToOpenPosts(callback: (posts: Post[]) => void): () => void {
+  const now = Date.now();
+  const q = query(
+    collection(db, COLLECTION),
     where('status', '==', 'open'),
     where('expiresAt', '>', now),
     orderBy('expiresAt', 'asc'),

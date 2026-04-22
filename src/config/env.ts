@@ -9,6 +9,10 @@ interface EnvConfig {
   firebaseAppId: string;
   firebaseMeasurementId?: string;
   googleMapsApiKey: string;
+  googlePlacesApiKey: string;
+  googleRoutesApiKey: string;
+  googleDirectionsApiKey: string;
+  googleDistanceMatrixApiKey: string;
   appEnv: 'development' | 'staging' | 'production';
   appVersion: string;
   apiTimeout: number;
@@ -55,6 +59,10 @@ export const ENV: EnvConfig = {
   firebaseAppId: '1:612454425143:web:b9f88eba7614aecc7115b2',
   firebaseMeasurementId: 'G-4C79S2EWJF',
   googleMapsApiKey: getEnvVar('GOOGLE_MAPS_API_KEY', 'placeholder'),
+  googlePlacesApiKey: getEnvVar('GOOGLE_PLACES_API_KEY', getEnvVar('GOOGLE_MAPS_API_KEY', 'placeholder')),
+  googleRoutesApiKey: getEnvVar('GOOGLE_ROUTES_API_KEY', getEnvVar('GOOGLE_MAPS_API_KEY', 'placeholder')),
+  googleDirectionsApiKey: getEnvVar('GOOGLE_DIRECTIONS_API_KEY', getEnvVar('GOOGLE_MAPS_API_KEY', 'placeholder')),
+  googleDistanceMatrixApiKey: getEnvVar('GOOGLE_DISTANCE_MATRIX_API_KEY', getEnvVar('GOOGLE_MAPS_API_KEY', 'placeholder')),
   appEnv: getEnvVar('APP_ENV', 'development') as 'development' | 'staging' | 'production',
   appVersion: getEnvVar('APP_VERSION', '1.0.0'),
   apiTimeout: getNumberEnvVar('API_TIMEOUT', 30000),

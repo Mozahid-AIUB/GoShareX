@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { Text, Avatar } from 'react-native-paper';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '@/config/firebase.config';
@@ -20,6 +21,7 @@ interface ChatItem {
 
 export default function ChatListScreen() {
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const { user } = useAuthStore();
   const navigation = useNavigation<any>();
   const [chats, setChats] = useState<ChatItem[]>([]);
@@ -61,6 +63,7 @@ export default function ChatListScreen() {
         data={chats}
         keyExtractor={(c) => c.id}
         renderItem={renderChat}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 12 }}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={{ fontSize: 48, marginBottom: 12 }}>💬</Text>

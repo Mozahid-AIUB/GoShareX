@@ -5,6 +5,16 @@ export type RideStatus =
   | 'completed'
   | 'cancelled';
 
+export interface RideRoutePreview {
+  distanceMeters: number;
+  durationSeconds: number;
+  durationText: string;
+  soloFare: number;
+  splitFare: number;
+  encodedPolyline?: string;
+  pricingSource: 'routes_api' | 'fare_table';
+}
+
 export interface Ride {
   rideId: string;
   rider1: string;
@@ -14,6 +24,7 @@ export interface Ride {
   fare: number;
   splitAmount: number;
   status: RideStatus;
+  routePreview?: RideRoutePreview;
   confirmedAt?: number;
   startedAt?: number;
   completedAt?: number;

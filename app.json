@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "RideShare AIUB",
+    "name": "GoShareX",
     "slug": "rideshare-aiub",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -32,23 +32,21 @@
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 34,
-            "targetSdkVersion": 34,
-            "buildToolsVersion": "34.0.0"
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.0.0"
           }
         }
       ]
     ],
     "extra": {
-      "FIREBASE_API_KEY": "AIzaSyB6Xce4UW1l1rTcoU8VINQlRgF3Wd5pV5M",
+      "FIREBASE_API_KEY": "AIzaSyCb6OObgC57uJKq8s4u3uP06AhJBoJCMhQ",
       "FIREBASE_AUTH_DOMAIN": "rideshare-aiub.firebaseapp.com",
       "FIREBASE_DATABASE_URL": "https://rideshare-aiub-default-rtdb.asia-southeast1.firebasedatabase.app",
       "FIREBASE_PROJECT_ID": "rideshare-aiub",
       "FIREBASE_STORAGE_BUCKET": "rideshare-aiub.firebasestorage.app",
       "FIREBASE_MESSAGING_SENDER_ID": "612454425143",
-      "FIREBASE_APP_ID": "1:612454425143:web:b9f88eba7614aecc7115b2",
-      "FIREBASE_MEASUREMENT_ID": "G-4C79S2EWJF",
-      "GOOGLE_MAPS_API_KEY": "placeholder_key",
+      "FIREBASE_APP_ID": "1:612454425143:android:c6ae709d57451c8c7115b2",
       "eas": {
         "projectId": "your-eas-project-id"
       }

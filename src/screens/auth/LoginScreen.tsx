@@ -38,7 +38,7 @@ const LoginScreen = () => {
     try {
       const user = await authService.login({ email, password });
       setUser(user);
-      setUser(user);
+
       navigation.reset({ index: 0, routes: [{ name: 'MainApp' }] });
     } catch (error: any) {
       Alert.alert('Login Failed', error.message);

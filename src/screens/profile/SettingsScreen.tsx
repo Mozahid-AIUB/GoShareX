@@ -1,20 +1,35 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView, Switch, TouchableOpacity } from 'react-native';
 import { Text, Divider } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
+import type { RootNavProp } from '@/navigation/types';
 import { useAuthStore } from '@/store/authStore';
 import authService from '@/services/firebase/authService';
 
 export default function SettingsScreen() {
+  const navigation = useNavigation<RootNavProp>();
   const { user, logout } = useAuthStore();
   const [notifEnabled, setNotifEnabled] = React.useState(true);
   const [locationBg, setLocationBg] = React.useState(true);
+
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+    } finally {
+      logout();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Auth', params: { screen: 'Login' } as any }],
+      });
+    }
+  };
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Notifications</Text>
         <View style={styles.settingRow}>
-          <Text style={styles.settingLabel}>🔔 Ride Requests</Text>
+          <Text style={styles.settingLabel}>Ride Requests</Text>
           <Switch value={notifEnabled} onValueChange={setNotifEnabled} trackColor={{ true: '#1A73E8' }} />
         </View>
       </View>
@@ -22,7 +37,7 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Location</Text>
         <View style={styles.settingRow}>
-          <Text style={styles.settingLabel}>📍 Background Location</Text>
+          <Text style={styles.settingLabel}>Background Location</Text>
           <Switch value={locationBg} onValueChange={setLocationBg} trackColor={{ true: '#1A73E8' }} />
         </View>
       </View>
@@ -30,12 +45,12 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
         <View style={styles.settingRow}>
-          <Text style={styles.settingLabel}>📧 Email</Text>
+          <Text style={styles.settingLabel}>Email</Text>
           <Text style={styles.settingValue}>{user?.email}</Text>
         </View>
       </View>
-      <TouchableOpacity style={styles.logoutBtn} onPress={async () => { await authService.logout(); logout(); }}>
-        <Text style={styles.logoutText}>🚪 Logout</Text>
+      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+        <Text style={styles.logoutText}>Logout</Text>
       </TouchableOpacity>
     </ScrollView>
   );
