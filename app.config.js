@@ -6,6 +6,7 @@ export default {
         slug: "gosharex",
         version: "1.0.0",
         orientation: "portrait",
+        privacy: "unlisted",
         icon: "./assets/images/icon.png",
         splash: {
             image: "./assets/images/gosharex-matrix-splash.png",
@@ -30,7 +31,9 @@ export default {
                 "VIBRATE",
                 "RECEIVE_BOOT_COMPLETED"
             ],
-            googleServicesFile: "./google-services.json"
+            googleServicesFile: "./google-services.json",
+            intentFilters: [],
+            allowBackup: false,
         },
         ios: {
             bundleIdentifier: "com.gosharex.app",

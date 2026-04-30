@@ -389,17 +389,19 @@ class ChatService {
     text: string,
     type: Message['type'] = 'text'
   ): Promise<void> {
+    const clean = text.trim().replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').replace(/[​-‍⁠﻿]/g, '').substring(0, 1000);
+    if (!clean) throw new Error('Message cannot be empty');
     const messagesRef = collection(db, 'chats', chatId, 'messages');
     await addDoc(messagesRef, {
       senderId,
       senderName,
-      text,
+      text: clean,
       type,
       timestamp: Date.now(),
       createdAt: serverTimestamp(),
     });
     const chatRef = doc(db, 'chats', chatId);
-    await setDoc(chatRef, { lastMessage: text, lastMessageTime: Date.now() }, { merge: true });
+    await setDoc(chatRef, { lastMessage: clean, lastMessageTime: Date.now() }, { merge: true });
   }
 
   listenToMessages(chatId: string, callback: (messages: Message[]) => void): () => void {

@@ -389,16 +389,16 @@ const NoRidersSheet = ({
 
   useEffect(() => {
     Animated.parallel([
-      Animated.spring(slideAnim, { toValue: 0, tension: 50, friction: 12, useNativeDriver: true }),
-      Animated.timing(opacityAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 50, friction: 12, useNativeDriver: false }),
+      Animated.timing(opacityAnim, { toValue: 1, duration: 300, useNativeDriver: false }),
     ]).start();
     // Sonar pulse
     const pulse = () => {
       ring1.setValue(0.6);
       ring2.setValue(0.3);
       Animated.parallel([
-        Animated.timing(ring1, { toValue: 0, duration: 1800, useNativeDriver: true }),
-        Animated.timing(ring2, { toValue: 0, duration: 1800, delay: 400, useNativeDriver: true }),
+        Animated.timing(ring1, { toValue: 0, duration: 1800, useNativeDriver: false }),
+        Animated.timing(ring2, { toValue: 0, duration: 1800, delay: 400, useNativeDriver: false }),
       ]).start(() => pulse());
     };
     pulse();
@@ -482,7 +482,7 @@ const nrs = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 14,
+    paddingBottom: 18,
     elevation: 20,
     shadowColor: '#000',
     shadowOpacity: 0.15,
@@ -520,7 +520,7 @@ const nrs = StyleSheet.create({
   },
   ctaText: { fontSize: 13, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.2 },
 
-  chip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 11, borderRadius: 12, backgroundColor: '#F5F0FF', borderWidth: 1, borderColor: '#DDD6FE' },
+  chip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 12, backgroundColor: '#F5F0FF', borderWidth: 1, borderColor: '#DDD6FE' },
   chipMuted: { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' },
   chipText: { fontSize: 12, fontWeight: '700', color: '#7C3AED' },
 
@@ -547,6 +547,7 @@ export default function LiveMapScreen() {
 
   const [nearbyRiders, setNearbyRiders] = useState<RiderMatch[]>([]);
   const [selectedRider, setSelectedRider] = useState<RiderMatch | null>(null);
+  const lastOfferTimeRef = useRef<Record<string, number>>({});
 
   // ── Smart "no riders" state
   const isFocused = useIsFocused();
@@ -555,6 +556,7 @@ export default function LiveMapScreen() {
   const [showNoRidersSheet, setShowNoRidersSheet] = useState(false);
   const [manualZoneRadius, setManualZoneRadius] = useState<number | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const waitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([]);
   const [selectedRiderRouteCoordinates, setSelectedRiderRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([]);
   const [routeSummary, setRouteSummary] = useState<{ distanceText: string; durationText: string } | null>(null);
@@ -606,8 +608,8 @@ export default function LiveMapScreen() {
         return next;
       });
     }
-    // Show sheet after 12s
-    if (scanSecs >= 12) setShowNoRidersSheet(true);
+    // Show sheet after 15s
+    if (scanSecs >= 15) setShowNoRidersSheet(true);
   }, [scanSecs, nearbyRiders.length, destination, dismissed]);
 
   useEffect(() => {
@@ -699,7 +701,13 @@ export default function LiveMapScreen() {
       }
     })();
 
-    return () => { mounted = false; locationService.stopWatching(); setTracking(false); stopWatching?.(); };
+    return () => {
+      mounted = false;
+      locationService.stopWatching();
+      setTracking(false);
+      stopWatching?.();
+      if (waitTimerRef.current) { clearTimeout(waitTimerRef.current); waitTimerRef.current = null; }
+    };
   }, [destination, pickupPoint, routeDestinationKey, routeOrigin?.lat, routeOrigin?.lng, routeSearchNonce, setLocation, setTracking, user?.uid]);
 
   // Meetup route for selected rider
@@ -796,13 +804,25 @@ export default function LiveMapScreen() {
   const handleKeepWaiting = useCallback(() => {
     setShowNoRidersSheet(false);
     setDismissed(true);
-    setTimeout(() => setDismissed(false), 30000);
+    setScanSecs(0); // reset so sheet doesn't instantly re-appear after 30s
+    if (waitTimerRef.current) clearTimeout(waitTimerRef.current);
+    waitTimerRef.current = setTimeout(() => {
+      setDismissed(false);
+      waitTimerRef.current = null;
+    }, 30000);
   }, []);
 
   const handleOffer = useCallback((rider: RiderMatch) => {
+    if (requestStates[rider.userId] === 'confirmed') { openChat(rider); return; }
+    const now = Date.now();
+    const last = lastOfferTimeRef.current[rider.userId] ?? 0;
+    if (now - last < 30000) {
+      Alert.alert('Please wait', 'You already sent a request to this rider. Wait 30 seconds before trying again.');
+      return;
+    }
+    lastOfferTimeRef.current[rider.userId] = now;
     const nearbyRider = { ...rider, uid: rider.userId };
     setPartner(nearbyRider); setStatus('waiting'); setRequestState(rider.userId, 'pending');
-    if (requestStates[rider.userId] === 'confirmed') openChat(rider);
   }, [openChat, requestStates, setPartner, setRequestState, setStatus]);
 
   return (
@@ -887,7 +907,7 @@ export default function LiveMapScreen() {
           <View style={s.routeInfo}>
             {destinationDetails ? (
               <View style={s.routeBlock}>
-                <RNText style={s.routeToVal} numberOfLines={1}>{destinationDetails.name}</RNText>
+                <RNText style={s.routeToVal} numberOfLines={1} ellipsizeMode="tail">{destinationDetails.name}</RNText>
                 {routeSummary && (
                   <View style={s.routeMetaRow}>
                     <View style={[s.routeDot, { backgroundColor: '#34D399' }]} />
@@ -939,35 +959,34 @@ export default function LiveMapScreen() {
         </View>
       </View>
 
-      {/* ── Scanning chip — floating above bottom sheet ── */}
-      <View style={[s.scanChip, { bottom: tabBarHeight + (selectedRider ? 210 : 24) }]}>
-        <Animated.View style={[s.scanDot, {
-          opacity: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.2, 1] }),
-          transform: [{ scale: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.6, 1] }) }],
-        }]} />
-        <RNText style={s.scanText}>
-          {hasLoc
-            ? matchCount > 0
-              ? `${matchCount} rider match found nearby`
-              : `Searching within ${userAccuracyRadius}m…`
-            : 'Getting your location…'}
-        </RNText>
-      </View>
+      {!showNoRidersSheet ? (
+        <View style={[s.scanChip, { bottom: tabBarHeight + (selectedRider ? 210 : 24) }]}>
+          <Animated.View style={[s.scanDot, {
+            opacity: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.2, 1] }),
+            transform: [{ scale: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.6, 1] }) }],
+          }]} />
+          <RNText style={s.scanText}>
+            {hasLoc
+              ? matchCount > 0
+                ? `${matchCount} rider match found nearby`
+                : `Searching within ${userAccuracyRadius}m…`
+              : 'Getting your location…'}
+          </RNText>
+        </View>
+      ) : null}
 
-      {/* ── Speedometer ── */}
       <View style={{ position: 'absolute', bottom: tabBarHeight + (selectedRider ? 210 : 24), right: 12, zIndex: 10 }}>
         <Speedometer speedKmh={hasLoc ? (speedKmh ?? 0) : null} />
       </View>
 
-      {selectedRider && (
+      {selectedRider ? (
         <View style={{ position: 'absolute', left: 0, right: 0, bottom: tabBarHeight + 20 }}>
           <SelectedSheet rider={selectedRider} meetupRoute={meetupRoute} onChat={openChat} onClose={() => setSelectedRider(null)} />
         </View>
-      )}
+      ) : null}
 
-      {/* ── No Riders Smart Sheet ── */}
-      {showNoRidersSheet && !selectedRider && (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: tabBarHeight + 20 }}>
+      {showNoRidersSheet && !selectedRider ? (
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: tabBarHeight + 12, zIndex: 50, elevation: 50 }}>
           <NoRidersSheet
             scanSecs={scanSecs}
             zoneIdx={zoneIdx}
@@ -977,7 +996,7 @@ export default function LiveMapScreen() {
             destination={destinationDetails?.name ?? (destination?.startsWith('custom_') ? 'Selected location' : destination) ?? 'your destination'}
           />
         </View>
-      )}
+      ) : null}
 
     </View>
   );
@@ -1024,16 +1043,17 @@ const s = StyleSheet.create({
   },
   routeBar: {
     flex: 1, backgroundColor: '#111827',
-    borderRadius: 18, paddingHorizontal: 12, paddingVertical: 7,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderRadius: 18, paddingHorizontal: 10, paddingVertical: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.13)', elevation: 6,
     shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
+    minWidth: 0,
   },
-  routeInfo: { flex: 1 },
+  routeInfo: { flex: 1, minWidth: 0 },
   routeBlock: { gap: 3 },
   routeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   routeDot: { width: 6, height: 6, borderRadius: 3 },
-  routeToVal: { fontSize: 13, fontWeight: '800', color: C.text, letterSpacing: -0.2 },
+  routeToVal: { fontSize: 11, fontWeight: '800', color: C.text, letterSpacing: -0.2 },
   routeMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   routeMetaText: { fontSize: 11, color: C.textSub, fontWeight: '500' },
   routeMetaDivider: { fontSize: 11, color: C.textMuted },
