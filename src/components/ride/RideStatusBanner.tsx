@@ -24,7 +24,7 @@ const STATUS_CONFIG: Record<RideStatus, BannerConfig> = {
     bg: '#F1F8F1',
     message: 'Ride Confirmed! যাচ্ছো।',
   },
-  started: {
+  active: {
     icon: 'rickshaw',
     color: '#FF8F00',
     bg: '#FFF8E1',

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import firestore from '@react-native-firebase/firestore';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { Ride, RideStatus } from '@/types';
 import { useAuthStore } from '@/store';
 import { logger } from '@/utils/logger';
+import { db } from '@/services/firebase/config';
 
 interface UseRideStatusResult {
   ride: Ride | null;
@@ -29,23 +30,21 @@ export function useRideStatus(rideId: string): UseRideStatusResult {
 
     setIsLoading(true);
 
-    unsubscribeRef.current = firestore()
-      .collection(RIDES_COLLECTION)
-      .doc(rideId)
-      .onSnapshot(
-        (doc) => {
-          if (doc.exists) {
-            setRide({ ...(doc.data() as Ride), rideId: doc.id });
-          } else {
-            setRide(null);
-          }
-          setIsLoading(false);
-        },
-        (err) => {
-          logger.error('useRideStatus.subscribe', err);
-          setIsLoading(false);
-        },
-      );
+    unsubscribeRef.current = onSnapshot(
+      doc(db, RIDES_COLLECTION, rideId),
+      (doc) => {
+        if (doc.exists()) {
+          setRide({ ...(doc.data() as Ride), rideId: doc.id });
+        } else {
+          setRide(null);
+        }
+        setIsLoading(false);
+      },
+      (err) => {
+        logger.error('useRideStatus.subscribe', err);
+        setIsLoading(false);
+      },
+    );
 
     return () => {
       unsubscribeRef.current?.();
@@ -57,7 +56,7 @@ export function useRideStatus(rideId: string): UseRideStatusResult {
       if (!user || !rideId) return false;
 
       try {
-        await firestore().collection(RIDES_COLLECTION).doc(rideId).update({
+        await updateDoc(doc(db, RIDES_COLLECTION, rideId), {
           status: 'cancelled' as RideStatus,
           cancelledAt: Date.now(),
           cancelReason: reason,
@@ -76,7 +75,7 @@ export function useRideStatus(rideId: string): UseRideStatusResult {
     if (!user || !rideId) return false;
 
     try {
-      await firestore().collection(RIDES_COLLECTION).doc(rideId).update({
+      await updateDoc(doc(db, RIDES_COLLECTION, rideId), {
         status: 'completed' as RideStatus,
         completedAt: Date.now(),
       });

@@ -38,18 +38,40 @@ interface PlacesNearbySearchResponse {
   error_message?: string;
 }
 
+interface PlaceDetailsResponse {
+  result?: {
+    place_id?: string;
+    name?: string;
+    formatted_address?: string;
+    geometry?: {
+      location?: {
+        lat: number;
+        lng: number;
+      };
+    };
+  };
+  status: string;
+  error_message?: string;
+}
+
 class PlacesService {
   async autocomplete(params: {
     input: string;
     latitude?: number;
     longitude?: number;
     radiusMeters?: number;
+    sessionToken?: string;
     language?: string;
   }): Promise<PlaceSuggestion[]> {
+    if (!ENV.googlePlacesApiKey || ENV.googlePlacesApiKey === 'placeholder') {
+      throw new Error('Google Places API key is missing at runtime');
+    }
+
     const query = buildQueryString({
       input: params.input.trim(),
       key: ENV.googlePlacesApiKey,
       language: params.language ?? 'en',
+      sessiontoken: params.sessionToken,
       location:
         params.latitude !== undefined && params.longitude !== undefined
           ? `${params.latitude},${params.longitude}`
@@ -79,6 +101,10 @@ class PlacesService {
     radiusMeters?: number;
     keyword?: string;
   }) {
+    if (!ENV.googlePlacesApiKey || ENV.googlePlacesApiKey === 'placeholder') {
+      throw new Error('Google Places API key is missing at runtime');
+    }
+
     const query = buildQueryString({
       key: ENV.googlePlacesApiKey,
       location: `${params.latitude},${params.longitude}`,
@@ -101,6 +127,35 @@ class PlacesService {
       latitude: item.geometry?.location?.lat ?? 0,
       longitude: item.geometry?.location?.lng ?? 0,
     }));
+  }
+
+  async getPlaceDetails(params: { placeId: string; language?: string }) {
+    if (!ENV.googlePlacesApiKey || ENV.googlePlacesApiKey === 'placeholder') {
+      throw new Error('Google Places API key is missing at runtime');
+    }
+
+    const query = buildQueryString({
+      key: ENV.googlePlacesApiKey,
+      place_id: params.placeId,
+      language: params.language ?? 'en',
+      fields: 'place_id,name,formatted_address,geometry',
+    });
+
+    const data = await fetchJson<PlaceDetailsResponse>(
+      `${GOOGLE_API_ENDPOINTS.placesDetails}?${query}`
+    );
+
+    if (data.status !== 'OK' || !data.result?.geometry?.location) {
+      throw new Error(data.error_message || `Place details failed: ${data.status}`);
+    }
+
+    return {
+      placeId: data.result.place_id ?? params.placeId,
+      name: data.result.name ?? 'Selected place',
+      address: data.result.formatted_address ?? '',
+      latitude: data.result.geometry.location.lat,
+      longitude: data.result.geometry.location.lng,
+    };
   }
 }
 

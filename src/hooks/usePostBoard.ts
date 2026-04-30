@@ -1,15 +1,26 @@
 import { useCallback, useEffect, useState } from 'react';
-import firestore from '@react-native-firebase/firestore';
+import {
+  addDoc,
+  arrayUnion,
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 import { Post, PostStatus } from '@/types';
 import { useAuthStore } from '@/store';
 import { handleError } from '@/utils/errorHandler';
 import { logger } from '@/utils/logger';
+import { db } from '@/services/firebase/config';
 
 type PostFilter = 'all' | PostStatus;
 
 interface CreatePostParams {
   destination: string;
-  pickupPoint: string;
+  meetPoint: string;
   scheduledTime: 'now' | string;
   note?: string;
   maxRiders?: number;
@@ -43,12 +54,14 @@ export function usePostBoard(): UsePostBoardResult {
   const fetchPosts = useCallback(() => {
     setIsLoading(true);
 
-    const query = firestore()
-      .collection(POSTS_COLLECTION)
-      .where('status', '==', 'open')
-      .orderBy('createdAt', 'desc');
+    const postsQuery = query(
+      collection(db, POSTS_COLLECTION),
+      where('status', '==', 'open'),
+      orderBy('createdAt', 'desc'),
+    );
 
-    const unsubscribe = query.onSnapshot(
+    const unsubscribe = onSnapshot(
+      postsQuery,
       (snapshot) => {
         const fetched: Post[] = snapshot.docs.map((doc) => ({
           ...(doc.data() as Post),
@@ -89,11 +102,11 @@ export function usePostBoard(): UsePostBoardResult {
           authorName: user.name,
           authorRating: user.rating,
           authorBadge: user.badge,
-          authorPhotoURL: user.photoURL,
+          authorPhotoURL: user.photoURL ?? null,
           destination: params.destination,
-          pickupPoint: params.pickupPoint,
+          meetPoint: params.meetPoint,
           scheduledTime: params.scheduledTime,
-          note: params.note,
+          note: params.note ?? null,
           status: 'open',
           interested: [],
           maxRiders: params.maxRiders ?? 2,
@@ -101,7 +114,7 @@ export function usePostBoard(): UsePostBoardResult {
           expiresAt: now + POST_EXPIRE_MINUTES * 60 * 1000,
         };
 
-        const ref = await firestore().collection(POSTS_COLLECTION).add(newPost);
+        const ref = await addDoc(collection(db, POSTS_COLLECTION), newPost);
         logger.info('usePostBoard', `Post created: ${ref.id}`);
         return ref.id;
       } catch (err) {
@@ -117,12 +130,9 @@ export function usePostBoard(): UsePostBoardResult {
       if (!user) return false;
 
       try {
-        await firestore()
-          .collection(POSTS_COLLECTION)
-          .doc(postId)
-          .update({
-            interested: firestore.FieldValue.arrayUnion(user.uid),
-          });
+        await updateDoc(doc(db, POSTS_COLLECTION, postId), {
+          interested: arrayUnion(user.uid),
+        });
         logger.info('usePostBoard', `Joined post ${postId}`);
         return true;
       } catch (err) {

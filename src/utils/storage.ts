@@ -12,6 +12,7 @@ export enum STORAGE_KEYS {
   NOTIFICATION_PREFS = '@rideshare/notification_prefs',
   ONBOARDING_COMPLETE = '@rideshare/onboarding_complete',
   LAST_KNOWN_LOCATION = '@rideshare/last_known_location',
+  CHAT_READ_TIMES = '@rideshare/chat_read_times',
 }
 
 /**

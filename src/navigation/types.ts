@@ -8,6 +8,7 @@ import {
   StackScreenProps,
 } from '@react-navigation/stack';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { NearbyRider } from '@/types/ride.types';
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -28,12 +29,18 @@ export type RootStackParamList = {
   Auth: NavigatorScreenParams<AuthStackParamList>;
   Suspension: { remainingHours?: number; suspendedUntil?: number; reason?: string };
   MainApp: NavigatorScreenParams<MainTabParamList>;
-  RideConfirmed: { rideId?: string; rider?: any; chatId?: string; fare?: number; splitFare?: number };
-  RideActive: { rideId?: string; rider?: any; fare?: number; splitFare?: number };
-  RideComplete: { rideId?: string; rider?: any; fare?: number; splitFare?: number };
-  Chat: { chatId: string; partnerName: string; rider?: any };
+  VehicleConfirm: { rider?: NearbyRider; chatId?: string };
+  RideConfirmed: { rideId?: string; rider?: NearbyRider; chatId?: string; fare?: number; splitFare?: number };
+  RideActive: { rideId?: string; rider?: NearbyRider; fare?: number; splitFare?: number };
+  RideComplete: { rideId?: string; rider?: NearbyRider; fare?: number; splitFare?: number };
+  Chat: {
+    chatId?: string;
+    partnerName?: string;
+    rider?: NearbyRider;
+    anonymousMode?: 'anonymous_1v1' | 'anonymous_group';
+  };
   ChatList: undefined;
-  Profile: { userId?: string };
+  UserProfile: { userId?: string };
   EditProfile: undefined;
   Settings: undefined;
   RideHistory: undefined;

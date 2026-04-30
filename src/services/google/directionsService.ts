@@ -7,41 +7,105 @@ type LatLng = {
   longitude: number;
 };
 
-interface DirectionsApiResponse {
-  routes?: Array<{
-    summary?: string;
-    overview_polyline?: { points?: string };
-    legs?: Array<{
-      distance?: { text?: string; value?: number };
-      duration?: { text?: string; value?: number };
-      end_address?: string;
-      start_address?: string;
-    }>;
+export type DirectionsRequest = {
+  origin: string;
+  destination: string;
+  waypoints?: string[];
+  mode?: 'driving' | 'walking' | 'bicycling' | 'transit';
+  departureTime?: 'now' | number;
+  trafficModel?: 'best_guess' | 'pessimistic' | 'optimistic';
+  alternatives?: boolean;
+  language?: string;
+  units?: 'metric' | 'imperial';
+  region?: string;
+};
+
+export type DirectionsLeg = {
+  distance: { text: string; value: number };
+  duration: { text: string; value: number };
+  duration_in_traffic?: { text: string; value: number };
+  start_address: string;
+  end_address: string;
+  steps: Array<{
+    html_instructions: string;
+    distance: { text: string; value: number };
+    duration: { text: string; value: number };
+    travel_mode: string;
+    polyline: { points: string };
   }>;
+};
+
+export type DirectionsRoute = {
+  summary: string;
+  legs: DirectionsLeg[];
+  overview_polyline: { points: string };
+  warnings: string[];
+  copyrights: string;
+};
+
+export type DirectionsResponse = {
   status: string;
+  routes: DirectionsRoute[];
+  geocoded_waypoints?: Array<{ status: string; place_id: string }>;
   error_message?: string;
-}
+};
 
 class DirectionsService {
-  async getRoute(params: {
-    origin: LatLng;
-    destination: LatLng;
-    mode?: 'walking' | 'driving' | 'bicycling' | 'transit';
-  }) {
+  async getDirections(req: DirectionsRequest): Promise<DirectionsResponse> {
     const query = buildQueryString({
-      origin: `${params.origin.latitude},${params.origin.longitude}`,
-      destination: `${params.destination.latitude},${params.destination.longitude}`,
-      mode: params.mode ?? 'walking',
       key: ENV.googleDirectionsApiKey,
+      origin: req.origin,
+      destination: req.destination,
+      mode: req.mode ?? 'driving',
+      language: req.language ?? 'en',
+      units: req.units ?? 'metric',
+      region: req.region ?? 'bd',
+      departure_time: req.departureTime,
+      traffic_model: req.trafficModel,
+      alternatives: req.alternatives ? 'true' : undefined,
+      waypoints: req.waypoints?.length ? req.waypoints.join('|') : undefined,
     });
 
-    const data = await fetchJson<DirectionsApiResponse>(
+    const data = await fetchJson<DirectionsResponse>(
       `${GOOGLE_API_ENDPOINTS.directions}?${query}`
     );
 
-    if (data.status !== 'OK') {
-      throw new Error(data.error_message || `Directions request failed: ${data.status}`);
+    if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+      throw new Error(data.error_message || `Directions API status: ${data.status}`);
     }
+
+    return data;
+  }
+
+  async getTravelTime(
+    origin: string,
+    destination: string,
+    mode: DirectionsRequest['mode'] = 'driving'
+  ): Promise<number> {
+    const result = await this.getDirections({
+      origin,
+      destination,
+      mode,
+      departureTime: 'now',
+      trafficModel: 'best_guess',
+    });
+
+    const leg = result.routes?.[0]?.legs?.[0];
+    if (!leg) return 0;
+
+    return leg.duration_in_traffic?.value ?? leg.duration.value;
+  }
+
+  async getRoute(params: {
+    origin: LatLng;
+    destination: LatLng;
+    mode?: DirectionsRequest['mode'];
+  }) {
+    const data = await this.getDirections({
+      origin: `${params.origin.latitude},${params.origin.longitude}`,
+      destination: `${params.destination.latitude},${params.destination.longitude}`,
+      mode: params.mode ?? 'walking',
+    });
 
     const route = data.routes?.[0];
     const leg = route?.legs?.[0];

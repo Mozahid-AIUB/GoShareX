@@ -1,121 +1,241 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  StyleSheet,
+  Animated,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
   Alert,
 } from 'react-native';
-import { TextInput, Button, Text, HelperText } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+
 import { RootNavProp } from '@/navigation/types';
 import authService from '@/services/firebase/authService';
-import { isValidAIUBEmail } from '@/utils/validators';
+import googleAuthService from '@/services/firebase/googleAuthService';
 import { useAuthStore } from '@/store';
+import { getFCMToken, saveFCMToken } from '@/services/firebase/messaging';
+import { checkSuspension } from '@/services/firebase/badgeService';
+import { isValidEmail } from '@/utils/validators';
+import { useAnimatedPress } from '@/hooks/useAnimatedPress';
+import { C, ONE_DAY_MS } from '@/components/auth/authColors';
+import { LogoMark, IconEmail, IconLock, IconArrow, IconGoogle } from '@/components/auth/AuthIcons';
+import FormField from '@/components/auth/FormField';
 
+type SuspendedError = { code: 'USER_SUSPENDED'; suspendedUntil?: number };
 
-const LoginScreen = () => {
-
+export default function LoginScreen() {
   const navigation = useNavigation<RootNavProp>();
   const { setUser } = useAuthStore();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+
+  const btn = useAnimatedPress();
+  const gBtn = useAnimatedPress();
+
+  useEffect(() => { googleAuthService.initialize().catch(() => {}); }, []);
+
+  const handleSuspended = (suspendedUntil: number, reason?: string) => {
+    const remainingMs = suspendedUntil - Date.now();
+    navigation.replace('Suspension', {
+      suspendedUntil,
+      remainingHours: Math.max(1, Math.ceil(remainingMs / 3_600_000)),
+      reason: reason ?? 'Your account has been suspended due to repeated ride cancellations.',
+    });
+  };
+
+  const afterAuth = async (uid: string, suspendedUntil?: number) => {
+    const status = await checkSuspension(uid);
+    if (status.suspended) {
+      handleSuspended(suspendedUntil ?? Date.now() + ONE_DAY_MS, status.reason);
+      return false;
+    }
+    const fcmToken = await getFCMToken();
+    if (fcmToken) await saveFCMToken(uid, fcmToken).catch(() => {});
+    return true;
+  };
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill all fields');
+    setEmailError('');
+    if (!email.trim() || !password) {
+      Alert.alert('Missing fields', 'Please enter your email and password.');
       return;
     }
-    if (!isValidAIUBEmail(email)) {
-      Alert.alert('Error', 'শুধু AIUB email দিয়ে login করা যাবে');
+    if (!isValidEmail(email.trim().toLowerCase())) {
+      setEmailError('Please enter a valid email address');
       return;
     }
     setLoading(true);
     try {
-      const user = await authService.login({ email, password });
-      setUser(user);
-
-      navigation.reset({ index: 0, routes: [{ name: 'MainApp' }] });
+      const user = await authService.login({ email: email.trim().toLowerCase(), password });
+      const ok = await afterAuth(user.uid, user.suspendedUntil);
+      if (ok) setUser(user);
     } catch (error: any) {
-      Alert.alert('Login Failed', error.message);
+      if ((error as SuspendedError)?.code === 'USER_SUSPENDED') {
+        handleSuspended(error.suspendedUntil ?? Date.now() + ONE_DAY_MS);
+        return;
+      }
+      if (error?.code === 'PROFILE_NOT_FOUND') {
+        navigation.navigate('Auth', { screen: 'ProfileSetup', params: {} });
+        return;
+      }
+      const msg: Record<string, string> = {
+        'auth/user-not-found': 'No account found with this email.',
+        'auth/wrong-password': 'Incorrect email or password.',
+        'auth/invalid-credential': 'Incorrect email or password.',
+        'auth/invalid-email': 'Invalid email address.',
+        'auth/too-many-requests': 'Too many failed attempts. Please try again later.',
+        'auth/network-request-failed': 'Network error. Check your internet connection.',
+      };
+      const errMsg = typeof error?.message === 'string' ? error.message : '';
+      Alert.alert('Login failed', msg[error?.code] ?? (errMsg || 'Please check your credentials and try again.'));
     } finally {
       setLoading(false);
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setEmailError('');
+    setGoogleLoading(true);
+    try {
+      const user = await googleAuthService.signInWithGoogle();
+      const ok = await afterAuth(user.uid, user.suspendedUntil);
+      if (ok) setUser(user);
+    } catch (error: any) {
+      if ((error as SuspendedError)?.code === 'USER_SUSPENDED') {
+        handleSuspended(error.suspendedUntil ?? Date.now() + ONE_DAY_MS);
+        return;
+      }
+      if (error?.code === 'PROFILE_NOT_FOUND') {
+        navigation.navigate('Auth', { screen: 'ProfileSetup', params: {} });
+        return;
+      }
+      const message = error?.message ?? 'Google Sign-In failed';
+      if (!message.includes('cancelled')) Alert.alert('Sign-in failed', message);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const busy = loading || googleLoading;
+
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.content}
-      >
-        <Text style={styles.logo}>🛺</Text>
-        <Text style={styles.title}>RideShare AIUB</Text>
-        <Text style={styles.subtitle}>AIUB Students Only</Text>
+    <SafeAreaView style={s.root}>
+      <View style={s.radial1} />
+      <View style={s.radial2} />
 
-        <View style={styles.form}>
-          <TextInput
-            label="AIUB Email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            mode="outlined"
-            style={styles.input}
-          />
-          <HelperText type="info">Use your @aiub.edu.bd email</HelperText>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-          <TextInput
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-            mode="outlined"
-            style={styles.input}
-            right={
-              <TextInput.Icon
-                icon={showPassword ? 'eye-off' : 'eye'}
-                onPress={() => setShowPassword(!showPassword)}
-              />
-            }
-          />
+          <View style={s.logoArea}>
+            <LogoMark size={64} />
+            <View style={s.logoTextWrap}>
+              <Text style={s.logoName}>Go<Text style={s.logoAccent}>Share</Text>X</Text>
+              <Text style={s.logoSub}>Smart Ride Sharing</Text>
+            </View>
+          </View>
 
-          <Button
-            mode="contained"
-            onPress={handleLogin}
-            loading={loading}
-            disabled={loading}
-            style={styles.loginButton}
-          >
-            Login with AIUB Account
-          </Button>
+          <View style={s.card}>
+            <Text style={s.cardTitle}>Welcome back</Text>
+            <Text style={s.cardSub}>Sign in to continue</Text>
 
-          <Button
-            mode="text"
-            onPress={() => navigation.navigate('Register' as any)}
-            disabled={loading}
-          >
-            Don&apos;t have an account? Register
-          </Button>
-        </View>
+            <FormField label="Email" value={email} onChangeText={setEmail}
+              icon={<IconEmail />} keyboardType="email-address" error={emailError} />
+            <FormField label="Password" value={password} onChangeText={setPassword}
+              icon={<IconLock />} secure={!showPassword}
+              onToggleSecure={() => setShowPassword(v => !v)} />
+
+            <Animated.View style={{ transform: [{ scale: btn.scale }] }}>
+              <Pressable style={[s.loginBtn, loading && s.btnDisabled]}
+                onPress={handleLogin} onPressIn={btn.onPressIn} onPressOut={btn.onPressOut}
+                disabled={busy}>
+                {loading
+                  ? <Text style={s.loginBtnText}>Signing in...</Text>
+                  : <><Text style={s.loginBtnText}>Sign In</Text><IconArrow /></>}
+              </Pressable>
+            </Animated.View>
+
+            <View style={s.dividerWrap}>
+              <View style={s.dividerLine} />
+              <Text style={s.dividerText}>OR</Text>
+              <View style={s.dividerLine} />
+            </View>
+
+            <Animated.View style={{ transform: [{ scale: gBtn.scale }] }}>
+              <Pressable style={[s.googleBtn, googleLoading && s.btnDisabled]}
+                onPress={handleGoogleSignIn} onPressIn={gBtn.onPressIn} onPressOut={gBtn.onPressOut}
+                disabled={busy}>
+                {googleLoading
+                  ? <Text style={s.googleBtnText}>Signing in...</Text>
+                  : <><IconGoogle /><Text style={s.googleBtnText}>Continue with Google</Text></>}
+              </Pressable>
+            </Animated.View>
+
+            <TouchableOpacity style={s.registerLink}
+              onPress={() => navigation.navigate('Auth', { screen: 'Register' })}
+              disabled={busy} activeOpacity={0.7}>
+              <Text style={s.registerLinkText}>
+                Don&apos;t have an account? <Text style={s.registerLinkAccent}>Create one</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={s.disclaimer}>
+            By signing in you agree to GoShareX&apos;s Terms of Service and Privacy Policy.{'\n'}
+            GoShareX is not liable for any financial loss or disputes between riders.
+          </Text>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
-};
+}
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  content: { flex: 1, padding: 20, justifyContent: 'center' },
-  logo: { fontSize: 60, textAlign: 'center', marginBottom: 10 },
-  title: { fontSize: 28, fontWeight: 'bold', textAlign: 'center', color: '#1A73E8' },
-  subtitle: { fontSize: 14, textAlign: 'center', color: '#666', marginBottom: 40 },
-  form: { width: '100%' },
-  input: { marginBottom: 10 },
-  loginButton: { marginTop: 20, marginBottom: 10 },
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.bg },
+  radial1: { position: 'absolute', top: -60, right: -50, width: 260, height: 260, borderRadius: 130, backgroundColor: 'rgba(124,58,237,0.10)' },
+  radial2: { position: 'absolute', bottom: -50, left: -40, width: 220, height: 220, borderRadius: 110, backgroundColor: 'rgba(13,148,136,0.07)' },
+  scroll: { flexGrow: 1, padding: 24, justifyContent: 'center' },
+  logoArea: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 32, alignSelf: 'center' },
+  logoTextWrap: { gap: 2 },
+  logoName: { fontSize: 28, fontWeight: '900', color: C.text, letterSpacing: -0.8 },
+  logoAccent: { color: C.primary },
+  logoSub: { fontSize: 12, color: C.textSub, fontWeight: '500' },
+  card: {
+    backgroundColor: C.white, borderWidth: 1, borderColor: '#EDE9FE',
+    shadowColor: C.primary, shadowOpacity: 0.07, shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 }, elevation: 3,
+    borderRadius: 28, padding: 24, marginBottom: 20,
+  },
+  cardTitle: { fontSize: 22, fontWeight: '800', color: C.text, marginBottom: 4, letterSpacing: -0.4 },
+  cardSub: { fontSize: 13, color: C.textSub, marginBottom: 24 },
+  loginBtn: {
+    height: 54, borderRadius: 18, backgroundColor: C.primary,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 4,
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 16, elevation: 8,
+  },
+  btnDisabled: { opacity: 0.6 },
+  loginBtnText: { fontSize: 16, fontWeight: '800', color: C.white, letterSpacing: -0.2 },
+  dividerWrap: { flexDirection: 'row', alignItems: 'center', marginVertical: 20, gap: 12 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#E5E0FF' },
+  dividerText: { fontSize: 12, fontWeight: '600', color: C.textMuted, letterSpacing: 0.5 },
+  googleBtn: {
+    height: 54, borderRadius: 18, backgroundColor: C.white,
+    borderWidth: 1.5, borderColor: '#E5E0FF',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+  },
+  googleBtnText: { fontSize: 16, fontWeight: '700', color: C.text, letterSpacing: -0.2 },
+  registerLink: { alignItems: 'center', marginTop: 18 },
+  registerLinkText: { fontSize: 13, color: C.textSub },
+  registerLinkAccent: { color: C.primary, fontWeight: '700' },
+  disclaimer: { fontSize: 11, color: C.textMuted, textAlign: 'center', lineHeight: 17, paddingHorizontal: 8 },
 });
-
-export default LoginScreen;

@@ -1,4 +1,5 @@
 import * as Location from 'expo-location';
+import { sanitizeSpeedKmh } from '@/utils/locationSpeed';
 
 export type Coords = { lat: number; lng: number; accuracy?: number; speed?: number };
 
@@ -74,6 +75,5 @@ export async function startHighFrequencyTracking(
 }
 
 export function getSpeedKmh(speedMs: number | null | undefined): number {
-  if (!speedMs || speedMs < 0) return 0;
-  return speedMs * 3.6;
+  return sanitizeSpeedKmh(speedMs) ?? 0;
 }

@@ -3,21 +3,26 @@ import 'dotenv/config';
 export default {
     expo: {
         name: "GoShareX",
-        slug: "rideshare-aiub",
+        slug: "gosharex",
         version: "1.0.0",
         orientation: "portrait",
         icon: "./assets/images/icon.png",
         splash: {
-            image: "./assets/images/splash.png",
+            image: "./assets/images/gosharex-matrix-splash.png",
             resizeMode: "contain",
-            backgroundColor: "#1A73E8"
+            backgroundColor: "#07122B"
         },
         android: {
             adaptiveIcon: {
                 foregroundImage: "./assets/images/adaptive-icon.png",
                 backgroundColor: "#1A73E8"
             },
-            package: "com.aiub.rideshare",
+            package: "com.gosharex.app",
+            config: {
+                googleMaps: {
+                    apiKey: process.env.GOOGLE_MAPS_API_KEY
+                }
+            },
             permissions: [
                 "ACCESS_FINE_LOCATION",
                 "ACCESS_COARSE_LOCATION",
@@ -27,9 +32,16 @@ export default {
             ],
             googleServicesFile: "./google-services.json"
         },
+        ios: {
+            bundleIdentifier: "com.gosharex.app",
+            config: {
+                googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY
+            }
+        },
         plugins: [
             "expo-location",
             "expo-notifications",
+            "@react-native-google-signin/google-signin",
             [
                 "expo-build-properties",
                 {
@@ -42,6 +54,9 @@ export default {
             ]
         ],
         extra: {
+            eas: {
+                projectId: "cfddb17a-f7c5-4700-a526-85456ce48212"
+            },
             FIREBASE_API_KEY: process.env.FIREBASE_API_KEY,
             FIREBASE_AUTH_DOMAIN: process.env.FIREBASE_AUTH_DOMAIN,
             FIREBASE_DATABASE_URL: process.env.FIREBASE_DATABASE_URL,
@@ -49,9 +64,13 @@ export default {
             FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET,
             FIREBASE_MESSAGING_SENDER_ID: process.env.FIREBASE_MESSAGING_SENDER_ID,
             FIREBASE_APP_ID: process.env.FIREBASE_APP_ID,
-            eas: {
-                projectId: "your-eas-project-id"
-            }
+            FIREBASE_MEASUREMENT_ID: process.env.FIREBASE_MEASUREMENT_ID,
+            GOOGLE_WEB_CLIENT_ID: process.env.GOOGLE_WEB_CLIENT_ID,
+            GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
+            GOOGLE_PLACES_API_KEY: process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY,
+            GOOGLE_ROUTES_API_KEY: process.env.GOOGLE_ROUTES_API_KEY || process.env.GOOGLE_MAPS_API_KEY,
+            GOOGLE_DIRECTIONS_API_KEY: process.env.GOOGLE_DIRECTIONS_API_KEY || process.env.GOOGLE_MAPS_API_KEY,
+            GOOGLE_DISTANCE_MATRIX_API_KEY: process.env.GOOGLE_DISTANCE_MATRIX_API_KEY || process.env.GOOGLE_MAPS_API_KEY,
         }
     }
 };

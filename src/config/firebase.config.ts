@@ -11,6 +11,12 @@ import { getStorage, FirebaseStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
+const extraConfig =
+  (Constants.expoConfig?.extra as Record<string, string | undefined> | undefined) ??
+  ((Constants as any).manifest?.extra as Record<string, string | undefined> | undefined) ??
+  ((Constants as any).manifest2?.extra as Record<string, string | undefined> | undefined) ??
+  {};
+
 const {
   FIREBASE_API_KEY,
   FIREBASE_AUTH_DOMAIN,
@@ -19,22 +25,30 @@ const {
   FIREBASE_MESSAGING_SENDER_ID,
   FIREBASE_APP_ID,
   FIREBASE_DATABASE_URL,
-} = Constants.expoConfig?.extra ?? {};
+} = extraConfig;
+
+if (!FIREBASE_API_KEY || !FIREBASE_AUTH_DOMAIN || !FIREBASE_PROJECT_ID) {
+  console.error('[firebase.config] Missing required Firebase env vars. Check your .env file.');
+}
 
 const firebaseConfig = {
-  apiKey: FIREBASE_API_KEY,
-  authDomain: FIREBASE_AUTH_DOMAIN,
-  projectId: FIREBASE_PROJECT_ID,
-  storageBucket: FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: FIREBASE_MESSAGING_SENDER_ID,
-  appId: FIREBASE_APP_ID,
-  databaseURL: FIREBASE_DATABASE_URL,
+  apiKey:            FIREBASE_API_KEY            ?? '',
+  authDomain:        FIREBASE_AUTH_DOMAIN        ?? '',
+  projectId:         FIREBASE_PROJECT_ID         ?? '',
+  storageBucket:     FIREBASE_STORAGE_BUCKET     ?? '',
+  messagingSenderId: FIREBASE_MESSAGING_SENDER_ID ?? '',
+  appId:             FIREBASE_APP_ID             ?? '',
+  databaseURL:       FIREBASE_DATABASE_URL       ?? '',
 };
 
 const app: FirebaseApp = getApps().length === 0
   ? initializeApp(firebaseConfig)
   : getApp();
 
+// The installed Firebase version in this repo does not expose the RN
+// persistence helper as a typed ESM export, so we access it from the
+// underlying auth package to keep React Native persistence working.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const firebaseAuthModule = require('@firebase/auth') as {
   initializeAuth?: (firebaseApp: FirebaseApp, deps?: Record<string, unknown>) => Auth;
   getReactNativePersistence?: (storage: typeof AsyncStorage) => unknown;

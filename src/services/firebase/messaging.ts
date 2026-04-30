@@ -1,76 +1,99 @@
 /**
  * messaging.ts — FCM token management and push notification dispatch.
  *
- * React Native does NOT include the firebase/messaging web SDK; token
- * acquisition is handled by @react-native-firebase/messaging.
- * This file provides a clean async interface that wraps the native module
- * and persists tokens to Firestore for server-side targeting.
+ * Remote push tokens require a development build (SDK 53+).
+ * In Expo Go, token registration is skipped gracefully — local notifications still work.
  */
 
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import * as Notifications from 'expo-notifications';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/services/firebase/config';
 
-// Lazy import to avoid bundling issues in environments without the native module
-let _messaging: any = null;
-async function getMessaging() {
-  if (!_messaging) {
-    const rnfb = await import('@react-native-firebase/messaging');
-    _messaging = rnfb.default();
+const FCM_TOKENS_COLLECTION = 'fcm_tokens';
+
+/**
+ * Configure how notifications are presented when the app is in the foreground.
+ * Must be called once at app startup (before any notification can arrive).
+ * Skipped silently in Expo Go (SDK 53+) where remote push is unavailable.
+ */
+export function configureNotificationHandler(): void {
+  if (isExpoGo()) {
+    console.info('[messaging] Expo Go detected — skipping notification handler setup. Use a dev build for push notifications.');
+    return;
   }
-  return _messaging;
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      priority: Notifications.AndroidNotificationPriority.HIGH,
+    }),
+  });
 }
 
-const FCM_TOKENS_COLLECTION = 'fcm_tokens';
-const FCM_REST_ENDPOINT = 'https://fcm.googleapis.com/fcm/send';
+/** True when running inside Expo Go (not a standalone/dev build). */
+function isExpoGo(): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Constants = require('expo-constants').default;
+    return Constants.executionEnvironment === 'storeClient';
+  } catch {
+    return false;
+  }
+}
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Request the device's FCM registration token.
- * Returns `null` if permissions are denied or the device cannot be registered.
+ * Request the device's Expo push token.
+ * Returns `null` in Expo Go (SDK 53+) or if permissions are denied.
  */
 export async function getFCMToken(): Promise<string | null> {
+  if (isExpoGo()) {
+    console.info('[messaging] Expo Go detected — remote push tokens unavailable. Use a dev build.');
+    return null;
+  }
+
   try {
-    const messaging = await getMessaging();
     const hasPermission = await requestNotificationPermissions();
     if (!hasPermission) return null;
 
-    const token: string = await messaging.getToken();
-    return token ?? null;
-  } catch (error) {
-    console.warn('[messaging] getFCMToken failed:', error);
+    const tokenData = await Notifications.getExpoPushTokenAsync();
+
+    return tokenData.data ?? null;
+  } catch (error: any) {
+    // SDK 53: "expo-notifications: Android Push notifications...removed from Expo Go"
+    if (
+      typeof error?.message === 'string' &&
+      error.message.includes('expo-notifications')
+    ) {
+      console.info('[messaging] Push token unavailable in Expo Go — use a dev build.');
+    } else {
+      console.warn('[messaging] getFCMToken failed:', error);
+    }
     return null;
   }
 }
 
 /**
- * Persist a user's FCM token to Firestore so Cloud Functions / admin SDK
- * can target them without maintaining a separate token registry.
+ * Persist a user's push token to Firestore.
+ * Writes to both fcm_tokens/{uid} (indexed lookup) and users/{uid}.fcmToken
+ * so Cloud Functions can find it without an extra collection query.
  */
 export async function saveFCMToken(uid: string, token: string): Promise<void> {
-  const ref = doc(db, FCM_TOKENS_COLLECTION, uid);
-  await setDoc(
-    ref,
-    {
-      token,
-      uid,
-      updatedAt: Date.now(),
-      platform: 'android', // RN is Android-first for this app
-    },
-    { merge: true },
-  );
+  await Promise.all([
+    setDoc(
+      doc(db, FCM_TOKENS_COLLECTION, uid),
+      { token, uid, updatedAt: Date.now(), platform: 'android' },
+      { merge: true },
+    ),
+    updateDoc(doc(db, 'users', uid), { fcmToken: token }),
+  ]);
 }
 
 /**
- * Send a push notification via the FCM Legacy HTTP REST API.
- * In production this should be called from a Cloud Function using the Admin SDK.
- * This client-side helper is provided for development convenience and direct
- * user-to-user signalling paths where a backend endpoint is not yet available.
- *
- * @param to      FCM registration token of the target device
- * @param title   Notification title
- * @param body    Notification body text
- * @param data    Arbitrary key-value payload (strings only per FCM spec)
+ * Send a push notification via Expo Push API.
+ * In production this should be called from a Cloud Function.
  */
 export async function sendPushNotification(
   to: string,
@@ -78,31 +101,30 @@ export async function sendPushNotification(
   body: string,
   data: object = {},
 ): Promise<void> {
-  const serverKey = process.env.FCM_SERVER_KEY;
-  if (!serverKey) {
-    throw new Error('FCM_SERVER_KEY is not configured');
-  }
+  try {
+    const payload = {
+      to,
+      notification: { title, body, sound: 'default' },
+      data: Object.entries(data).reduce((acc, [k, v]) => {
+        acc[k] = String(v);
+        return acc;
+      }, {} as Record<string, string>),
+      priority: 'high',
+      content_available: true,
+    };
 
-  const payload = {
-    to,
-    notification: { title, body, sound: 'default' },
-    data,
-    priority: 'high',
-    content_available: true,
-  };
+    const response = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
 
-  const response = await fetch(FCM_REST_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Authorization: `key=${serverKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`FCM send failed [${response.status}]: ${errorText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.warn(`[messaging] sendPushNotification failed [${response.status}]: ${errorText}`);
+    }
+  } catch (error) {
+    console.warn('[messaging] sendPushNotification error:', error);
   }
 }
 
@@ -112,27 +134,15 @@ export async function sendPushNotification(
  */
 export async function requestNotificationPermissions(): Promise<boolean> {
   try {
-    const messaging = await getMessaging();
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
 
-    // @react-native-firebase/messaging permission levels
-    const AuthorizationStatus = {
-      AUTHORIZED: 1,
-      PROVISIONAL: 3,
-    };
-
-    const current = await messaging.hasPermission();
-    if (
-      current === AuthorizationStatus.AUTHORIZED ||
-      current === AuthorizationStatus.PROVISIONAL
-    ) {
-      return true;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
     }
 
-    const status = await messaging.requestPermission();
-    return (
-      status === AuthorizationStatus.AUTHORIZED ||
-      status === AuthorizationStatus.PROVISIONAL
-    );
+    return finalStatus === 'granted';
   } catch (error) {
     console.warn('[messaging] requestNotificationPermissions failed:', error);
     return false;
@@ -140,8 +150,7 @@ export async function requestNotificationPermissions(): Promise<boolean> {
 }
 
 /**
- * Retrieve the stored FCM token for a given user from Firestore.
- * Useful when one user needs to push to another.
+ * Retrieve the stored push token for a given user from Firestore.
  */
 export async function getStoredFCMToken(uid: string): Promise<string | null> {
   const snap = await getDoc(doc(db, FCM_TOKENS_COLLECTION, uid));

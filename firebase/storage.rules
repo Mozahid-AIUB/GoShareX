@@ -1,0 +1,56 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // ───────────────────────────────────────────────────────────────────────
+    // DEFAULT: DENY ALL
+    // ───────────────────────────────────────────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // USER PROFILE PICTURES
+    // ───────────────────────────────────────────────────────────────────────
+    match /users/{userId}/profile-pic {
+      // Any authenticated user can read (but not list directory)
+      allow read: if request.auth != null;
+      // Only owner can upload
+      allow write: if request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024  // Max 5MB
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+      // Only owner can delete
+      allow delete: if request.auth.uid == userId;
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // RIDE RECEIPTS & PROOF (server-side generated only)
+    // ───────────────────────────────────────────────────────────────────────
+    match /rides/{rideId}/receipt-{fileName} {
+      // Ride participants can read
+      allow read: if request.auth != null
+        && exists(/databases/$(database)/documents/rides/$(rideId))
+        && (request.auth.uid == resource.metadata.rider1
+         || request.auth.uid == resource.metadata.rider2);
+      // NO write/delete — server-side only
+      allow write, delete: if false;
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // DISPUTE EVIDENCE (user uploads for reports)
+    // ───────────────────────────────────────────────────────────────────────
+    match /disputes/{disputeId}/evidence-{fileName} {
+      // Only uploader (owner of dispute) can read/write
+      allow read, write: if request.auth.uid == resource.metadata.uploaderId
+        && request.resource.size < 10 * 1024 * 1024  // Max 10MB
+        && request.resource.contentType.matches('(image|video)/*');
+      allow delete: if request.auth.uid == resource.metadata.uploaderId;
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // AUDIT & SYSTEM FILES (no client access)
+    // ───────────────────────────────────────────────────────────────────────
+    match /system/{document=**} {
+      allow read, write: if false;  // Cloud Functions only
+    }
+  }
+}

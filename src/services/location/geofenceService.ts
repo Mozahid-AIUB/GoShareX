@@ -1,6 +1,6 @@
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
-import { DESTINATIONS } from '@constants/destinations';
+import { DESTINATIONS } from '@/constants/destinations';
 
 export const GEOFENCE_TASK = 'RIDESHARE_GEOFENCE_TASK';
 

@@ -17,3 +17,5 @@ ios/
 coverage/
 .idea/
 .vscode/
+.env
+app.json

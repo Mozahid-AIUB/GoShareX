@@ -16,6 +16,8 @@ import {
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import Svg, { Path } from 'react-native-svg';
+import PremiumIcon from '@/components/common/PremiumIcon';
 
 import badgePenaltyService from '@/services/user/badgePenaltyService';
 import authService from '@/services/firebase/authService';
@@ -78,7 +80,7 @@ export default function SuspensionScreen() {
       Alert.alert(
         'Account পুনরুদ্ধার',
         'তোমার suspension শেষ হয়েছে। আবার ride share করো।',
-        [{ text: 'ঠিক আছে', onPress: () => navigation.replace('MainApp') }],
+        [{ text: 'ঠিক আছে', onPress: () => navigation.navigate('Auth' as any) }],
       );
     }
   }, [countdown]);
@@ -103,7 +105,7 @@ export default function SuspensionScreen() {
   const handleLogout = async () => {
     await authService.logout();
     logout();
-    navigation.replace('Auth');
+    // AppNavigator automatically switches to Auth stack when isAuthenticated becomes false
   };
 
   const RULES = [
@@ -120,7 +122,7 @@ export default function SuspensionScreen() {
         {/* ── Header (replaces LinearGradient) ── */}
         <View style={styles.header}>
           <View style={styles.shieldWrap}>
-            <Text style={styles.shieldEmoji}>🚫</Text>
+            <PremiumIcon name="cancel" size={30} tone="red" containerStyle={styles.shieldIcon} />
           </View>
           <Text style={styles.headerTitle}>Account সীমিত</Text>
           <Text style={styles.headerSub}>তোমার account সাময়িকভাবে বন্ধ আছে</Text>
@@ -148,13 +150,19 @@ export default function SuspensionScreen() {
 
         {/* ── Reason ── */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>⚠️  কারণ</Text>
+          <View style={styles.cardTitleRow}>
+            <PremiumIcon name="alert-outline" size={10} tone="red" />
+            <Text style={styles.cardTitle}>কারণ</Text>
+          </View>
           <Text style={styles.cardBody}>{reason}</Text>
         </View>
 
         {/* ── Rules ── */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>📖  Community Rules</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none"><Path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke="#202124" strokeWidth="1.8" strokeLinecap="round"/><Path d="M4 4.5A2.5 2.5 0 016.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15z" stroke="#202124" strokeWidth="1.8" strokeLinejoin="round"/></Svg>
+            <Text style={styles.cardTitle}>Community Rules</Text>
+          </View>
           {RULES.map((rule, i) => (
             <View key={i} style={styles.ruleRow}>
               <Text style={styles.bullet}>•</Text>
@@ -170,7 +178,10 @@ export default function SuspensionScreen() {
               style={styles.appealToggle}
               onPress={() => setShowAppeal(v => !v)}
             >
-              <Text style={styles.cardTitle}>⚖️  Appeal করো</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Svg width={16} height={16} viewBox="0 0 24 24" fill="none"><Path d="M14 2l8 8-4 4-8-8 4-4zM10 14l-7 7M3 21l7-7" stroke="#202124" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></Svg>
+                <Text style={styles.cardTitle}>Appeal করো</Text>
+              </View>
               <Text style={styles.chevron}>{showAppeal ? '▲' : '▼'}</Text>
             </TouchableOpacity>
 
@@ -195,16 +206,19 @@ export default function SuspensionScreen() {
                   onPress={handleAppeal}
                   disabled={submitting}
                 >
-                  <Text style={styles.appealBtnText}>
-                    {submitting ? 'পাঠানো হচ্ছে...' : '📤  Appeal পাঠাও'}
-                  </Text>
+                  <View style={styles.buttonInline}>
+                    {!submitting && <PremiumIcon name="send-outline" size={10} tone="amber" />}
+                    <Text style={styles.appealBtnText}>
+                      {submitting ? 'পাঠানো হচ্ছে...' : 'Appeal পাঠাও'}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               </>
             )}
           </View>
         ) : (
           <View style={[styles.card, styles.successCard]}>
-            <Text style={styles.successEmoji}>✅</Text>
+            <PremiumIcon name="check-bold" size={20} tone="green" containerStyle={styles.successIcon} />
             <Text style={styles.successText}>Appeal পাঠানো হয়েছে।</Text>
             <Text style={styles.successSub}>Admin ২৪ ঘণ্টার মধ্যে review করবে।</Text>
           </View>
@@ -212,7 +226,10 @@ export default function SuspensionScreen() {
 
         {/* ── Logout ── */}
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutText}>🚪  Logout</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none"><Path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="#E53935" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></Svg>
+            <Text style={styles.logoutText}>Logout</Text>
+          </View>
         </TouchableOpacity>
 
       </ScrollView>
@@ -239,7 +256,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     marginBottom: 16,
   },
-  shieldEmoji: { fontSize: 52 },
+  shieldIcon: { width: 72, height: 72, borderRadius: 36 },
   headerTitle: { fontSize: 26, fontWeight: '800', color: '#FFF', marginBottom: 6 },
   headerSub: { fontSize: 14, color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
 
@@ -263,7 +280,8 @@ const styles = StyleSheet.create({
     borderRadius: 16, padding: 16,
     elevation: 1,
   },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: '#202124', marginBottom: 10 },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: '#202124' },
   cardBody: { fontSize: 14, color: '#555', lineHeight: 22 },
 
   ruleRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6 },
@@ -285,10 +303,11 @@ const styles = StyleSheet.create({
     padding: 14, marginTop: 12,
   },
   btnDisabled: { opacity: 0.5 },
+  buttonInline: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   appealBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
 
   successCard: { alignItems: 'center', gap: 8 },
-  successEmoji: { fontSize: 36 },
+  successIcon: { marginBottom: 4 },
   successText: { fontSize: 16, fontWeight: '700', color: '#43A047' },
   successSub: { fontSize: 13, color: '#757575', textAlign: 'center' },
 

@@ -40,7 +40,7 @@ function routeNotification(
       break;
 
     case 'account_warning':
-      navigation.navigate('Profile');
+      navigation.navigate('UserProfile');
       break;
 
     case 'partner_no_response':

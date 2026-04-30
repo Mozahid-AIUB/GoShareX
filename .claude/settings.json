@@ -14,7 +14,29 @@
       "Bash(powershell -command \"Get-ChildItem 'D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\RideShareAIUB-Session4\\\\RideShareAIUB-Session4\\\\src\\\\services\\\\location' | Select-Object Name, Length\")",
       "Bash(powershell -command \"Get-ChildItem 'D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\RideShareAIUB-Session4\\\\RideShareAIUB-Session4\\\\src\\\\types' | Select-Object Name, Length\")",
       "Bash(powershell -command \"Get-ChildItem 'D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\RideShareAIUB-Session4\\\\RideShareAIUB-Session4\\\\src\\\\components\\\\common' | Select-Object Name, Length\")",
-      "Bash(powershell -command 'Get-ChildItem '\\\\''D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\RideShareAIUB-Session4\\\\RideShareAIUB-Session4\\\\src'\\\\'' -Recurse -File | Where-Object { $_.Length -eq 0 -and $_.Name -notlike '\\\\''*.gitkeep'\\\\'' } | Select-Object -ExpandProperty FullName')"
+      "Bash(powershell -command 'Get-ChildItem '\\\\''D:\\\\Way_To_Job\\\\RideShareAIUB\\\\Temp\\\\RideShareAIUB-Session4\\\\RideShareAIUB-Session4\\\\src'\\\\'' -Recurse -File | Where-Object { $_.Length -eq 0 -and $_.Name -notlike '\\\\''*.gitkeep'\\\\'' } | Select-Object -ExpandProperty FullName')",
+      "Bash(awk -F'\"' '{print $2}')",
+      "Bash(grep -v \"^$\")",
+      "Bash(rm \"d:/Way_To_Job/GoShareX/src/screens/warning/SuspensionScreen.tsx\")",
+      "Bash(rm \"d:/Way_To_Job/GoShareX/src/screens/admin/SuspensionScreen.tsx\")",
+      "Bash(npx tsc *)",
+      "Bash(start \"https://console.firebase.google.com/v1/r/project/rideshare-aiub/firestore/indexes?create_composite=Ckxwcm9qZWN0cy9yaWRlc2hhcmUtYWl1Yi9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvcG9zdHMvaW5kZXhlcy9fEAEaCgoGc3RhdHVzEAEaDQoJY3JlYXRlZEF0EAIaDAoIX19uYW1lX18QAg\")",
+      "Bash(start \"https://console.firebase.google.com/project/rideshare-aiub/firestore/ttl\")",
+      "Bash(start \"https://console.firebase.google.com/project/rideshare-aiub/firestore/databases/-default-/ttl\")",
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(npx firebase *)",
+      "Bash(start \"https://console.firebase.google.com/project/rideshare-aiub/firestore/databases/-default-/data\")",
+      "Bash(gcloud firestore *)",
+      "Bash(npx firebase-tools *)",
+      "Bash(del \"d:\\\\Way_To_Job\\\\GoShareX\\\\src\\\\screens\\\\main\\\\HomeScreen.tsx\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(k,v\\) for k,v in d.get\\('dependencies',{}\\).items\\(\\)]\")",
+      "Bash(npm list *)",
+      "Bash(firebase deploy *)",
+      "Bash(firebase projects:list)",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('package:', d['client'][0]['client_info']['android_client_info']['package_name']\\); print\\('has_sha1:', bool\\(d['client'][0].get\\('oauth_client'\\)\\)\\)\")",
+      "Bash(eas build:list --platform android --limit 5)"
     ]
   }
 }

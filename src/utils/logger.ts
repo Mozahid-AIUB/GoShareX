@@ -30,23 +30,7 @@ const logger = {
     // (visible in Flipper / Crashlytics in production builds)
     console.error(format('ERROR', tag, [error]), error, context ?? '');
 
-    // Forward to Firebase Crashlytics when available
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const crashlytics = require('@react-native-firebase/crashlytics').default;
-      if (error instanceof Error) {
-        crashlytics().recordError(error);
-      } else {
-        crashlytics().log(`[${tag}] ${String(error)}`);
-      }
-      if (context) {
-        Object.entries(context).forEach(([key, value]) => {
-          crashlytics().setAttribute(key, String(value));
-        });
-      }
-    } catch {
-      // Crashlytics not available — silently ignore
-    }
+    // Placeholder for future crash reporter integration
   },
 };
 

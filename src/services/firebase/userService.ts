@@ -136,11 +136,11 @@ export async function updateUser(
   data: Partial<UserProfile>,
 ): Promise<UserProfile> {
   const ref = doc(db, COLLECTION, uid);
-  await updateDoc(ref, {
+  await setDoc(ref, {
     ...data,
     lastActive: Date.now(),
     updatedAt: serverTimestamp(),
-  });
+  }, { merge: true });
 
   const updated = await getUser(uid);
   if (!updated) throw new Error('Updated user profile could not be loaded');

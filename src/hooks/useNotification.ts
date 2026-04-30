@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import messaging from '@react-native-firebase/messaging';
-import { Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { storage, STORAGE_KEYS } from '@/utils/storage';
 import { logger } from '@/utils/logger';
+import { requestNotificationPermission } from '@/utils/permissions';
 
 interface UseNotificationResult {
   hasPermission: boolean;
@@ -10,45 +10,34 @@ interface UseNotificationResult {
   token: string | null;
 }
 
-/**
- * Manages FCM push-notification permission and device token.
- * Persists the token to AsyncStorage so other services can read it offline.
- */
 export function useNotification(): UseNotificationResult {
   const [hasPermission, setHasPermission] = useState(false);
   const [token, setToken] = useState<string | null>(null);
 
-  /** Register the FCM token and persist it */
   const registerToken = useCallback(async () => {
     try {
-      const fcmToken = await messaging().getToken();
-      setToken(fcmToken);
-      await storage.set(STORAGE_KEYS.FCM_TOKEN, fcmToken);
-      logger.info('useNotification', 'FCM token registered');
+      // getDevicePushTokenAsync is not available in Expo Go (SDK 53+)
+      // The Expo Go app logs an ERROR for this — skip entirely in that environment
+      const Constants = require('expo-constants').default;
+      const isExpoGo = Constants.executionEnvironment === 'storeClient';
+      if (isExpoGo) return;
+
+      const devicePushToken = await Notifications.getDevicePushTokenAsync();
+      const pushToken = devicePushToken.data ?? null;
+      setToken(pushToken);
+
+      if (pushToken) {
+        await storage.set(STORAGE_KEYS.FCM_TOKEN, pushToken);
+        logger.info('useNotification', 'Device push token registered');
+      }
     } catch (err) {
       logger.error('useNotification.registerToken', err);
     }
   }, []);
 
-  /** Request permission from the OS (iOS prompt / Android 13+ prompt) */
   const requestPermission = useCallback(async (): Promise<boolean> => {
     try {
-      let granted = false;
-
-      if (Platform.OS === 'ios') {
-        const authStatus = await messaging().requestPermission();
-        granted =
-          authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-          authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-      } else {
-        // Android ≤ 12 doesn't need a prompt; Android 13+ is handled by
-        // the system — messaging().requestPermission() still works.
-        const authStatus = await messaging().requestPermission();
-        granted =
-          authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-          authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-      }
-
+      const granted = await requestNotificationPermission();
       setHasPermission(granted);
 
       if (granted) {
@@ -62,17 +51,15 @@ export function useNotification(): UseNotificationResult {
     }
   }, [registerToken]);
 
-  // Check current permission on mount and load persisted token
   useEffect(() => {
     (async () => {
       try {
-        const authStatus = await messaging().hasPermission();
+        const settings = await Notifications.getPermissionsAsync();
         const permitted =
-          authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-          authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+          settings.granted ||
+          settings.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
         setHasPermission(permitted);
 
-        // Load persisted token
         const savedToken = await storage.get<string>(STORAGE_KEYS.FCM_TOKEN);
         if (savedToken) {
           setToken(savedToken);

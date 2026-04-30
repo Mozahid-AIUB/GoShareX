@@ -1,18 +1,24 @@
 import { useEffect } from 'react';
 import { subscribeToNearbyRiders } from '@/services/ride/matchingService';
-import { useRideStore } from '@/store';
+import { useRideStore, useAuthStore } from '@/store';
 import { useLocationStore } from '@/store';
 
-export function useNearbyRiders(destination: string | null) {
-  const { lat, lng } = useLocationStore();
+export function useNearbyRiders(destination: string | null, enabled: boolean = true) {
+  const { latitude, longitude } = useLocationStore();
   const { setNearbyRiders } = useRideStore();
+  const { user } = useAuthStore();
 
   useEffect(() => {
-    if (!lat || !lng || !destination) return;
+    if (!enabled) {
+      setNearbyRiders([]);
+      return;
+    }
+
+    if (!latitude || !longitude || !destination || !user?.uid) return;
     const unsubscribe = subscribeToNearbyRiders(
-      { uid: 'self', lat, lng, destination },
+      { uid: user.uid, lat: latitude, lng: longitude, destination },
       setNearbyRiders
     );
     return unsubscribe;
-  }, [lat, lng, destination]);
+  }, [destination, enabled, latitude, longitude, setNearbyRiders, user?.uid]);
 }

@@ -15,6 +15,8 @@ export interface User {
   isSuspended: boolean;
   suspendedUntil?: number;
   suspensionReason?: string;
+  trustScore: number; // 0-100 score based on ratings
+  ratingCount: number; // Number of ratings received
   createdAt: string;
   lastActive?: number;
   profileStatus?: 'live' | 'fallback';
@@ -37,14 +39,14 @@ export interface LoginCredentials {
 
 export interface RegisterData extends LoginCredentials {
   name: string;
-  studentId: string;
+  studentId?: string;
   department?: string;
   phoneNumber?: string;
 }
 
 export interface ProfileSetupData {
   name: string;
-  studentId: string;
+  studentId?: string;
   department?: string;
   phoneNumber?: string;
   photoURL?: string;

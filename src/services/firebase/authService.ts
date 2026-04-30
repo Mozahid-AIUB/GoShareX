@@ -14,7 +14,7 @@ import {
   RegisterData,
   ProfileSetupData,
 } from '@/types/auth.types';
-import { isValidAIUBEmail } from '@/utils/validators';
+import { isValidEmail } from '@/utils/validators';
 
 class AuthService {
   private isRecoverableFirestoreError(error: any): boolean {
@@ -53,11 +53,11 @@ class AuthService {
   }
 
   private normalizeEmail(email: string): string {
-    return email.trim().toLowerCase();
+    return (email ?? '').trim().toLowerCase();
   }
 
   private buildFallbackUser(uid: string, email: string): User {
-    const emailPrefix = email.split('@')[0] ?? 'AIUB Student';
+    const emailPrefix = email.split('@')[0] ?? 'User';
 
     return {
       uid,
@@ -73,6 +73,8 @@ class AuthService {
       badge: 'New Rider',
       strikes: 0,
       isSuspended: false,
+      trustScore: 100,
+      ratingCount: 0,
       createdAt: new Date().toISOString(),
       profileStatus: 'fallback',
       profileWarning: 'Live profile data is temporarily unavailable. Showing your basic account information.',
@@ -103,6 +105,8 @@ class AuthService {
       badge: readString('badge', 'New Rider') as User['badge'],
       strikes: readNumber('strikes', 0),
       isSuspended: readBoolean('isSuspended', false),
+      trustScore: readNumber('trustScore', 100),
+      ratingCount: readNumber('ratingCount', 0),
       createdAt: readString('createdAt'),
       lastActive: readNumber('lastActive', 0) || undefined,
       suspendedUntil: readNumber('suspendedUntil', 0) || undefined,
@@ -184,15 +188,17 @@ class AuthService {
       throw firestoreError;
     }
 
-    throw new Error('User data not found. Please complete registration again.');
+    // Doc doesn't exist yet — first-time Google Sign-In or incomplete registration.
+    // Navigate to ProfileSetup so the user can fill in their name.
+    throw { code: 'PROFILE_NOT_FOUND' };
   }
 
   async register(data: RegisterData): Promise<User> {
     const normalizedEmail = this.normalizeEmail(data.email);
 
     try {
-      if (!isValidAIUBEmail(normalizedEmail)) {
-        throw new Error('Use your AIUB student email (@student.aiub.edu)');
+      if (!isValidEmail(normalizedEmail)) {
+        throw new Error('Please enter a valid email address.');
       }
 
       const userCredential = await createUserWithEmailAndPassword(
@@ -205,9 +211,9 @@ class AuthService {
         uid: userCredential.user.uid,
         email: normalizedEmail,
         name: data.name.trim(),
-        studentId: data.studentId.trim(),
+        studentId: (data.studentId ?? '').trim(),
         department: data.department ?? '',
-        phoneNumber: data.phoneNumber ?? '', // Fix: provide default empty string if undefined
+        phoneNumber: data.phoneNumber ?? '',
         rating: 5.0,
         totalRides: 0,
         totalSaved: 0,
@@ -215,6 +221,8 @@ class AuthService {
         badge: 'New Rider',
         strikes: 0,
         isSuspended: false,
+        trustScore: 100,
+        ratingCount: 0,
         createdAt: new Date().toISOString(),
         profileStatus: 'live',
       };
@@ -249,9 +257,10 @@ class AuthService {
     const normalizedEmail = this.normalizeEmail(credentials.email);
 
     try {
-      if (!isValidAIUBEmail(normalizedEmail)) {
-        throw new Error('Use your AIUB student email to login');
+      if (!isValidEmail(normalizedEmail)) {
+        throw new Error('Please enter a valid email address.');
       }
+
 
       const userCredential = await signInWithEmailAndPassword(
         auth,
@@ -260,21 +269,58 @@ class AuthService {
       );
 
       try {
-        return await this.withTimeout(this.getUserDocument(userCredential.user.uid), 1500);
+        // 8 seconds — generous enough for BD 4G, still blocks the UI for a definite period
+        const user = await this.withTimeout(this.getUserDocument(userCredential.user.uid), 8000);
+
+        if (user.isSuspended && user.suspendedUntil && Date.now() < user.suspendedUntil) {
+          await signOut(auth);
+          throw { code: 'USER_SUSPENDED', suspendedUntil: user.suspendedUntil };
+        }
+
+        return user;
       } catch (firestoreError: any) {
+        // never swallow suspension errors into fallback user
+        if (firestoreError?.code === 'USER_SUSPENDED') {
+          throw firestoreError;
+        }
         if (!this.isRecoverableFirestoreError(firestoreError)) {
           console.error('Firestore error:', firestoreError);
         }
+
+        // Timeout or network error — use fallback but still check suspension via REST
+        // A suspended user must never get through, even on a slow connection
+        try {
+          const restUser = await this.getUserDocumentViaRest(userCredential.user.uid);
+          if (restUser?.isSuspended && restUser.suspendedUntil && Date.now() < restUser.suspendedUntil) {
+            await signOut(auth);
+            throw { code: 'USER_SUSPENDED', suspendedUntil: restUser.suspendedUntil };
+          }
+        } catch (restError: any) {
+          if (restError?.code === 'USER_SUSPENDED') throw restError;
+          // REST also failed — fail safe: block login rather than risk letting suspended user through
+          if (firestoreError.message === 'Request timeout') {
+            await signOut(auth);
+            throw new Error('Connection too slow to verify your account. Please try again.');
+          }
+        }
+
         return this.buildFallbackUser(userCredential.user.uid, normalizedEmail);
       }
     } catch (error: any) {
-      console.error('Login error:', error);
+      // pass suspension object through untouched
+      if (error?.code === 'USER_SUSPENDED') {
+        throw error;
+      }
 
-      // Provide user-friendly error messages
+      // existing error handling below — don't touch
       if (error.code === 'auth/user-not-found') {
         throw new Error('No account found with this email.');
-      } else if (error.code === 'auth/wrong-password') {
-        throw new Error('Incorrect password.');
+      } else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        throw new Error('Incorrect email or password.');
+      } else if (error.code === 'auth/invalid-email') {
+        throw new Error('Invalid email address.');
+      } else if (error.code === 'auth/too-many-requests') {
+        throw new Error('Too many failed attempts. Please try again later.');
       } else if (error.code === 'auth/network-request-failed') {
         throw new Error('Network error. Check your internet connection.');
       }
@@ -294,11 +340,35 @@ class AuthService {
 
   async completeProfile(userId: string, data: ProfileSetupData): Promise<void> {
     try {
-      await updateDoc(doc(db, 'users', userId), {
-        ...data,
-        profileCompleted: true,
-        updatedAt: new Date().toISOString(),
-      });
+      const firebaseUser = auth.currentUser;
+      const ref = doc(db, 'users', userId);
+      const snap = await getDoc(ref);
+
+      if (snap.exists()) {
+        await updateDoc(ref, { ...data, profileCompleted: true, updatedAt: new Date().toISOString() });
+      } else {
+        // New user (e.g. Google Sign-In) — create the full profile doc from scratch
+        const newProfile: User = {
+          uid: userId,
+          email: firebaseUser?.email ?? '',
+          name: data.name?.trim() ?? '',
+          studentId: '',
+          department: '',
+          phoneNumber: data.phoneNumber ?? '',
+          rating: 5.0,
+          totalRides: 0,
+          totalSaved: 0,
+          completionRate: 100,
+          badge: 'New Rider',
+          strikes: 0,
+          isSuspended: false,
+          trustScore: 100,
+          ratingCount: 0,
+          createdAt: new Date().toISOString(),
+          profileStatus: 'live',
+        };
+        await setDoc(ref, newProfile);
+      }
     } catch (error: any) {
       console.error('Profile setup error:', error);
       throw new Error(error.message || 'Profile setup failed');
@@ -313,8 +383,9 @@ class AuthService {
       try {
         return await this.getUserDocument(firebaseUser.uid);
       } catch (error: any) {
-        if (!this.isRecoverableFirestoreError(error)) {
-          console.error('Get current user profile fallback:', error);
+        // PROFILE_NOT_FOUND = new user, no doc yet — expected, not an error
+        if (error?.code !== 'PROFILE_NOT_FOUND' && !this.isRecoverableFirestoreError(error)) {
+          console.warn('Get current user profile fallback:', error?.message ?? error);
         }
         return this.buildFallbackUser(
           firebaseUser.uid,
@@ -331,8 +402,8 @@ class AuthService {
     const normalizedEmail = this.normalizeEmail(email);
 
     try {
-      if (!isValidAIUBEmail(normalizedEmail)) {
-        throw new Error('Use your AIUB student email');
+      if (!isValidEmail(normalizedEmail)) {
+        throw new Error('Please enter a valid email address.');
       }
       await sendPasswordResetEmail(auth, normalizedEmail);
     } catch (error: any) {

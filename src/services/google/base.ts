@@ -11,6 +11,7 @@ export class GoogleApiError extends Error {
 
 export const GOOGLE_API_ENDPOINTS = {
   placesAutocomplete: 'https://maps.googleapis.com/maps/api/place/autocomplete/json',
+  placesDetails: 'https://maps.googleapis.com/maps/api/place/details/json',
   placesNearbySearch: 'https://maps.googleapis.com/maps/api/place/nearbysearch/json',
   directions: 'https://maps.googleapis.com/maps/api/directions/json',
   distanceMatrix: 'https://maps.googleapis.com/maps/api/distancematrix/json',

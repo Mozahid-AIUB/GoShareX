@@ -1,15 +1,56 @@
-import { useEffect } from 'react';
-import { getCurrentLocation } from '@/services/location/locationService';
+import { useEffect, useState } from 'react';
+import { getCurrentLocation, requestLocationPermission } from '@/services/location/locationService';
 import { useLocationStore } from '@/store';
+import { sanitizeSpeedKmh } from '@/utils/locationSpeed';
 
-export function useLocation() {
-  const { lat, lng, setLocation } = useLocationStore();
+interface UseLocationResult {
+  lat: number | null;
+  lng: number | null;
+  locationError: string | null;
+  locationReady: boolean;
+}
+
+export function useLocation(): UseLocationResult {
+  const { latitude, longitude, setLocation } = useLocationStore();
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationReady, setLocationReady] = useState(false);
 
   useEffect(() => {
-    getCurrentLocation().then((loc) => {
-      setLocation(loc.coords.latitude, loc.coords.longitude, loc.coords.accuracy ?? 0);
-    }).catch(console.error);
-  }, []);
+    let cancelled = false;
 
-  return { lat, lng };
+    async function fetchLocation() {
+      try {
+        const granted = await requestLocationPermission();
+        if (!granted) {
+          if (!cancelled) setLocationError('Location permission denied. Please enable it in Settings.');
+          return;
+        }
+        const loc = await getCurrentLocation();
+        if (!cancelled) {
+          setLocation(
+            loc.coords.latitude,
+            loc.coords.longitude,
+            loc.coords.accuracy ?? 0,
+            sanitizeSpeedKmh(loc.coords.speed, loc.coords.accuracy)
+          );
+          setLocationReady(true);
+          setLocationError(null);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setLocationError(err?.message ?? 'Unable to get your location.');
+        }
+      }
+    }
+
+    fetchLocation();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return {
+    lat: latitude ?? null,
+    lng: longitude ?? null,
+    locationError,
+    locationReady,
+  };
 }

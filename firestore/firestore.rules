@@ -2,52 +2,120 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isAIUBUser() {
-      return request.auth != null
-        && request.auth.token.email.matches('.*@aiub\\.edu\\.bd');
+    function isAuth() {
+      return request.auth != null;
     }
 
     function isOwner(uid) {
-      return request.auth.uid == uid;
+      return request.auth != null && request.auth.uid == uid;
     }
 
     function isRideParticipant() {
-      return request.auth.uid == resource.data.rider1
-          || request.auth.uid == resource.data.rider2;
+      return request.auth != null
+          && (request.auth.uid == resource.data.rider1
+           || request.auth.uid == resource.data.rider2);
     }
 
     function isChatParticipant() {
-      return request.auth.uid in resource.data.participants;
+      return request.auth != null
+          && request.auth.uid in resource.data.participants;
     }
 
+    function isValidUpdate() {
+      let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return !changedKeys.hasAny(['isSuspended', 'strikes', 'totalRides', 'rating', 'badge']);
+    }
+
+    // ── Users ──────────────────────────────────────────────────────────────────
     match /users/{userId} {
-      allow read:  if isAIUBUser();
-      allow write: if isOwner(userId);
+      allow read:   if isAuth();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) && isValidUpdate();
+      allow delete: if false;
     }
 
+    // ── Active Riders ──────────────────────────────────────────────────────────
     match /active_riders/{userId} {
-      allow read:  if isAIUBUser();
+      allow read:  if isAuth();
       allow write: if isOwner(userId);
     }
 
+    // ── Rides ──────────────────────────────────────────────────────────────────
     match /rides/{rideId} {
-      allow read, write: if isAIUBUser() && isRideParticipant();
+      allow read, update: if isAuth() && isRideParticipant();
+      allow create:       if isAuth();
+      allow delete:       if false;
     }
 
+    // ── Chats ──────────────────────────────────────────────────────────────────
     match /chats/{chatId} {
-      allow read, write: if isAIUBUser() && isChatParticipant();
+      allow read:   if isAuth() && (isChatParticipant() || resource.data.searching == true);
+      allow create: if isAuth() && request.auth.uid in request.resource.data.participants;
+      // existing participant can update; OR authenticated user can join a searching room
+      allow update: if isAuth() && (
+        isChatParticipant() ||
+        (resource.data.searching == true && request.auth.uid in request.resource.data.participants)
+      );
+      allow delete: if isAuth() && isChatParticipant();
+
+      match /messages/{msgId} {
+        allow read, create: if isAuth()
+          && request.auth.uid in
+             get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        allow update: if false;
+        allow delete: if isAuth();
+      }
     }
 
+    // ── Posts ──────────────────────────────────────────────────────────────────
     match /posts/{postId} {
-      allow read:  if isAIUBUser();
-      allow create: if isAIUBUser() && isOwner(request.resource.data.authorId);
-      allow update: if isAIUBUser() && isOwner(resource.data.authorId);
+      allow read:   if isAuth();
+      allow create: if isAuth() && isOwner(request.resource.data.authorId);
+      allow update: if isAuth() && isOwner(resource.data.authorId);
       allow delete: if isOwner(resource.data.authorId);
     }
 
+    // ── Fare Table (read-only) ─────────────────────────────────────────────────
     match /fare_table/{fareId} {
-      allow read: if isAIUBUser();
-      allow write: if false; // admin-only via Cloud Functions
+      allow read:  if isAuth();
+      allow write: if false;
+    }
+
+    // ── Reports (write-only for users) ─────────────────────────────────────────
+    match /reports/{reportId} {
+      allow create: if isAuth();
+      allow read, update, delete: if false;
+    }
+
+    // ── FCM Tokens ─────────────────────────────────────────────────────────────
+    // CRITICAL: Only owner can read their own token (privacy fix)
+    // Server-side Cloud Functions have admin access for sending notifications
+    match /fcm_tokens/{userId} {
+      allow read:  if isOwner(userId);
+      allow write: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    // ── Audit Logs (write-only for users) ──────────────────────────────────────
+    match /audit_logs/{logId} {
+      allow create: if isAuth();
+      allow read, update, delete: if false;  // Server-side only
+    }
+
+    // ── Error Reports & Analytics (write-only) ────────────────────────────────
+    match /error_reports/{reportId} {
+      allow create: if isAuth();
+      allow read, update, delete: if false;
+    }
+
+    match /analytics_events/{eventId} {
+      allow create: if isAuth();
+      allow read, update, delete: if false;
+    }
+
+    // ── Default deny ───────────────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

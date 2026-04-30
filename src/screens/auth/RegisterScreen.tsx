@@ -1,160 +1,157 @@
-import { RootNavProp } from '@/navigation/types';
 import React, { useState } from 'react';
 import {
-  View,
-  StyleSheet,
+  Animated,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
   Alert,
 } from 'react-native';
-import { TextInput, Button, Text, HelperText } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import authService from '@/services/firebase/authService';
-import { isValidAIUBEmail, isValidStudentId } from '@/utils/validators';
-import { useAuthStore } from '@/store';
 
-const RegisterScreen = () => {
+import { RootNavProp } from '@/navigation/types';
+import authService from '@/services/firebase/authService';
+import { isValidEmail, isValidName } from '@/utils/validators';
+import { useAnimatedPress } from '@/hooks/useAnimatedPress';
+import { C } from '@/components/auth/authColors';
+import { LogoMark, IconEmail, IconLock, IconArrow, IconUser, IconBack } from '@/components/auth/AuthIcons';
+import FormField from '@/components/auth/FormField';
+
+export default function RegisterScreen() {
   const navigation = useNavigation<RootNavProp>();
-  const { setUser } = useAuthStore();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [studentId, setStudentId] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const validate = (): string | null => {
-    const normalizedEmail = email.trim().toLowerCase();
+  const btn = useAnimatedPress();
 
-    if (!name.trim()) return 'Name is required';
-    if (!isValidAIUBEmail(normalizedEmail)) return 'Use your @student.aiub.edu email';
-    if (!isValidStudentId(studentId.trim())) return 'Student ID format: 12-34567-1';
-    if (password.length < 6) return 'Password must be at least 6 characters';
-    if (password !== confirmPassword) return 'Passwords do not match';
-    return null;
+  const validate = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!isValidName(name.trim())) errs.name = 'Please enter your full name';
+    if (!isValidEmail(email.trim().toLowerCase())) errs.email = 'Please enter a valid email address';
+    if (password.length < 6) errs.password = 'At least 6 characters';
+    if (password !== confirmPassword) errs.confirmPassword = 'Passwords do not match';
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
   };
 
   const handleRegister = async () => {
-    const normalizedEmail = email.trim().toLowerCase();
-    const error = validate();
-    if (error) {
-      Alert.alert('Validation Error', error);
-      return;
-    }
-
+    if (!validate()) return;
     setLoading(true);
     try {
       const newUser = await authService.register({
         name: name.trim(),
-        email: normalizedEmail,
-        studentId: studentId.trim(),
+        email: email.trim().toLowerCase(),
         password,
       });
-
-      setUser(newUser);
-      navigation.reset({ index: 0, routes: [{ name: 'MainApp' }] });
+      // Do NOT call setUser here — that would set isAuthenticated=true and
+      // skip ProfileSetup. Let ProfileSetupScreen call setUser after profile is saved.
+      navigation.navigate('Auth', {
+        screen: 'ProfileSetup',
+        params: { uid: newUser.uid, email: newUser.email },
+      });
     } catch (err: any) {
-      Alert.alert('Registration Failed', err.message);
+      Alert.alert('Registration failed', err.message ?? 'Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>🛺 Create Account</Text>
-          <Text style={styles.subtitle}>AIUB Students Only</Text>
+    <SafeAreaView style={s.root}>
+      <View style={s.radial1} />
+      <View style={s.radial2} />
 
-          <TextInput
-            label="Full Name"
-            value={name}
-            onChangeText={setName}
-            mode="outlined"
-            style={styles.input}
-            autoCapitalize="words"
-          />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-          <TextInput
-            label="AIUB Email"
-            value={email}
-            onChangeText={setEmail}
-            mode="outlined"
-            style={styles.input}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          <HelperText type="info">Use your @student.aiub.edu email</HelperText>
+          <View style={s.topBar}>
+            <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+              <IconBack />
+              <Text style={s.backLabel}>Back</Text>
+            </TouchableOpacity>
+            <LogoMark size={40} />
+          </View>
 
-          <TextInput
-            label="Student ID (e.g. 12-34567-1)"
-            value={studentId}
-            onChangeText={setStudentId}
-            mode="outlined"
-            style={styles.input}
-          />
+          <View style={s.titleArea}>
+            <Text style={s.title}>Create account</Text>
+            <Text style={s.titleSub}>Create your GoShareX account</Text>
+          </View>
 
-          <TextInput
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-            mode="outlined"
-            style={styles.input}
-            right={
-              <TextInput.Icon
-                icon={showPassword ? 'eye-off' : 'eye'}
-                onPress={() => setShowPassword(!showPassword)}
-              />
-            }
-          />
+          <View style={s.card}>
+            <FormField label="Full Name" value={name} onChangeText={setName}
+              icon={<IconUser />} autoCapitalize="words" error={errors.name}
+              placeholder="e.g. Rahim Ahmed" />
+            <FormField label="Email" value={email} onChangeText={setEmail}
+              icon={<IconEmail />} keyboardType="email-address" error={errors.email} />
+            <FormField label="Password" value={password} onChangeText={setPassword}
+              icon={<IconLock />} secure={!showPassword}
+              onToggleSecure={() => setShowPassword(v => !v)} error={errors.password} />
+            <FormField label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword}
+              icon={<IconLock />} secure={!showPassword} error={errors.confirmPassword} />
 
-          <TextInput
-            label="Confirm Password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry={!showPassword}
-            mode="outlined"
-            style={styles.input}
-          />
+            <Animated.View style={{ transform: [{ scale: btn.scale }] }}>
+              <Pressable style={[s.registerBtn, loading && s.registerBtnDisabled]}
+                onPress={handleRegister} onPressIn={btn.onPressIn} onPressOut={btn.onPressOut}
+                disabled={loading}>
+                {loading
+                  ? <Text style={s.registerBtnText}>Creating account...</Text>
+                  : <><Text style={s.registerBtnText}>Create Account</Text><IconArrow /></>}
+              </Pressable>
+            </Animated.View>
 
-          <Button
-            mode="contained"
-            onPress={handleRegister}
-            loading={loading}
-            disabled={loading}
-            style={styles.registerButton}
-          >
-            Create Account
-          </Button>
+            <TouchableOpacity style={s.loginLink} onPress={() => navigation.goBack()} disabled={loading} activeOpacity={0.7}>
+              <Text style={s.loginLinkText}>
+                Already have an account? <Text style={s.loginLinkAccent}>Sign in</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-          <Button
-            mode="text"
-            onPress={() => navigation.goBack()}
-            disabled={loading}
-          >
-            Already have an account? Login
-          </Button>
+          <Text style={s.disclaimer}>
+            By creating an account you agree to GoShareX Terms & Privacy Policy.{'\n'}
+            GoShareX is not responsible for any financial loss or disputes.
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
-};
+}
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  content: { padding: 20, paddingBottom: 40 },
-  title: { fontSize: 26, fontWeight: 'bold', textAlign: 'center', color: '#1A73E8', marginTop: 20 },
-  subtitle: { fontSize: 13, textAlign: 'center', color: '#666', marginBottom: 24 },
-  input: { marginBottom: 8 },
-  registerButton: { marginTop: 16, marginBottom: 10 },
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.bg },
+  radial1: { position: 'absolute', top: -60, right: -50, width: 240, height: 240, borderRadius: 120, backgroundColor: 'rgba(124,58,237,0.10)' },
+  radial2: { position: 'absolute', bottom: -50, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(13,148,136,0.07)' },
+  scroll: { flexGrow: 1, padding: 24, paddingBottom: 40 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  backLabel: { fontSize: 13, fontWeight: '600', color: '#A5B4FC' },
+  titleArea: { marginBottom: 24 },
+  title: { fontSize: 26, fontWeight: '900', color: C.text, letterSpacing: -0.6 },
+  titleSub: { fontSize: 13, color: C.textSub, marginTop: 4 },
+  card: {
+    backgroundColor: C.white, borderWidth: 1, borderColor: '#EDE9FE',
+    borderRadius: 28, padding: 22, marginBottom: 20,
+    shadowColor: C.primary, shadowOpacity: 0.07, shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 }, elevation: 3,
+  },
+  registerBtn: {
+    height: 54, borderRadius: 18, backgroundColor: C.primary,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 8,
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
+  },
+  registerBtnDisabled: { opacity: 0.6 },
+  registerBtnText: { fontSize: 16, fontWeight: '800', color: C.white, letterSpacing: -0.2 },
+  loginLink: { alignItems: 'center', marginTop: 18 },
+  loginLinkText: { fontSize: 13, color: C.textSub },
+  loginLinkAccent: { color: C.primary, fontWeight: '700' },
+  disclaimer: { fontSize: 11, color: C.textMuted, textAlign: 'center', lineHeight: 17, paddingHorizontal: 8 },
 });
-
-export default RegisterScreen;

@@ -1,19 +1,4 @@
-/**
- * notificationService.ts
- * Local notification scheduling via @notifee/react-native.
- *
- * Provides:
- *   - Local notification scheduling
- *   - Badge count management
- *   - Notification category / action definitions for ride request flows
- */
-
-import notifee, {
-  AndroidImportance,
-  AndroidVisibility,
-} from '@notifee/react-native';
-
-// ─── Channel / Category IDs ───────────────────────────────────────────────────
+import * as Notifications from 'expo-notifications';
 
 const CHANNEL_ID_RIDES = 'rides';
 const CHANNEL_ID_GENERAL = 'general';
@@ -23,37 +8,23 @@ export const NOTIFICATION_CATEGORIES = {
   RIDE_UPDATE: 'ride_update',
 } as const;
 
-// ─── One-time channel setup (call during app init) ────────────────────────────
-
 async function ensureChannels(): Promise<void> {
-  await notifee.createChannel({
-    id: CHANNEL_ID_RIDES,
+  await Notifications.setNotificationChannelAsync(CHANNEL_ID_RIDES, {
     name: 'Ride Requests',
-    importance: AndroidImportance.HIGH,
-    visibility: AndroidVisibility.PUBLIC,
-    sound: 'default',
-    vibration: true,
+    importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [300, 500],
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    sound: 'default',
   });
 
-  await notifee.createChannel({
-    id: CHANNEL_ID_GENERAL,
+  await Notifications.setNotificationChannelAsync(CHANNEL_ID_GENERAL, {
     name: 'General',
-    importance: AndroidImportance.DEFAULT,
-    visibility: AndroidVisibility.PRIVATE,
+    importance: Notifications.AndroidImportance.DEFAULT,
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
     sound: 'default',
   });
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
-
-/**
- * Display an immediate local notification.
- *
- * @param title  Notification title
- * @param body   Notification body text
- * @param data   Arbitrary key-value data accessible in notification handlers
- */
 export async function scheduleLocalNotification(
   title: string,
   body: string,
@@ -61,38 +32,23 @@ export async function scheduleLocalNotification(
 ): Promise<void> {
   await ensureChannels();
 
-  await notifee.displayNotification({
-    title,
-    body,
-    data: data as Record<string, string>,
-    android: {
-      channelId: CHANNEL_ID_RIDES,
-      importance: AndroidImportance.HIGH,
-      pressAction: { id: 'default' },
-      actions: [
-        { title: 'Accept', pressAction: { id: 'accept' } },
-        { title: 'Decline', pressAction: { id: 'decline' } },
-      ],
-    },
-    ios: {
-      categoryId: NOTIFICATION_CATEGORIES.RIDE_REQUEST,
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      data: data as Record<string, string>,
       sound: 'default',
+      categoryIdentifier: NOTIFICATION_CATEGORIES.RIDE_REQUEST,
     },
+    trigger: null,
   });
 }
 
-/**
- * Cancel every pending and displayed notification.
- */
 export async function cancelAllNotifications(): Promise<void> {
-  await notifee.cancelAllNotifications();
+  await Notifications.dismissAllNotificationsAsync();
+  await Notifications.cancelAllScheduledNotificationsAsync();
 }
 
-/**
- * Set the app's badge count (iOS) or update the notification count indicator.
- *
- * @param count  Badge count value. Pass 0 to clear the badge.
- */
 export async function setBadgeCount(count: number): Promise<void> {
-  await notifee.setBadgeCount(count);
+  await Notifications.setBadgeCountAsync(count);
 }

@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
-import firestore from '@react-native-firebase/firestore';
+import { doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { useAuthStore } from '@/store';
 import { handleError } from '@/utils/errorHandler';
 import { logger } from '@/utils/logger';
+import { db } from '@/services/firebase/config';
 
 interface SubmitRatingParams {
   rideId: string;
@@ -42,23 +43,21 @@ export function useRating(): UseRatingResult {
       setError(null);
 
       try {
-        const batch = firestore().batch();
+        const batch = writeBatch(db);
 
         // Write the rating document
-        const ratingRef = firestore()
-          .collection('ratings')
-          .doc(`${rideId}_${user.uid}`);
+        const ratingRef = doc(db, 'ratings', `${rideId}_${user.uid}`);
         batch.set(ratingRef, {
           rideId,
           raterId: user.uid,
           ratedUserId,
           rating,
           feedback: feedback ?? '',
-          createdAt: firestore.FieldValue.serverTimestamp(),
+          createdAt: serverTimestamp(),
         });
 
         // Mark rating as submitted on the ride document
-        const rideRef = firestore().collection('rides').doc(rideId);
+        const rideRef = doc(db, 'rides', rideId);
         batch.update(rideRef, {
           [`${user.uid === ratedUserId ? 'rider2Rating' : 'rider1Rating'}`]: rating,
         });

@@ -1,7 +1,7 @@
 export type RideStatus =
   | 'pending'
   | 'confirmed'
-  | 'started'
+  | 'active'
   | 'completed'
   | 'cancelled';
 
@@ -54,4 +54,5 @@ export interface NearbyRider {
   lat: number;
   lng: number;
   isMatch: boolean;
+  department?: string;
 }

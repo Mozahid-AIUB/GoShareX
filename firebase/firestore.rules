@@ -2,57 +2,152 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isAIUB() {
-      return request.auth != null &&
-        request.auth.token.email.matches('.*@aiub\\.edu\\.bd');
+    function isAuth() {
+      return request.auth != null;
     }
 
     function isOwner(uid) {
-      return request.auth.uid == uid;
+      return request.auth != null && request.auth.uid == uid;
     }
 
+    function isRideParticipant(rideId) {
+      let ride = get(/databases/$(database)/documents/rides/$(rideId)).data;
+      return request.auth.uid == ride.rider1 || request.auth.uid == ride.rider2;
+    }
+
+    function isChatParticipant(chatId) {
+      let chat = get(/databases/$(database)/documents/chats/$(chatId)).data;
+      return request.auth.uid in chat.participants;
+    }
+
+    function isNotSuspended() {
+      let user = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return !user.isSuspended || user.suspendedUntil < request.time.toMillis();
+    }
+
+    function isValidUpdate() {
+      let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return !changedKeys.hasAny(['isSuspended', 'strikes', 'totalRides', 'rating', 'badge']);
+    }
+
+    // ── Users ──────────────────────────────────────────────────────────────────
     match /users/{userId} {
-      allow read: if isAIUB();
-      allow create: if isOwner(userId) && isAIUB();
-      allow update: if isOwner(userId);
+      allow read:   if isAuth();
+      allow create: if isOwner(userId) && isAuth();
+      allow update: if isOwner(userId) && isValidUpdate();
       allow delete: if false;
     }
 
+    // ── Active Riders ──────────────────────────────────────────────────────────
     match /active_riders/{userId} {
-      allow read: if isAIUB();
-      allow write: if isOwner(userId) && isAIUB();
+      allow read:  if isAuth() && isNotSuspended();
+      allow write: if isOwner(userId) && isNotSuspended()
+                   && request.resource.data.lat >= -90
+                   && request.resource.data.lat <= 90
+                   && request.resource.data.lng >= -180
+                   && request.resource.data.lng <= 180;
     }
 
+    // ── Rides ──────────────────────────────────────────────────────────────────
     match /rides/{rideId} {
-      allow read, update: if isAIUB() &&
-        (resource.data.rider1 == request.auth.uid ||
-         resource.data.rider2 == request.auth.uid);
-      allow create: if isAIUB();
+      allow read, update: if isAuth() && isNotSuspended() && isRideParticipant(rideId);
+      allow create:       if isAuth() && isNotSuspended()
+                          && request.resource.data.rider1 == request.auth.uid;
+      allow delete:       if false;
     }
 
+    // ── Chats ──────────────────────────────────────────────────────────────────
     match /chats/{chatId} {
-      allow read, write: if isAIUB() &&
-        request.auth.uid in resource.data.participants;
+      // Allow reading a searching room so users can find waiting rooms to join
+      allow read:   if isAuth() && isNotSuspended()
+                    && (isChatParticipant(chatId) || resource.data.searching == true);
+      allow create: if isAuth() && isNotSuspended()
+                    && request.auth.uid in request.resource.data.participants;
+      // Existing participant can update; OR user can join a searching room
+      allow update: if isAuth() && isNotSuspended() && (
+                      isChatParticipant(chatId) ||
+                      (resource.data.searching == true
+                        && request.auth.uid in request.resource.data.participants)
+                    );
+      // Participants can delete expired/empty chats (cleanup)
+      allow delete: if isAuth() && isChatParticipant(chatId);
+
       match /messages/{msgId} {
-        allow read, write: if isAIUB() &&
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        allow read:   if isAuth() && isNotSuspended() && isChatParticipant(chatId);
+        allow create: if isAuth() && isNotSuspended()
+                      && isChatParticipant(chatId)
+                      && request.resource.data.senderId == request.auth.uid
+                      && request.resource.data.text.size() > 0
+                      && request.resource.data.text.size() <= 1000;
+        allow update: if false;
+        // Allow any authenticated user to delete messages (batch cleanup with chat doc)
+        allow delete: if isAuth();
       }
     }
 
+    // ── Posts ──────────────────────────────────────────────────────────────────
     match /posts/{postId} {
-      allow read: if isAIUB();
-      allow create: if isAIUB();
-      allow update: if isOwner(resource.data.authorId);
+      allow read:   if isAuth() && isNotSuspended();
+      allow create: if isAuth() && isNotSuspended()
+                    && request.resource.data.authorId == request.auth.uid;
+      allow update: if isAuth() && isNotSuspended()
+                    && resource.data.authorId == request.auth.uid;
+      allow delete: if isAuth() && resource.data.authorId == request.auth.uid;
     }
 
+    // ── Ratings ────────────────────────────────────────────────────────────────
+    match /ratings/{ratingId} {
+      allow read:   if isAuth() && request.auth.uid == resource.data.raterId;
+      allow create: if isAuth() && isNotSuspended()
+                    && request.resource.data.raterId == request.auth.uid
+                    && request.resource.data.stars >= 1
+                    && request.resource.data.stars <= 5;
+      allow update, delete: if false;
+    }
+
+    // ── Fare Table (read-only) ─────────────────────────────────────────────────
     match /fare_table/{fareId} {
-      allow read: if isAIUB();
+      allow read:  if isAuth();
       allow write: if false;
     }
 
+    // ── Reports (write-only for users) ─────────────────────────────────────────
     match /reports/{reportId} {
-      allow create: if isAIUB();
-      allow read: if false;
+      allow create: if isAuth() && isNotSuspended()
+                    && request.resource.data.reporterId == request.auth.uid
+                    && request.resource.data.reason.size() > 10;
+      allow read, update, delete: if false;
+    }
+
+    // ── FCM Tokens ─────────────────────────────────────────────────────────────
+    // CRITICAL: Only owner can read their own token (privacy & security fix)
+    // Server-side Cloud Functions have admin access for sending notifications
+    match /fcm_tokens/{userId} {
+      allow read:  if isOwner(userId);
+      allow write: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    // ── Error Reports / Analytics (write-only) ─────────────────────────────────
+    match /error_reports/{reportId} {
+      allow create: if isAuth();
+      allow read, update, delete: if false;
+    }
+
+    match /analytics_events/{eventId} {
+      allow create: if isAuth();
+      allow read, update, delete: if false;
+    }
+
+    // ── Audit Logs (write-only) ────────────────────────────────────────────────
+    match /audit_logs/{logId} {
+      allow create: if isAuth();
+      allow read, update, delete: if false;  // Cloud Functions only
+    }
+
+    // ── Default deny ───────────────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

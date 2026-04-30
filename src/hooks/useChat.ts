@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import firestore from '@react-native-firebase/firestore';
+import {
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  writeBatch,
+} from 'firebase/firestore';
 import { Message, MessageType } from '@/types';
 import { useAuthStore } from '@/store';
 import { logger } from '@/utils/logger';
+import { db } from '@/services/firebase/config';
 
 interface SendMessageParams {
   text: string;
@@ -34,13 +43,13 @@ export function useChat(chatId: string): UseChatResult {
 
     setIsLoading(true);
 
-    const query = firestore()
-      .collection(CHATS_COLLECTION)
-      .doc(chatId)
-      .collection(MESSAGES_SUBCOLLECTION)
-      .orderBy('timestamp', 'asc');
+    const messagesQuery = query(
+      collection(db, CHATS_COLLECTION, chatId, MESSAGES_SUBCOLLECTION),
+      orderBy('timestamp', 'asc'),
+    );
 
-    unsubscribeRef.current = query.onSnapshot(
+    unsubscribeRef.current = onSnapshot(
+      messagesQuery,
       (snapshot) => {
         const fetched: Message[] = snapshot.docs.map((doc) => ({
           ...(doc.data() as Message),
@@ -55,8 +64,8 @@ export function useChat(chatId: string): UseChatResult {
             (doc) =>
               !doc.data().read && doc.data().senderId !== user.uid,
           );
-          const batch = firestore().batch();
-          unread.forEach((doc) => batch.update(doc.ref, { read: true }));
+          const batch = writeBatch(db);
+          unread.forEach((messageDoc) => batch.update(messageDoc.ref, { read: true }));
           if (unread.length > 0) {
             batch.commit().catch((err) =>
               logger.warn('useChat', `Failed to mark read: ${err}`),
@@ -88,19 +97,18 @@ export function useChat(chatId: string): UseChatResult {
           read: false,
         };
 
-        const chatRef = firestore()
-          .collection(CHATS_COLLECTION)
-          .doc(chatId);
+        const chatRef = doc(db, CHATS_COLLECTION, chatId);
+        const batch = writeBatch(db);
 
-        const batch = firestore().batch();
+        batch.set(doc(collection(db, CHATS_COLLECTION, chatId, MESSAGES_SUBCOLLECTION)), {
+          ...message,
+          createdAt: serverTimestamp(),
+        });
 
-        // Add message to subcollection
-        batch.set(chatRef.collection(MESSAGES_SUBCOLLECTION).doc(), message);
-
-        // Update chat metadata
         batch.update(chatRef, {
           lastMessage: text.trim(),
           lastTimestamp: message.timestamp,
+          updatedAt: serverTimestamp(),
         });
 
         await batch.commit();
