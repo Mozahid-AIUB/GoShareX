@@ -48,6 +48,8 @@ export type RootStackParamList = {
   CreatePost: undefined;
   Report: { reportedUserId: string; rideId?: string };
   LiveMap: { destination?: string; pickup?: string } | undefined;
+  PrivacyPolicy: undefined;
+  TermsOfService: undefined;
 };
 
 export type RootNavProp<

@@ -16,7 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 
 import { RootNavProp } from '@/navigation/types';
 import authService from '@/services/firebase/authService';
-import { isValidEmail, isValidName } from '@/utils/validators';
+import { isValidEmail, isValidGmail, isValidName } from '@/utils/validators';
 import { useAnimatedPress } from '@/hooks/useAnimatedPress';
 import { C } from '@/components/auth/authColors';
 import { LogoMark, IconEmail, IconLock, IconArrow, IconUser, IconBack } from '@/components/auth/AuthIcons';
@@ -38,7 +38,8 @@ export default function RegisterScreen() {
     const errs: Record<string, string> = {};
     if (!isValidName(name.trim())) errs.name = 'Please enter your full name';
     if (!isValidEmail(email.trim().toLowerCase())) errs.email = 'Please enter a valid email address';
-    if (password.length < 6) errs.password = 'At least 6 characters';
+    else if (!isValidGmail(email.trim().toLowerCase())) errs.email = 'Only Gmail accounts (@gmail.com) are allowed';
+    if (password.length < 8) errs.password = 'At least 8 characters required';
     if (password !== confirmPassword) errs.confirmPassword = 'Passwords do not match';
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -53,14 +54,20 @@ export default function RegisterScreen() {
         email: email.trim().toLowerCase(),
         password,
       });
-      // Do NOT call setUser here — that would set isAuthenticated=true and
-      // skip ProfileSetup. Let ProfileSetupScreen call setUser after profile is saved.
-      navigation.navigate('Auth', {
-        screen: 'ProfileSetup',
-        params: { uid: newUser.uid, email: newUser.email },
-      });
+      Alert.alert(
+        '✅ Account Created!',
+        'A verification email has been sent to your Gmail. Please verify your email before signing in.',
+        [{
+          text: 'Go to Login',
+          onPress: () => navigation.navigate('Auth', { screen: 'Login' }),
+        }]
+      );
     } catch (err: any) {
-      Alert.alert('Registration failed', err.message ?? 'Please try again.');
+      if (err.message?.includes('email-already-in-use') || err.code === 'auth/email-already-in-use') {
+        Alert.alert('Already registered', 'An account with this Gmail already exists. Please sign in instead.');
+      } else {
+        Alert.alert('Registration failed', err.message ?? 'Please try again.');
+      }
     } finally {
       setLoading(false);
     }

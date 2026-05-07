@@ -3,6 +3,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
   deleteUser,
   getIdToken,
 } from 'firebase/auth';
@@ -14,7 +15,7 @@ import {
   RegisterData,
   ProfileSetupData,
 } from '@/types/auth.types';
-import { isValidEmail } from '@/utils/validators';
+import { isValidEmail, isValidGmail } from '@/utils/validators';
 
 class AuthService {
   private isRecoverableFirestoreError(error: any): boolean {
@@ -200,12 +201,17 @@ class AuthService {
       if (!isValidEmail(normalizedEmail)) {
         throw new Error('Please enter a valid email address.');
       }
+      if (!isValidGmail(normalizedEmail)) {
+        throw new Error('Only Gmail accounts (@gmail.com) are allowed.');
+      }
 
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         normalizedEmail,
         data.password
       );
+
+      await sendEmailVerification(userCredential.user).catch(() => {});
 
       const userData: User = {
         uid: userCredential.user.uid,
@@ -260,13 +266,21 @@ class AuthService {
       if (!isValidEmail(normalizedEmail)) {
         throw new Error('Please enter a valid email address.');
       }
-
+      if (!isValidGmail(normalizedEmail)) {
+        throw new Error('Only Gmail accounts (@gmail.com) are allowed.');
+      }
 
       const userCredential = await signInWithEmailAndPassword(
         auth,
         normalizedEmail,
         credentials.password
       );
+
+      if (!userCredential.user.emailVerified) {
+        await sendEmailVerification(userCredential.user).catch(() => {});
+        await signOut(auth);
+        throw new Error('EMAIL_NOT_VERIFIED');
+      }
 
       try {
         // 8 seconds — generous enough for BD 4G, still blocks the UI for a definite period

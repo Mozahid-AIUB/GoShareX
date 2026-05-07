@@ -88,6 +88,14 @@ export default function LoginScreen() {
         navigation.navigate('Auth', { screen: 'ProfileSetup', params: {} });
         return;
       }
+      if (error?.message === 'EMAIL_NOT_VERIFIED') {
+        Alert.alert(
+          'Email Not Verified',
+          'A verification email has been sent to your Gmail. Please check your inbox and verify before signing in.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
       const msg: Record<string, string> = {
         'auth/user-not-found': 'No account found with this email.',
         'auth/wrong-password': 'Incorrect email or password.',
@@ -189,10 +197,17 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          <Text style={s.disclaimer}>
-            By signing in you agree to GoShareX&apos;s Terms of Service and Privacy Policy.{'\n'}
-            GoShareX is not liable for any financial loss or disputes between riders.
-          </Text>
+          <View style={{ alignItems: 'center' }}>
+            <Text style={s.disclaimer}>
+              By signing in you agree to GoShareX&apos;s{' '}
+            </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('PrivacyPolicy')} activeOpacity={0.7}>
+              <Text style={[s.disclaimer, { color: '#7C3AED', fontWeight: '700', textDecorationLine: 'underline' }]}>
+                Privacy Policy
+              </Text>
+            </TouchableOpacity>
+            <Text style={s.disclaimer}>GoShareX is not liable for any financial loss or disputes.</Text>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
