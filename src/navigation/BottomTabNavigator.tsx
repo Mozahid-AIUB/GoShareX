@@ -119,10 +119,11 @@ const ti = StyleSheet.create({
     opacity: 0.5,
   },
   label: {
-    fontSize: 9,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '600',
     color: C.textInactive,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
+    marginTop: 1,
   },
   labelActive: {
     color: C.active,
@@ -141,13 +142,12 @@ const BottomTabNavigator = () => {
         tabBarShowLabel: false,
         tabBarHideOnKeyboard: true,
         lazy: true,
-        detachInactiveScreens: true,
         tabBarStyle: {
           position: 'absolute',
           left: 12,
           right: 12,
-          bottom: Math.max(insets.bottom + 8, 16),
-          height: 68,
+          bottom: 12,
+          height: 72,
           borderRadius: 24,
           backgroundColor: C.bg,
           borderTopWidth: 0,
@@ -159,7 +159,7 @@ const BottomTabNavigator = () => {
           shadowOffset: { width: 0, height: 6 },
           elevation: 12,
         },
-        tabBarItemStyle: { paddingVertical: 0 },
+        tabBarItemStyle: { paddingVertical: 4 },
       }}
     >
       <Tab.Screen
