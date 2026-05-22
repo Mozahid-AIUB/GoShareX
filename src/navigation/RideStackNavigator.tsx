@@ -15,10 +15,10 @@ const Stack = createStackNavigator<RideStackParamList>();
 const RideStackNavigator: React.FC = () => {
   return (
     <Stack.Navigator
+      id={undefined}
       screenOptions={{
         headerShown: false,
         gestureEnabled: false,
-        animationEnabled: true,
       }}
     >
       <Stack.Screen name="RideConfirmed" component={RideConfirmedScreen} />

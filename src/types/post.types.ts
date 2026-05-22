@@ -10,9 +10,9 @@ export interface Post {
   authorPhotoURL?: string | null;
   destination: string;
   meetPoint: string;
-  meetTime: string;       // exact time e.g. "12:05"
+  meetTime?: string;       // exact time e.g. "12:05"
   scheduledTime: string;  // kept for backward compat
-  rideType: RideType;     // 'share' | 'bike_owner'
+  rideType?: RideType;     // 'share' | 'bike_owner'
   note?: string;
   status: PostStatus;
   interested: string[];

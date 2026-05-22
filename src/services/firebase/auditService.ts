@@ -6,7 +6,7 @@
 
 import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase.config';
-import { logger } from './logger';
+import { logger } from '@/utils/logger';
 
 export interface AuditLog {
     userId: string;

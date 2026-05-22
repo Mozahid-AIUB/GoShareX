@@ -137,6 +137,7 @@ const BottomTabNavigator = () => {
 
   return (
     <Tab.Navigator
+      id={undefined}
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,

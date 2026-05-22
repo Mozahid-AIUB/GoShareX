@@ -76,7 +76,7 @@ class BiometricService {
             }
 
             const result = await LocalAuthentication.authenticateAsync({
-                reason,
+                promptMessage: reason,
                 fallbackLabel: 'Use passcode',
                 disableDeviceFallback: false,
                 // High security — don't trust cache
@@ -90,7 +90,7 @@ class BiometricService {
                 return true;
             }
 
-            logger.warn('Biometric authentication failed', { reason: result.error });
+            logger.warn('Biometric authentication failed', { reason: 'error' in result ? result.error : 'unknown' });
             return false;
         } catch (error) {
             logger.error('authenticate', error);

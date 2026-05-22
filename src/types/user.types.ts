@@ -8,6 +8,8 @@ export interface User {
   department?: string;
   photoURL?: string;
   rating: number;
+  ratingCount?: number;
+  trustScore?: number;
   totalRides: number;
   totalSaved: number;
   completionRate: number;

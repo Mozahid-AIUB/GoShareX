@@ -5,7 +5,7 @@
  * - error: always emits (production errors must be visible / forwarded to Crashlytics)
  */
 
-type LogLevel = 'INFO' | 'WARN' | 'ERROR';
+type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 
 function format(level: LogLevel, tag: string, args: unknown[]): string {
   const timestamp = new Date().toISOString();
@@ -13,6 +13,12 @@ function format(level: LogLevel, tag: string, args: unknown[]): string {
 }
 
 const logger = {
+  debug(tag: string, ...args: unknown[]): void {
+    if (__DEV__) {
+      console.log(format('DEBUG', tag, args), ...args);
+    }
+  },
+
   info(tag: string, ...args: unknown[]): void {
     if (__DEV__) {
       console.log(format('INFO', tag, args), ...args);
