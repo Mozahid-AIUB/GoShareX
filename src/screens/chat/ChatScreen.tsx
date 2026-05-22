@@ -25,6 +25,17 @@ import { sendRideRequest } from '@/services/notifications/fcmService';
 import { storage, STORAGE_KEYS } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 
+import {
+  IconBack,
+  IconChat,
+  IconCheck,
+  IconHandshake,
+  IconSend,
+  IconShield,
+} from './components/ChatIcons';
+import { LiveDot, MiniAvatar } from './components/ChatBadges';
+import { QUICK_REPLIES, formatCountdown } from './utils/chatHelpers';
+
 // â”€â”€â”€ Design tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const C = {
   bg: '#080C14',
@@ -42,83 +53,6 @@ const C = {
   green: '#10B981',
 };
 
-const QUICK_REPLIES = [
-  { id: 'salam', text: 'Assalamu Alaikum' },
-  { id: 'coming', text: 'On my way' },
-  { id: 'wait', text: 'Please wait' },
-  { id: 'where', text: 'Where are you?' },
-  { id: 'cancel', text: 'Need to cancel' },
-];
-
-const formatCountdown = (ms: number) => {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-};
-
-// â”€â”€â”€ SVG Icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const IconSend = () => (
-  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-    <Path d="M22 2L11 13" stroke={C.white} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <Path d="M22 2L15 22L11 13L2 9L22 2Z" stroke={C.white} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
-const IconBack = () => (
-  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-    <Path d="M19 12H5M5 12L12 19M5 12L12 5" stroke={C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
-const IconChat = () => (
-  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-    <Path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={C.text} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
-const IconShield = () => (
-  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-    <Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke={C.amber} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
-const IconCheck = () => (
-  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-    <Path d="M20 6L9 17L4 12" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
-const IconHandshake = () => (
-  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-    <Path d="M9 11l3 3L22 4" stroke={C.white} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <Path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke={C.white} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
-// â”€â”€â”€ Avatar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const MiniAvatar = ({ label, gradient }: { label: string; gradient?: boolean }) => (
-  <View style={[av.wrap, gradient && av.gradient]}>
-    <Text style={av.text}>{label.charAt(0).toUpperCase()}</Text>
-  </View>
-);
-const av = StyleSheet.create({
-  wrap: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(99,102,241,0.25)', alignItems: 'center', justifyContent: 'center' },
-  gradient: { backgroundColor: 'rgba(20,184,166,0.25)' },
-  text: { fontSize: 12, fontWeight: '800', color: C.text },
-});
-
-// â”€â”€â”€ Live dot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const LiveDot = ({ color = C.green }: { color?: string }) => {
-  const anim = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    Animated.loop(Animated.sequence([
-      Animated.timing(anim, { toValue: 0.3, duration: 700, useNativeDriver: true }),
-      Animated.timing(anim, { toValue: 1, duration: 700, useNativeDriver: true }),
-    ])).start();
-  }, []);
-  return <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: color, opacity: anim }} />;
-};
-
-// â”€â”€â”€ Main Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function ChatScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();

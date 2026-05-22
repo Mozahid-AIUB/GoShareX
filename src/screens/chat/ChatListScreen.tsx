@@ -23,6 +23,27 @@ import { storage, STORAGE_KEYS } from '@/utils/storage';
 import { useNavigation } from '@react-navigation/native';
 import chatService, { type Chat } from '@/services/firebase/chatService';
 
+import {
+  IconChevron,
+  IconClose,
+  IconGhost,
+  IconGroup,
+  IconMessage,
+  IconSearch,
+  IconShield,
+  IconTimer,
+} from './components/ChatListIcons';
+import { PulseDot } from './components/ChatIndicators';
+import { SearchingModal } from './components/SearchingModal';
+import { JoiningGroupModal } from './components/JoiningGroupModal';
+import { GroupRoomsModal } from './components/GroupRoomsModal';
+import {
+  SEARCH_TIMEOUT_MS,
+  minutesLeft,
+  type ChatItem,
+  type GroupRoom,
+} from './utils/chatHelpers';
+
 const C = {
   bg: premiumTheme.bg,
   surface: 'rgba(255,255,255,0.055)',
@@ -39,308 +60,6 @@ const C = {
   white: '#FFFFFF',
   purple: premiumTheme.primaryBright,
 };
-
-const SEARCH_TIMEOUT_MS = 30_000;
-
-interface ChatItem {
-  id: string;
-  participants: string[];
-  participantNames: Record<string, string>;
-  participantAliases?: Record<string, string>;
-  destination: string;
-  fare: number;
-  mode?: 'ride' | 'anonymous_1v1' | 'anonymous_group';
-  anonymous?: boolean;
-  expiresAt?: number;
-  searching?: boolean;
-  lastMessage: string;
-  lastMessageTime: number;
-  dealConfirmed: Record<string, boolean>;
-}
-
-interface GroupRoom {
-  id: string;
-  participants: string[];
-  expiresAt?: number;
-}
-
-const minutesLeft = (expiresAt?: number) => {
-  if (!expiresAt) return null;
-  return Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000));
-};
-
-// ─── SVG Icons ────────────────────────────────────────────────────────────────
-const IconSearch = () => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-    <Circle cx="11" cy="11" r="8" stroke={C.textSub} strokeWidth="1.8" />
-    <Path d="M21 21l-4.35-4.35" stroke={C.textSub} strokeWidth="1.8" strokeLinecap="round" />
-  </Svg>
-);
-const IconGhost = () => (
-  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-    <Path d="M9 10h.01M15 10h.01M12 2a9 9 0 00-9 9v10l3-3 2.5 2.5L11 18l1 3 1-3 2.5 2.5L19 21l3 3V11a9 9 0 00-9-9z" stroke={C.white} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-const IconGroup = () => (
-  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-    <Circle cx="9" cy="7" r="4" stroke={C.white} strokeWidth="1.7" />
-    <Path d="M3 20c0-4 2.7-7 6-7" stroke={C.white} strokeWidth="1.7" strokeLinecap="round" />
-    <Circle cx="17" cy="9" r="3" stroke={C.white} strokeWidth="1.7" />
-    <Path d="M21 20c0-3-1.8-5-4-5" stroke={C.white} strokeWidth="1.7" strokeLinecap="round" />
-  </Svg>
-);
-const IconMessage = () => (
-  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-    <Path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={C.white} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-const IconChevron = () => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-    <Path d="M9 18l6-6-6-6" stroke={C.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-const IconTimer = () => (
-  <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
-    <Circle cx="12" cy="12" r="9" stroke={C.amber} strokeWidth="1.8" />
-    <Path d="M12 7v5l3 3" stroke={C.amber} strokeWidth="1.8" strokeLinecap="round" />
-  </Svg>
-);
-const IconShield = () => (
-  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-    <Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke={C.purple} strokeWidth="1.8" strokeLinecap="round" />
-  </Svg>
-);
-const IconClose = () => (
-  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-    <Path d="M18 6L6 18M6 6l12 12" stroke={C.text} strokeWidth="2" strokeLinecap="round" />
-  </Svg>
-);
-const IconUsers = () => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-    <Circle cx="9" cy="7" r="4" stroke={C.teal} strokeWidth="1.7" />
-    <Path d="M3 20c0-4 2.7-7 6-7" stroke={C.teal} strokeWidth="1.7" strokeLinecap="round" />
-    <Circle cx="17" cy="9" r="3" stroke={C.teal} strokeWidth="1.7" />
-    <Path d="M21 20c0-3-1.8-5-4-5" stroke={C.teal} strokeWidth="1.7" strokeLinecap="round" />
-  </Svg>
-);
-const IconPlus = () => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-    <Path d="M12 5v14M5 12h14" stroke={C.white} strokeWidth="2.2" strokeLinecap="round" />
-  </Svg>
-);
-const IconLock = ({size=12,color='#94A3B8'}:{size?:number,color?:string}) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Rect x="3" y="11" width="18" height="11" rx="2" stroke={color} strokeWidth="2"/>
-    <Path d="M7 11V7a5 5 0 0110 0v4" stroke={color} strokeWidth="2" strokeLinecap="round"/>
-  </Svg>
-);
-const IconGhostSm = ({size=12,color='#94A3B8'}:{size?:number,color?:string}) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path d="M9 10h.01M15 10h.01M12 2a9 9 0 00-9 9v10l3-3 2.5 2.5L11 18l1 3 1-3 2.5 2.5L19 21l3 3V11a9 9 0 00-9-9z" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-  </Svg>
-);
-const IconTrash = ({size=12,color='#94A3B8'}:{size?:number,color?:string}) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-  </Svg>
-);
-
-// ─── Animated pulse dot ───────────────────────────────────────────────────────
-const PulseDot = ({ color = C.green }: { color?: string }) => {
-  const anim = React.useRef(new Animated.Value(1)).current;
-  React.useEffect(() => {
-    Animated.loop(Animated.sequence([
-      Animated.timing(anim, { toValue: 0.25, duration: 800, useNativeDriver: true }),
-      Animated.timing(anim, { toValue: 1, duration: 800, useNativeDriver: true }),
-    ])).start();
-  }, []);
-  return <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: color, opacity: anim }} />;
-};
-
-// ─── Countdown ring (SVG arc) ─────────────────────────────────────────────────
-const CountdownRing = ({ remaining, total }: { remaining: number; total: number }) => {
-  const R = 54;
-  const CIRC = 2 * Math.PI * R;
-  const progress = Math.max(0, remaining / total);
-  const dash = CIRC * progress;
-  const color = remaining > 10 ? '#7C6FF7' : remaining > 5 ? C.amber : C.red;
-  return (
-    <Svg width={130} height={130} viewBox="0 0 130 130">
-      <Defs>
-        <LinearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0" stopColor="#7C6FF7" />
-          <Stop offset="1" stopColor="#14B8A6" />
-        </LinearGradient>
-      </Defs>
-      {/* Track */}
-      <Circle cx="65" cy="65" r={R} stroke="rgba(255,255,255,0.08)" strokeWidth="8" fill="none" />
-      {/* Progress */}
-      <Circle
-        cx="65" cy="65" r={R}
-        stroke={color}
-        strokeWidth="8"
-        fill="none"
-        strokeDasharray={`${dash} ${CIRC}`}
-        strokeLinecap="round"
-        transform="rotate(-90 65 65)"
-      />
-    </Svg>
-  );
-};
-
-// ─── 1v1 Searching Modal ──────────────────────────────────────────────────────
-const SearchingModal = ({
-  visible, remaining, onCancel,
-}: { visible: boolean; remaining: number; onCancel: () => void }) => (
-  <Modal visible={visible} transparent animationType="fade">
-    <View style={m.overlay}>
-      <View style={m.card}>
-        {/* Ring */}
-        <View style={m.ringWrap}>
-          <CountdownRing remaining={remaining} total={SEARCH_TIMEOUT_MS / 1000} />
-          <View style={m.ringCenter}>
-            <Text style={m.ringNum}>{remaining}</Text>
-            <Text style={m.ringLabel}>sec</Text>
-          </View>
-        </View>
-
-        <View style={m.ghostWrap}>
-          <IconGhost />
-        </View>
-        <Text style={m.title}>Finding a match...</Text>
-        <Text style={m.sub}>Searching for an anonymous partner{'\n'}nearby. Identities stay hidden.</Text>
-
-        {/* Privacy chips */}
-        <View style={m.chipsRow}>
-          <View style={m.chip}><View style={{flexDirection:'row',alignItems:'center',gap:4}}><IconLock size={10}/><Text style={m.chipText}>Private</Text></View></View>
-          <View style={m.chip}><View style={{flexDirection:'row',alignItems:'center',gap:4}}><IconGhostSm size={10}/><Text style={m.chipText}>Anonymous</Text></View></View>
-          <View style={m.chip}><View style={{flexDirection:'row',alignItems:'center',gap:4}}><IconTrash size={10}/><Text style={m.chipText}>Auto-deleted</Text></View></View>
-        </View>
-
-        <TouchableOpacity style={m.cancelBtn} onPress={onCancel} activeOpacity={0.8}>
-          <IconClose />
-          <Text style={m.cancelText}>Cancel Search</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  </Modal>
-);
-
-// ─── Group Joining Modal ──────────────────────────────────────────────────────
-const JoiningGroupModal = ({ visible, isCreating }: { visible: boolean; isCreating: boolean }) => {
-  const spin = React.useRef(new Animated.Value(0)).current;
-  React.useEffect(() => {
-    if (!visible) return;
-    Animated.loop(
-      Animated.timing(spin, { toValue: 1, duration: 1200, useNativeDriver: true })
-    ).start();
-    return () => spin.setValue(0);
-  }, [visible]);
-  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-  return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={jm.overlay}>
-        <View style={jm.card}>
-          <Animated.View style={[jm.ring, { transform: [{ rotate }] }]}>
-            <Svg width={64} height={64} viewBox="0 0 64 64">
-              <Circle cx="32" cy="32" r="28" stroke="rgba(20,184,166,0.2)" strokeWidth="6" fill="none" />
-              <Circle cx="32" cy="32" r="28" stroke="#14B8A6" strokeWidth="6" fill="none"
-                strokeDasharray="44 132" strokeLinecap="round" transform="rotate(-90 32 32)" />
-            </Svg>
-          </Animated.View>
-          <View style={jm.iconWrap}><IconGroup /></View>
-          <Text style={jm.title}>{isCreating ? 'Creating room...' : 'Joining room...'}</Text>
-          <Text style={jm.sub}>{isCreating ? 'Setting up your anonymous group' : 'Connecting you anonymously'}</Text>
-          <View style={jm.chipsRow}>
-            <View style={jm.chip}><View style={{flexDirection:'row',alignItems:'center',gap:4}}><IconGroup /><Text style={jm.chipText}>Anonymous</Text></View></View>
-            <View style={jm.chip}><View style={{flexDirection:'row',alignItems:'center',gap:4}}><IconLock size={10}/><Text style={jm.chipText}>Private</Text></View></View>
-            <View style={jm.chip}><View style={{flexDirection:'row',alignItems:'center',gap:4}}><IconTrash size={10}/><Text style={jm.chipText}>Auto-deleted</Text></View></View>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-};
-
-const jm = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center' },
-  card: { width: '82%', backgroundColor: '#0E1220', borderRadius: 28, padding: 28, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(20,184,166,0.3)' },
-  ring: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  iconWrap: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(20,184,166,0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  title: { fontSize: 20, fontWeight: '900', color: C.text, marginBottom: 6 },
-  sub: { fontSize: 13, color: C.textSub, textAlign: 'center', lineHeight: 20, marginBottom: 18 },
-  chipsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
-  chip: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  chipText: { fontSize: 11, color: C.textSub, fontWeight: '600' },
-});
-
-// ─── Group Rooms Modal ────────────────────────────────────────────────────────
-const GroupRoomsModal = ({
-  visible, rooms, onJoin, onCreate, onClose, joining,
-}: {
-  visible: boolean;
-  rooms: GroupRoom[];
-  onJoin: (id: string) => void;
-  onCreate: () => void;
-  onClose: () => void;
-  joining: boolean;
-}) => (
-  <Modal visible={visible} transparent animationType="slide">
-    <View style={g.overlay}>
-      <View style={g.sheet}>
-        <View style={g.handle} />
-        <View style={g.header}>
-          <View>
-            <Text style={g.title}>Anonymous Groups</Text>
-            <Text style={g.sub}>{rooms.length > 0 ? `${rooms.length} active room${rooms.length > 1 ? 's' : ''} available` : 'No rooms right now'}</Text>
-          </View>
-          <TouchableOpacity style={g.closeBtn} onPress={onClose}><IconClose /></TouchableOpacity>
-        </View>
-
-        {rooms.length > 0 ? (
-          <FlatList
-            data={rooms}
-            keyExtractor={(r) => r.id}
-            style={{ maxHeight: 280 }}
-            contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}
-            renderItem={({ item }) => {
-              const mins = minutesLeft(item.expiresAt);
-              return (
-                <TouchableOpacity
-                  style={g.roomCard}
-                  onPress={() => onJoin(item.id)}
-                  disabled={joining}
-                  activeOpacity={0.82}
-                >
-                  <View style={g.roomAvatar}>
-                    <IconUsers />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={g.roomName}>Anonymous Group</Text>
-                    <Text style={g.roomMeta}>{item.participants.length} member{item.participants.length !== 1 ? 's' : ''} · {mins}m left</Text>
-                  </View>
-                  <View style={g.joinBtn}>
-                    <Text style={g.joinBtnText}>Join</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            }}
-          />
-        ) : (
-          <View style={g.emptyWrap}>
-            <Text style={g.emptyText}>No groups available right now.</Text>
-            <Text style={g.emptySubText}>Be the first — create a new room!</Text>
-          </View>
-        )}
-
-        <TouchableOpacity style={[g.createBtn, joining && { opacity: 0.5 }]} onPress={onCreate} disabled={joining} activeOpacity={0.85}>
-          <IconPlus />
-          <Text style={g.createBtnText}>{joining ? 'Joining...' : 'Create New Group'}</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  </Modal>
-);
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ChatListScreen() {
@@ -866,47 +585,4 @@ const s = StyleSheet.create({
   emptyOrb: { width: 68, height: 68, borderRadius: 34, backgroundColor: 'rgba(124,111,247,0.12)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(124,111,247,0.25)', marginBottom: 16 },
   emptyTitle: { fontSize: 17, fontWeight: '900', color: C.text, marginBottom: 8 },
   emptySub: { fontSize: 13, color: C.textSub, textAlign: 'center', lineHeight: 20 },
-});
-
-// ─── 1v1 Searching Modal Styles ───────────────────────────────────────────────
-const m = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center' },
-  card: { width: '86%', backgroundColor: '#0E1220', borderRadius: 28, padding: 28, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(124,111,247,0.3)' },
-  ringWrap: { width: 130, height: 130, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  ringCenter: { position: 'absolute', alignItems: 'center' },
-  ringNum: { fontSize: 36, fontWeight: '900', color: C.text, lineHeight: 40 },
-  ringLabel: { fontSize: 11, color: C.textSub, fontWeight: '600' },
-  ghostWrap: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(124,111,247,0.18)', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  title: { fontSize: 20, fontWeight: '900', color: C.text, marginBottom: 6, letterSpacing: -0.3 },
-  sub: { fontSize: 13, color: C.textSub, textAlign: 'center', lineHeight: 20, marginBottom: 18 },
-  chipsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 24 },
-  chip: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  chipText: { fontSize: 11, color: C.textSub, fontWeight: '600' },
-  cancelBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(244,63,94,0.1)', borderRadius: 14, paddingHorizontal: 20, paddingVertical: 12, borderWidth: 1, borderColor: 'rgba(244,63,94,0.25)' },
-  cancelText: { fontSize: 14, fontWeight: '800', color: '#F43F5E' },
-});
-
-// ─── Group Modal Styles ───────────────────────────────────────────────────────
-const g = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#0E1220', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 12, paddingBottom: 32, borderWidth: 1, borderColor: 'rgba(124,111,247,0.2)' },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'center', marginBottom: 16 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20, marginBottom: 16 },
-  title: { fontSize: 20, fontWeight: '900', color: C.text },
-  sub: { fontSize: 12, color: C.textSub, marginTop: 3 },
-  closeBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center' },
-
-  roomCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(20,184,166,0.07)', borderRadius: 18, padding: 14, borderWidth: 1, borderColor: 'rgba(20,184,166,0.2)' },
-  roomAvatar: { width: 42, height: 42, borderRadius: 13, backgroundColor: 'rgba(20,184,166,0.15)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(20,184,166,0.3)' },
-  roomName: { fontSize: 14, fontWeight: '800', color: C.text },
-  roomMeta: { fontSize: 11, color: C.textSub, marginTop: 2 },
-  joinBtn: { backgroundColor: C.teal, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7 },
-  joinBtnText: { fontSize: 12, fontWeight: '800', color: C.white },
-
-  emptyWrap: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20 },
-  emptyText: { fontSize: 15, fontWeight: '700', color: C.text, marginBottom: 6 },
-  emptySubText: { fontSize: 12, color: C.textSub },
-
-  createBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginTop: 16, height: 52, borderRadius: 18, backgroundColor: 'rgba(20,184,166,0.15)', borderWidth: 1, borderColor: 'rgba(20,184,166,0.35)' },
-  createBtnText: { fontSize: 15, fontWeight: '800', color: '#5EEAD4' },
 });
