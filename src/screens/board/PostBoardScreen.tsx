@@ -15,6 +15,7 @@ import type { RootNavProp } from '@/navigation/types';
 import { cancelPost, joinPost, leavePost, subscribeToOpenPosts } from '@/services/firebase/postService';
 import { useAuthStore } from '@/store/authStore';
 import type { Post } from '@/types/post.types';
+import { getErrorMessage } from '@/utils/errorHandler';
 
 const C = {
   bg: '#F5F5FA', card: '#FFFFFF', border: '#E8E4F4',
@@ -353,7 +354,7 @@ export default function PostBoardScreen() {
     if (post.interested.length >= post.maxRiders - 1) { Alert.alert('Post full', 'This ride is already full.'); return; }
     setBusyPostId(post.postId);
     try { await joinPost(post.postId, user.uid, user.name); }
-    catch (e: any) { Alert.alert('Join failed', e.message ?? 'Try again.'); }
+    catch (e: unknown) { Alert.alert('Join failed', getErrorMessage(e) || 'Try again.'); }
     finally { setBusyPostId(null); }
   }, [user]);
 
@@ -365,7 +366,7 @@ export default function PostBoardScreen() {
         text: 'Leave', style: 'destructive', onPress: async () => {
           setBusyPostId(post.postId);
           try { await leavePost(post.postId, user.uid); }
-          catch (e: any) { Alert.alert('Error', e.message); }
+          catch (e: unknown) { Alert.alert('Error', getErrorMessage(e)); }
           finally { setBusyPostId(null); }
         }
       },
@@ -380,7 +381,7 @@ export default function PostBoardScreen() {
         text: 'Remove', style: 'destructive', onPress: async () => {
           setBusyPostId(post.postId);
           try { await cancelPost(post.postId, user.uid); }
-          catch (e: any) { Alert.alert('Error', e.message); }
+          catch (e: unknown) { Alert.alert('Error', getErrorMessage(e)); }
           finally { setBusyPostId(null); }
         }
       },

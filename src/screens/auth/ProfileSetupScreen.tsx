@@ -23,6 +23,7 @@ import { useAuthStore } from '@/store';
 import { useAnimatedPress } from '@/hooks/useAnimatedPress';
 import { C } from '@/components/auth/authColors';
 import { IconUser, IconPhone, IconBack } from '@/components/auth/AuthIcons';
+import { getErrorMessage } from '@/utils/errorHandler';
 import FormField from '@/components/auth/FormField';
 
 export default function ProfileSetupScreen() {
@@ -58,8 +59,8 @@ export default function ProfileSetupScreen() {
       if (fcmToken) await saveFCMToken(uid, fcmToken).catch(() => {});
       const updatedUser = await authService.getCurrentUser();
       if (updatedUser) setUser(updatedUser);
-    } catch (err: any) {
-      Alert.alert('Error', err.message ?? 'Failed to save profile');
+    } catch (err: unknown) {
+      Alert.alert('Error', getErrorMessage(err) || 'Failed to save profile');
     } finally {
       setLoading(false);
     }

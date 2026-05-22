@@ -21,6 +21,7 @@ import rideService from '@/services/firebase/rideService';
 import { sendRideConfirmed } from '@/services/notifications/fcmService';
 import { buildRideRoutePreview } from '@/services/ride/routePreviewService';
 import type { RideRoutePreview } from '@/types/ride.types';
+import { logger } from '@/utils/logger';
 
 const C = {
   bg: '#07090F',
@@ -234,10 +235,10 @@ export default function RideConfirmedScreen() {
       await rideService.startRide(id);
       if (riderUid && user?.uid) {
         sendRideConfirmed(riderUid, user?.name ?? 'Your partner', id)
-          .catch(e => console.warn('[RideConfirmedScreen] sendRideConfirmed failed:', e));
+          .catch(e => logger.warn('RideConfirmedScreen.sendRideConfirmed', e));
       }
     } catch (e) {
-      console.error('[RideConfirmedScreen] startRide failed:', e);
+      logger.error('RideConfirmedScreen.startRide', e);
       autoStarted.current = false;
     } finally {
       setStarting(false);
@@ -263,7 +264,7 @@ export default function RideConfirmedScreen() {
       await rideService.startRide(rideId);
       if (riderUid && user?.uid) {
         sendRideConfirmed(riderUid, user?.name ?? 'Your partner', rideId)
-          .catch(e => console.warn('[RideConfirmedScreen] sendRideConfirmed failed:', e));
+          .catch(e => logger.warn('RideConfirmedScreen.sendRideConfirmed', e));
       }
       setStatus('active');
       navigatedToActive.current = true;

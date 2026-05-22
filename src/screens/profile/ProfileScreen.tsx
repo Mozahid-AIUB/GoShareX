@@ -25,6 +25,7 @@ import { getTrustBreakdown, RATING_CATEGORIES, type TrustBreakdown } from '@/ser
 import { useAuthStore } from '@/store/authStore';
 import type { User } from '@/types/auth.types';
 import PremiumIcon from '@/components/common/PremiumIcon';
+import { logger } from '@/utils/logger';
 
 const SW = Dimensions.get('window').width;
 
@@ -305,7 +306,7 @@ export default function ProfileScreen() {
       if (!active) return;
       if (next) { const merged = { ...next, profileStatus: 'live' as const, profileWarning: undefined }; setProfile(merged); setUser(merged); }
       if (b) setBreakdown(b);
-    }).catch(e => { if (!isRecoverable(e)) console.warn('Profile refresh:', e); });
+    }).catch(e => { if (!isRecoverable(e)) logger.warn('ProfileScreen.refresh', e); });
     return () => { active = false; };
   }, [user?.uid, setUser]));
 

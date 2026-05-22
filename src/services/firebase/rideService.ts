@@ -7,6 +7,7 @@ import { ref, set, remove } from 'firebase/database';
 import { db, realtimeDb } from '@/config/firebase.config';
 import type { RideRoutePreview } from '@/types/ride.types';
 import { getFare } from '@/utils/fareTable';
+import { logger } from '@/utils/logger';
 
 export type RideStatus = 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled';
 
@@ -79,7 +80,7 @@ class RideService {
     ]);
     rtdbUpdates.forEach((r, i) => {
       if (r.status === 'rejected') {
-        console.error(`startRide: RTDB status update [${i}] failed:`, r.reason);
+        logger.error('rideService.startRide', r.reason, { index: i });
       }
     });
   }
@@ -113,7 +114,7 @@ class RideService {
     ]);
     statsResults.forEach((r, i) => {
       if (r.status === 'rejected') {
-        console.error(`completeRide: stats update [${i}] failed:`, r.reason);
+        logger.error('rideService.completeRide.stats', r.reason, { index: i });
       }
     });
 
@@ -130,19 +131,19 @@ class RideService {
       const u = user1Result.value;
       badgeUpdates.push(updateBadge(ride.rider1, u.totalRides, u.rating));
     } else {
-      console.error('completeRide: could not fetch rider1 for badge update');
+      logger.error('rideService.completeRide', 'could not fetch rider1 for badge update');
     }
     if (user2Result.status === 'fulfilled' && user2Result.value) {
       const u = user2Result.value;
       badgeUpdates.push(updateBadge(ride.rider2, u.totalRides, u.rating));
     } else {
-      console.error('completeRide: could not fetch rider2 for badge update');
+      logger.error('rideService.completeRide', 'could not fetch rider2 for badge update');
     }
 
     const badgeResults = await Promise.allSettled(badgeUpdates);
     badgeResults.forEach((r, i) => {
       if (r.status === 'rejected') {
-        console.error(`completeRide: badge update [${i}] failed:`, r.reason);
+        logger.error('rideService.completeRide.badge', r.reason, { index: i });
       }
     });
   }
@@ -167,7 +168,7 @@ class RideService {
     ]);
     rtdbResults.forEach((r, i) => {
       if (r.status === 'rejected') {
-        console.error(`cancelRide: RTDB cleanup [${i}] failed:`, r.reason);
+        logger.error('rideService.cancelRide', r.reason, { index: i });
       }
     });
 
@@ -183,7 +184,7 @@ class RideService {
 
     // Guard against double-rating — check BEFORE writing anything
     if (ride[`rated_${raterId}`] === true) {
-      console.warn(`submitRating: rider ${raterId} already rated ride ${rideId}`);
+      logger.warn('rideService.submitRating', `rider ${raterId} already rated ride ${rideId}`);
       return;
     }
 

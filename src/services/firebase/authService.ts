@@ -16,6 +16,7 @@ import {
   ProfileSetupData,
 } from '@/types/auth.types';
 import { isValidEmail, isValidGmail } from '@/utils/validators';
+import { logger } from '@/utils/logger';
 
 class AuthService {
   private isRecoverableFirestoreError(error: any): boolean {
@@ -157,7 +158,7 @@ class AuthService {
       }
     } catch (firestoreError: any) {
       if (!this.isRecoverableFirestoreError(firestoreError)) {
-        console.error('Firestore read error:', firestoreError);
+        logger.error('authService.firestoreRead', firestoreError);
       }
 
       try {
@@ -167,7 +168,7 @@ class AuthService {
         }
       } catch (cacheError: any) {
         if (!this.isRecoverableFirestoreError(cacheError)) {
-          console.error('Firestore cache read error:', cacheError);
+          logger.error('authService.firestoreCacheRead', cacheError);
         }
       }
 
@@ -178,7 +179,7 @@ class AuthService {
         }
       } catch (restError: any) {
         if (!this.isRecoverableFirestoreError(restError)) {
-          console.error('Firestore REST fallback error:', restError);
+          logger.error('authService.firestoreRestFallback', restError);
         }
       }
 
@@ -236,9 +237,9 @@ class AuthService {
       try {
         await setDoc(doc(db, 'users', userCredential.user.uid), userData);
       } catch (firestoreError: any) {
-        console.error('Registration profile save error:', firestoreError);
+        logger.error('authService.registration.profileSave', firestoreError);
         await deleteUser(userCredential.user).catch((deleteError) => {
-          console.error('Failed to rollback auth user after registration error:', deleteError);
+          logger.error('authService.registration.rollback', deleteError);
         });
 
         if (
@@ -254,7 +255,7 @@ class AuthService {
 
       return userData;
     } catch (error: any) {
-      console.error('Registration error:', error);
+      logger.error('authService.register', error);
       throw new Error(error.message || 'Registration failed');
     }
   }
@@ -298,7 +299,7 @@ class AuthService {
           throw firestoreError;
         }
         if (!this.isRecoverableFirestoreError(firestoreError)) {
-          console.error('Firestore error:', firestoreError);
+          logger.error('authService.firestore', firestoreError);
         }
 
         // Timeout or network error — use fallback but still check suspension via REST
@@ -347,7 +348,7 @@ class AuthService {
     try {
       await signOut(auth);
     } catch (error: any) {
-      console.error('Logout error:', error);
+      logger.error('authService.logout', error);
       throw new Error(error.message || 'Logout failed');
     }
   }
@@ -384,7 +385,7 @@ class AuthService {
         await setDoc(ref, newProfile);
       }
     } catch (error: any) {
-      console.error('Profile setup error:', error);
+      logger.error('authService.profileSetup', error);
       throw new Error(error.message || 'Profile setup failed');
     }
   }
@@ -399,7 +400,7 @@ class AuthService {
       } catch (error: any) {
         // PROFILE_NOT_FOUND = new user, no doc yet — expected, not an error
         if (error?.code !== 'PROFILE_NOT_FOUND' && !this.isRecoverableFirestoreError(error)) {
-          console.warn('Get current user profile fallback:', error?.message ?? error);
+          logger.warn('authService.getCurrentUser.fallback', error?.message ?? error);
         }
         return this.buildFallbackUser(
           firebaseUser.uid,
@@ -407,7 +408,7 @@ class AuthService {
         );
       }
     } catch (error) {
-      console.error('Get current user error:', error);
+      logger.error('authService.getCurrentUser', error);
       return null;
     }
   }
@@ -421,7 +422,7 @@ class AuthService {
       }
       await sendPasswordResetEmail(auth, normalizedEmail);
     } catch (error: any) {
-      console.error('Reset password error:', error);
+      logger.error('authService.resetPassword', error);
       throw new Error(error.message || 'Password reset failed');
     }
   }

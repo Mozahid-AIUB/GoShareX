@@ -7,6 +7,7 @@
 
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase.config';
+import { logger } from '@/utils/logger';
 
 export interface AnalyticsEvent {
     eventName: string;
@@ -136,9 +137,9 @@ class AnalyticsService {
                 });
             }
 
-            console.info(`[Analytics] Flushed ${batch.length} events`);
+            logger.info('Analytics', `Flushed ${batch.length} events`);
         } catch (error) {
-            console.warn('[Analytics] Failed to flush events:', error);
+            logger.warn('Analytics.flush', error);
             // Re-queue events on failure (bounded by max queue size)
         }
     }

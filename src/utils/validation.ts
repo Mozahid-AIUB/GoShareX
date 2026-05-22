@@ -10,7 +10,7 @@ export interface ValidationRule {
     minLength?: number;
     maxLength?: number;
     pattern?: RegExp;
-    custom?: (value: any) => boolean | string; // return error message if invalid
+    custom?: (value: unknown) => boolean | string; // return error message if invalid
 }
 
 /**
@@ -127,7 +127,7 @@ export function isValidDestination(destination: string): boolean {
 /**
  * Validate fare amount
  */
-export function isValidFare(fare: any): boolean {
+export function isValidFare(fare: unknown): boolean {
     const num = Number(fare);
     return Number.isInteger(num) && num > 0 && num < 10000;
 }
@@ -135,7 +135,7 @@ export function isValidFare(fare: any): boolean {
 /**
  * Validate rating (1-5 stars)
  */
-export function isValidRating(rating: any): boolean {
+export function isValidRating(rating: unknown): boolean {
     const num = Number(rating);
     return Number.isInteger(num) && num >= 1 && num <= 5;
 }
@@ -143,7 +143,7 @@ export function isValidRating(rating: any): boolean {
 /**
  * Validate coordinates
  */
-export function isValidCoordinates(lat: any, lng: any): boolean {
+export function isValidCoordinates(lat: unknown, lng: unknown): boolean {
     const latitude = Number(lat);
     const longitude = Number(lng);
     return (
@@ -170,7 +170,7 @@ export function isValidName(name: string): boolean {
 /**
  * Generic validator
  */
-export function validate(value: any, rules: ValidationRule): { valid: boolean; error?: string } {
+export function validate(value: unknown, rules: ValidationRule): { valid: boolean; error?: string } {
     // Required check
     if (rules.required && (!value || (typeof value === 'string' && !value.trim()))) {
         return { valid: false, error: 'This field is required' };

@@ -7,6 +7,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logger } from '@/utils/logger';
 
 const RATE_LIMITS_KEY = 'gosharex_rate_limits_v1';
 
@@ -72,7 +73,7 @@ class RateLimitService {
         // Check if currently blocked
         const record = this.inMemoryCache.get(cacheKey);
         if (record?.blocked && record.blockedUntil && record.blockedUntil > Date.now()) {
-            console.warn(`[RateLimit] User ${userId} blocked for action ${action}`);
+            logger.warn('RateLimit', `User ${userId} blocked for action ${action}`);
             return false;
         }
 
@@ -108,9 +109,7 @@ class RateLimitService {
         if (record.count > config.maxRequests) {
             record.blocked = true;
             record.blockedUntil = now + (config.blockDurationMs ?? 60000);
-            console.warn(
-                `[RateLimit] User ${userId} exceeded rate limit for ${action}: ${record.count}/${config.maxRequests}`
-            );
+            logger.warn('RateLimit', `User ${userId} exceeded rate limit for ${action}: ${record.count}/${config.maxRequests}`);
             return false;
         }
 

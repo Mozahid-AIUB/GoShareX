@@ -1350,8 +1350,8 @@ export default function HomeScreen() {
     }, msUntilNextHour);
     return () => clearTimeout(timer);
   }, []);
-  const timeCtx  = useMemo(() => getTimeContext(currentHour), [currentHour]);
-  const greeting = useMemo(() => getGreeting(currentHour),    [currentHour]);
+  const timeCtx = useMemo(() => getTimeContext(currentHour), [currentHour]);
+  const greeting = useMemo(() => getGreeting(currentHour), [currentHour]);
   useNearbyRiders(destination, LIVE_PARTNER_FEED_ENABLED && !!destination);
   const { nearbyRiders } = useRideStore();
 
@@ -1852,7 +1852,7 @@ export default function HomeScreen() {
 
       <ScrollView
         style={S.scroll}
-        contentContainerStyle={[S.scrollContent, { paddingBottom: tabBarHeight + 32 }]}
+        contentContainerStyle={[S.scrollContent, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
         onScroll={e => setElevated(e.nativeEvent.contentOffset.y > 8)}
         scrollEventThrottle={16}

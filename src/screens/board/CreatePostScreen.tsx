@@ -22,6 +22,7 @@ import type { RootNavProp } from '@/navigation/types';
 import { useAuthStore } from '@/store/authStore';
 import { createPost } from '@/services/firebase/postService';
 import placesService, { PlaceSuggestion } from '@/services/google/placesService';
+import { getErrorMessage } from '@/utils/errorHandler';
 
 const C = {
   bg: '#FAF8FF',
@@ -294,9 +295,9 @@ export default function CreatePostScreen() {
         maxRiders,
       });
       navigation.goBack();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setLoading(false);
-      Alert.alert('Failed to post', err?.message ?? 'Please try again.');
+      Alert.alert('Failed to post', getErrorMessage(err) || 'Please try again.');
     }
   };
 

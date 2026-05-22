@@ -9,6 +9,7 @@
  */
 
 import { analyticsService, PerformanceMetric } from './analyticsService';
+import { logger } from '@/utils/logger';
 
 interface ScreenLoadMetric {
     screen: string;
@@ -67,7 +68,7 @@ class PerformanceService {
 
         // Warn if slow
         if (duration > 2000) {
-            console.warn(`[Performance] Slow screen: ${screen} took ${duration}ms`);
+            logger.warn('Performance', `Slow screen: ${screen} took ${duration}ms`);
         }
 
         return duration;
@@ -84,7 +85,7 @@ class PerformanceService {
         metric.components[component] = duration;
 
         if (duration > 500) {
-            console.warn(`[Performance] Slow component: ${component} in ${screen} took ${duration}ms`);
+            logger.warn('Performance', `Slow component: ${component} in ${screen} took ${duration}ms`);
         }
     }
 
@@ -101,7 +102,7 @@ class PerformanceService {
 
         // Warn if slow
         if (duration > 3000) {
-            console.warn(`[Performance] Slow API: ${path} took ${duration}ms`);
+            logger.warn('Performance', `Slow API: ${path} took ${duration}ms`);
         }
 
         // Track via analytics
@@ -194,13 +195,13 @@ export async function measureAsync<T>(
         const result = await fn();
         const duration = Date.now() - start;
         if (duration > 1000) {
-            console.warn(`[Performance] Slow operation: ${label} took ${duration}ms`);
+            logger.warn('Performance', `Slow operation: ${label} took ${duration}ms`);
             onSlow?.(duration);
         }
         return result;
     } catch (error) {
         const duration = Date.now() - start;
-        console.error(`[Performance] Operation failed: ${label} after ${duration}ms`, error);
+        logger.error('Performance', error, { label, duration });
         throw error;
     }
 }

@@ -7,11 +7,15 @@
 import { PushPayload, NotificationType } from '@/types/notification.types';
 import { logError } from '@/services/analytics/crashService';
 
+type NavigationRef = {
+  navigate: (route: string, params?: Record<string, unknown>) => void;
+};
+
 // ─── Navigation routing ───────────────────────────────────────────────────────
 
 function routeNotification(
   payload: Partial<PushPayload>,
-  navigation: any,
+  navigation: NavigationRef,
 ): void {
   const type = payload.type as NotificationType | undefined;
 
@@ -50,24 +54,30 @@ function routeNotification(
       break;
 
     default:
-      // Unknown type — navigate to home
       navigation.navigate('Home');
   }
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
+interface IncomingNotification {
+  data?: Partial<PushPayload>;
+}
+
+interface NotificationResponseShape {
+  notification?: { data?: Partial<PushPayload> };
+  data?: Partial<PushPayload>;
+}
+
 /**
  * Handle a push notification received while the app is in the foreground.
- * Typically triggers an in-app banner rather than an OS notification.
- *
- * @param notification  Raw notification object from @react-native-firebase/messaging
- * @param navigation    React Navigation dispatch-capable navigation ref
  */
-export function handleIncomingPush(notification: any, navigation: any): void {
+export function handleIncomingPush(
+  notification: IncomingNotification | null | undefined,
+  navigation: NavigationRef,
+): void {
   try {
     const payload: Partial<PushPayload> = notification?.data ?? {};
-    // In foreground we typically show an in-app alert — routing is optional
     routeNotification(payload, navigation);
   } catch (error) {
     logError(error as Error, { handler: 'handleIncomingPush' });
@@ -76,14 +86,12 @@ export function handleIncomingPush(notification: any, navigation: any): void {
 
 /**
  * Handle the user tapping on a push notification from the OS tray.
- * This is called both when the app is backgrounded and quit.
- *
- * @param response      Notification response object (from notifee or FCM)
- * @param navigation    React Navigation dispatch-capable navigation ref
  */
-export function handleNotificationResponse(response: any, navigation: any): void {
+export function handleNotificationResponse(
+  response: NotificationResponseShape | null | undefined,
+  navigation: NavigationRef,
+): void {
   try {
-    // Support both @notifee/react-native and @react-native-firebase/messaging shapes
     const payload: Partial<PushPayload> =
       response?.notification?.data ?? response?.data ?? {};
 

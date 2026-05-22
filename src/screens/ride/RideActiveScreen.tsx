@@ -10,6 +10,7 @@ import rideService from '@/services/firebase/rideService';
 import { startGeofencingForDestination, stopGeofencing, registerGeofenceTask } from '@/services/location/geofenceService';
 import { startMovementDetection } from '@/services/location/movementDetector';
 import type { RideRoutePreview } from '@/types/ride.types';
+import { logger } from '@/utils/logger';
 
 // ─── Tokens ──────────────────────────────────────────────────────────────────
 const C = {
@@ -234,9 +235,9 @@ export default function RideActiveScreen() {
 
       try {
         await startGeofencingForDestination(destination);
-        console.log('[RideActiveScreen] Geofencing started for', destination);
+        logger.debug('RideActiveScreen', 'Geofencing started for', destination);
       } catch (error) {
-        console.warn('[RideActiveScreen] Geofencing setup failed:', error);
+        logger.warn('RideActiveScreen.geofenceSetup', error);
       }
     };
 
@@ -244,7 +245,7 @@ export default function RideActiveScreen() {
 
     return () => {
       stopGeofencing().catch((error) => {
-        console.warn('[RideActiveScreen] Geofence stop failed:', error);
+        logger.warn('RideActiveScreen.geofenceStop', error);
       });
     };
   }, [rider?.destination]);
@@ -255,7 +256,7 @@ export default function RideActiveScreen() {
     const stopDetection = startMovementDetection(() => {
       if (alreadyMoving) return;
       alreadyMoving = true;
-      console.log('[RideActiveScreen] Movement detected — ride physically started');
+      logger.debug('RideActiveScreen', 'Movement detected — ride physically started');
       // Ride is already in 'active' state from RideConfirmedScreen.
       // Movement detection here is a confirmation signal only — no extra state change needed.
       // If you want a "Ride Started" toast, uncomment below:
@@ -278,7 +279,7 @@ export default function RideActiveScreen() {
         routePreview: currentRoutePreview,
       });
     } catch (error) {
-      console.warn('[RideActiveScreen] Complete ride failed:', error);
+      logger.warn('RideActiveScreen.completeRide', error);
     }
   };
 

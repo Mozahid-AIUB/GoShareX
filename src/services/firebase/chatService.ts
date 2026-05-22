@@ -15,6 +15,7 @@ import {
   runTransaction,
 } from 'firebase/firestore';
 import { db } from '@/config/firebase.config';
+import { logger } from '@/utils/logger';
 
 export type ChatMode = 'ride' | 'anonymous_1v1' | 'anonymous_group';
 
@@ -77,7 +78,7 @@ class ChatService {
       batch.delete(doc(db, 'chats', chatId));
       await batch.commit();
     } catch (e) {
-      console.warn('[chatService] deleteChat failed:', e);
+      logger.warn('chatService.deleteChat', e);
     }
   }
 

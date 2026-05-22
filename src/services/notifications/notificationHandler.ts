@@ -7,6 +7,7 @@
 import * as Notifications from 'expo-notifications';
 import { logError, logWarning } from '@/services/analytics/crashService';
 import { scheduleLocalNotification } from '@/services/notifications/notificationService';
+import { logger } from '@/utils/logger';
 
 function isExpoGo(): boolean {
   try {
@@ -20,7 +21,7 @@ function isExpoGo(): boolean {
 
 export function setupNotificationHandlers(): void {
   if (isExpoGo()) {
-    console.info('[notifications] Expo Go: remote push listeners skipped. Use a dev build for FCM.');
+    logger.info('notifications', 'Expo Go: remote push listeners skipped. Use a dev build for FCM.');
     return;
   }
 

@@ -21,6 +21,7 @@ import { useAnimatedPress } from '@/hooks/useAnimatedPress';
 import { C } from '@/components/auth/authColors';
 import { LogoMark, IconEmail, IconLock, IconArrow, IconUser, IconBack } from '@/components/auth/AuthIcons';
 import FormField from '@/components/auth/FormField';
+import { getErrorCode, getErrorMessage } from '@/utils/errorHandler';
 
 export default function RegisterScreen() {
   const navigation = useNavigation<RootNavProp>();
@@ -62,11 +63,13 @@ export default function RegisterScreen() {
           onPress: () => navigation.navigate('Auth', { screen: 'Login' }),
         }]
       );
-    } catch (err: any) {
-      if (err.message?.includes('email-already-in-use') || err.code === 'auth/email-already-in-use') {
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err);
+      const code = getErrorCode(err);
+      if (msg.includes('email-already-in-use') || code === 'auth/email-already-in-use') {
         Alert.alert('Already registered', 'An account with this Gmail already exists. Please sign in instead.');
       } else {
-        Alert.alert('Registration failed', err.message ?? 'Please try again.');
+        Alert.alert('Registration failed', msg || 'Please try again.');
       }
     } finally {
       setLoading(false);

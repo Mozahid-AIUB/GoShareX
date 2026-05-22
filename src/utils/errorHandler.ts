@@ -70,6 +70,30 @@ export function handleError(error: unknown): string {
 }
 
 /**
+ * Safely extract `.code` from an unknown error (Firebase, fetch, etc).
+ */
+export function getErrorCode(error: unknown): string | undefined {
+  if (error && typeof error === 'object' && 'code' in error) {
+    const code = (error as { code: unknown }).code;
+    return typeof code === 'string' ? code : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Safely extract `.message` from an unknown error.
+ */
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const msg = (error as { message: unknown }).message;
+    if (typeof msg === 'string') return msg;
+  }
+  return 'Unknown error';
+}
+
+/**
  * Returns true if the error looks like a network/connectivity failure.
  */
 export function isNetworkError(error: unknown): boolean {

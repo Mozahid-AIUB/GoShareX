@@ -8,6 +8,7 @@
 import * as Notifications from 'expo-notifications';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/services/firebase/config';
+import { logger } from '@/utils/logger';
 
 const FCM_TOKENS_COLLECTION = 'fcm_tokens';
 
@@ -18,7 +19,7 @@ const FCM_TOKENS_COLLECTION = 'fcm_tokens';
  */
 export function configureNotificationHandler(): void {
   if (isExpoGo()) {
-    console.info('[messaging] Expo Go detected — skipping notification handler setup. Use a dev build for push notifications.');
+    logger.info('messaging', 'Expo Go detected — skipping notification handler setup. Use a dev build for push notifications.');
     return;
   }
   Notifications.setNotificationHandler({
@@ -52,7 +53,7 @@ function isExpoGo(): boolean {
  */
 export async function getFCMToken(): Promise<string | null> {
   if (isExpoGo()) {
-    console.info('[messaging] Expo Go detected — remote push tokens unavailable. Use a dev build.');
+    logger.info('messaging', 'Expo Go detected — remote push tokens unavailable. Use a dev build.');
     return null;
   }
 
@@ -69,9 +70,9 @@ export async function getFCMToken(): Promise<string | null> {
       typeof error?.message === 'string' &&
       error.message.includes('expo-notifications')
     ) {
-      console.info('[messaging] Push token unavailable in Expo Go — use a dev build.');
+      logger.info('messaging', 'Push token unavailable in Expo Go — use a dev build.');
     } else {
-      console.warn('[messaging] getFCMToken failed:', error);
+      logger.warn('messaging.getFCMToken', error);
     }
     return null;
   }
@@ -123,10 +124,10 @@ export async function sendPushNotification(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.warn(`[messaging] sendPushNotification failed [${response.status}]: ${errorText}`);
+      logger.warn('messaging.sendPushNotification', `failed [${response.status}]: ${errorText}`);
     }
   } catch (error) {
-    console.warn('[messaging] sendPushNotification error:', error);
+    logger.warn('messaging.sendPushNotification', error);
   }
 }
 
@@ -146,7 +147,7 @@ export async function requestNotificationPermissions(): Promise<boolean> {
 
     return finalStatus === 'granted';
   } catch (error) {
-    console.warn('[messaging] requestNotificationPermissions failed:', error);
+    logger.warn('messaging.requestPermissions', error);
     return false;
   }
 }

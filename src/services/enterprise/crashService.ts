@@ -12,6 +12,7 @@
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase.config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logger } from '@/utils/logger';
 
 const ERROR_LOG_KEY = 'gosharex_error_logs_v1';
 const MAX_LOCAL_LOGS = 50;
@@ -76,7 +77,7 @@ export class ErrorService {
         }
 
         // Log to console in dev
-        console.error(`[${context}] ${message}`, { stack, ...metadata });
+        logger.error(context, message, { stack, ...metadata });
     }
 
     /**
@@ -91,7 +92,7 @@ export class ErrorService {
             const trimmed = logs.slice(-MAX_LOCAL_LOGS);
             await AsyncStorage.setItem(ERROR_LOG_KEY, JSON.stringify(trimmed));
         } catch (e) {
-            console.warn('[ErrorService] Failed to log locally:', e);
+            logger.warn('ErrorService.local', e);
         }
     }
 
@@ -105,7 +106,7 @@ export class ErrorService {
                 createdAt: serverTimestamp(),
             });
         } catch (e) {
-            console.warn('[ErrorService] Failed to send to Firebase:', e);
+            logger.warn('ErrorService.firebase', e);
         }
     }
 

@@ -4,6 +4,7 @@ import { realtimeDb } from '@/config/firebase.config';
 import { auth } from '@/config/firebase.config';
 import ENV from '@/config/env';
 import type { ActiveRiderRaw } from '@/services/firebase/matchingService';
+import { logger } from '@/utils/logger';
 
 export interface LocationData {
   latitude: number;
@@ -44,7 +45,7 @@ class LocationService {
       // Background access can be requested later for ride tracking flows.
       return true;
     } catch (error) {
-      console.error('Permission request error:', error);
+      logger.error('locationService.permissionRequest', error);
       return false;
     }
   }
@@ -66,7 +67,7 @@ class LocationService {
         timestamp: location.timestamp,
       };
     } catch (error) {
-      console.error('Get location error:', error);
+      logger.error('locationService.getLocation', error);
       return null;
     }
   }
@@ -162,7 +163,7 @@ class LocationService {
 
       return expoParts.filter((p, i) => i === 0 || p !== expoParts[i - 1]).slice(0, 2).join(', ') || null;
     } catch (error) {
-      console.error('Reverse geocode error:', error);
+      logger.error('locationService.reverseGeocode', error);
       return null;
     }
   }
@@ -208,7 +209,7 @@ class LocationService {
         }
       );
     } catch (error) {
-      console.error('Start watching error:', error);
+      logger.error('locationService.startWatching', error);
       throw error;
     }
   }
@@ -233,7 +234,7 @@ class LocationService {
       }
     } catch (error) {
       if (!this.isPermissionDenied(error)) {
-        console.error('Stop watching error:', error);
+        logger.error('locationService.stopWatching', error);
       }
     }
   }
@@ -282,7 +283,7 @@ class LocationService {
         return;
       }
 
-      console.error('Update location error:', error);
+      logger.error('locationService.updateLocation', error);
     }
   }
 

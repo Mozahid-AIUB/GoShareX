@@ -23,6 +23,7 @@ import chatService, { Chat, Message } from '@/services/firebase/chatService';
 import { getFare } from '@/constants/fareTable';
 import { sendRideRequest } from '@/services/notifications/fcmService';
 import { storage, STORAGE_KEYS } from '@/utils/storage';
+import { logger } from '@/utils/logger';
 
 // â”€â”€â”€ Design tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const C = {
@@ -257,7 +258,7 @@ export default function ChatScreen() {
         chatMeta?.destination ?? destination ?? 'Unknown',
         fare ?? 0,
         chatId,
-      ).catch((e) => console.warn('[ChatScreen] sendRideRequest failed:', e));
+      ).catch((e) => logger.warn('ChatScreen.sendRideRequest', e));
     }
 
     const bothConfirmed = await chatService.confirmDeal(chatId, user.uid);

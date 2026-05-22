@@ -22,6 +22,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/services/firebase/config';
 import { Post, PostStatus } from '@/types/post.types';
+import { logger } from '@/utils/logger';
 
 const COLLECTION = 'posts';
 
@@ -71,7 +72,7 @@ function snapToPost(id: string, data: DocumentData): Post {
  * Create a new board post. Returns the generated document id.
  */
 export async function createPost(post: PostData): Promise<string> {
-  console.log('[postService.createPost] Starting with:', {
+  logger.debug('postService.createPost', 'Starting with:', {
     authorId: post.authorId,
     authorName: post.authorName,
     destination: post.destination,
@@ -110,8 +111,8 @@ export async function createPost(post: PostData): Promise<string> {
 
   if (post.note?.trim()) payload.note = post.note.trim();
 
-  console.log('[postService.createPost] Payload ready, writing to Firestore...');
-  console.log('[postService.createPost] Document ID will be:', id);
+  logger.debug('postService.createPost', 'Payload ready, writing to Firestore...');
+  logger.debug('postService.createPost', 'Document ID will be:', id);
 
   try {
     await setDoc(doc(db, COLLECTION, id), payload);
@@ -267,7 +268,7 @@ export function subscribeToOpenPosts(callback: (posts: Post[]) => void): () => v
       .filter((p) => !p.expiresAt || p.expiresAt > now);
     callback(posts);
   }, (error) => {
-    console.error('[subscribeToOpenPosts] Snapshot error:', error.message);
+    logger.error('postService.subscribeToOpenPosts', error.message);
     // Fallback: return empty so UI shows "No posts yet" instead of freezing
     callback([]);
   });

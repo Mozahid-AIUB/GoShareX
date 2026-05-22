@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import Icon from '@expo/vector-icons/MaterialCommunityIcons';
 import AppText from './AppText';
+import { logger } from '@/utils/logger';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -37,11 +38,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   componentDidCatch(error: Error, info: ErrorInfo): void {
     this.setState({ errorInfo: info });
 
-    // Log to external service in production
-    if (__DEV__) {
-      console.error('[ErrorBoundary] Caught error:', error);
-      console.error('[ErrorBoundary] Component stack:', info.componentStack);
-    }
+    logger.error('ErrorBoundary', error, { componentStack: info.componentStack });
 
     this.props.onError?.(error, info);
   }

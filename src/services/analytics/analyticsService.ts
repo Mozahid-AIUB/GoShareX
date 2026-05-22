@@ -6,6 +6,7 @@
 
 import { getAnalytics, logEvent, setUserId, setUserProperties as fbSetUserProperties, isSupported } from 'firebase/analytics';
 import { app } from '@/config/firebase.config';
+import { logger } from '@/utils/logger';
 
 let _analytics: ReturnType<typeof getAnalytics> | null = null;
 
@@ -20,7 +21,7 @@ async function analytics() {
 export function trackEvent(name: string, params: Record<string, any> = {}): void {
   analytics()
     .then((a) => { if (a) logEvent(a, name, params); })
-    .catch((err) => console.warn('[analytics] trackEvent failed:', err));
+    .catch((err) => logger.warn('analytics.trackEvent', err));
 }
 
 export function trackScreen(screenName: string): void {
@@ -38,5 +39,5 @@ export function setUserProperties(uid: string, props: Record<string, string>): v
       setUserId(a, uid);
       fbSetUserProperties(a, props);
     })
-    .catch((err) => console.warn('[analytics] setUserProperties failed:', err));
+    .catch((err) => logger.warn('analytics.setUserProperties', err));
 }

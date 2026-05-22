@@ -11,6 +11,7 @@ import {
   sendPushNotification,
 } from '@/services/firebase/messaging';
 import { logError } from '@/services/analytics/crashService';
+import { logger } from '@/utils/logger';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -22,7 +23,7 @@ async function push(
 ): Promise<void> {
   const token = await getStoredFCMToken(targetUid);
   if (!token) {
-    console.warn(`[fcmService] No FCM token for uid: ${targetUid}`);
+    logger.warn('fcmService', `No FCM token for uid: ${targetUid}`);
     return;
   }
   await sendPushNotification(token, title, body, data);

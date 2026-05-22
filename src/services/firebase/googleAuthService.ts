@@ -13,6 +13,7 @@ import Constants from 'expo-constants';
 import { auth, db } from '@/config/firebase.config';
 import { User } from '@/types/auth.types';
 import { isValidEmail } from '@/utils/validators';
+import { logger } from '@/utils/logger';
 
 const extraConfig =
     (Constants.expoConfig?.extra as Record<string, string | undefined> | undefined) ??
@@ -29,7 +30,7 @@ try {
     // This will be available in development builds, not in Expo Go
     GoogleSignin = require('@react-native-google-signin/google-signin').GoogleSignin;
 } catch (e) {
-    console.warn('Google Sign-In library not available in current environment');
+    logger.warn('googleAuth', 'Google Sign-In library not available in current environment');
 }
 
 class GoogleAuthService {
@@ -51,9 +52,9 @@ class GoogleAuthService {
                 scopes: ['email', 'profile'],
             });
 
-            console.log('✓ Google Sign-In initialized');
+            logger.info('googleAuth', 'Google Sign-In initialized');
         } catch (error: any) {
-            console.error('Failed to initialize Google Sign-In:', error);
+            logger.error('googleAuth.init', error);
             throw error;
         }
     }
@@ -98,7 +99,7 @@ class GoogleAuthService {
             const credential = GoogleAuthProvider.credential(idToken);
             const firebaseUser = await signInWithCredential(auth, credential);
 
-            console.log('✓ Google Sign-In successful:', firebaseUser.user.email);
+            logger.info('googleAuth', 'Sign-In successful:', firebaseUser.user.email);
 
             // Step 5: Get or create user in Firestore
             const userRef = doc(db, 'users', firebaseUser.user.uid);
@@ -135,7 +136,7 @@ class GoogleAuthService {
 
                 // Save to Firestore
                 await setDoc(userRef, userData);
-                console.log('✓ User document created in Firestore');
+                logger.info('googleAuth', 'User document created in Firestore');
             }
 
             return userData;
@@ -163,9 +164,9 @@ class GoogleAuthService {
                 await GoogleSignin.signOut();
             }
             await signOut(auth);
-            console.log('✓ Signed out successfully');
+            logger.info('googleAuth', 'Signed out successfully');
         } catch (error: any) {
-            console.error('Sign-out error:', error);
+            logger.error('googleAuth.signOut', error);
             throw error;
         }
     }
