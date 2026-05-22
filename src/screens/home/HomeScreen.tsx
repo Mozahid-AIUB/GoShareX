@@ -75,6 +75,7 @@ import {
   IconRouteLine,
 } from './components/HomeIcons';
 import { IconRickshaw, IconBikeVehicle, IconCNG } from './components/VehicleIcons';
+import { LiveDot, TrustChip, MatchRing } from './components/StatusChips';
 import {
   LIVE_PARTNER_FEED_ENABLED,
   MY_LOCATION_PICKUP_ID,
@@ -120,55 +121,6 @@ const D = {
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-/** Animated pulsing live dot — now using SVG gradient */
-const LiveDot = () => {
-  const pulse = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.6, duration: 800, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 800, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
-  return (
-    <View style={{ width: 16, height: 16, alignItems: 'center', justifyContent: 'center' }}>
-      <Animated.View style={{
-        position: 'absolute', width: 14, height: 14, borderRadius: 7,
-        backgroundColor: D.green, opacity: 0.25, transform: [{ scale: pulse }],
-      }} />
-      <IconLiveDot size={10} />
-    </View>
-  );
-};
-
-/** Trust badge chip */
-const TrustChip = ({ badge, confirmed }: { badge: string; confirmed?: boolean }) => {
-  const cfg =
-    confirmed ? { bg: D.greenSoft, text: D.green, icon: 'check-circle' } :
-      badge === 'Instant' ? { bg: D.primarySoft, text: D.primary, icon: 'lightning-bolt' } :
-        badge === 'Trusted' ? { bg: D.greenSoft, text: D.green, icon: 'shield-check' } :
-          badge === 'Elite Rider' ? { bg: '#F3E8FF', text: '#7C3AED', icon: 'star-circle' } :
-            { bg: D.border, text: D.textMuted, icon: 'account' };
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: cfg.bg, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 }}>
-      <MaterialCommunityIcons name={cfg.icon as any} size={11} color={cfg.text} />
-      <Text style={{ fontSize: 10, fontWeight: '700', color: cfg.text, letterSpacing: 0.3 }}>{confirmed ? 'Confirmed' : badge}</Text>
-    </View>
-  );
-};
-
-/** Match score ring */
-const MatchRing = ({ score }: { score: number }) => {
-  const color = score >= 90 ? D.green : score >= 75 ? D.primary : D.accent;
-  return (
-    <View style={{ alignItems: 'center', justifyContent: 'center', width: 48, height: 48, borderRadius: 24, borderWidth: 2.5, borderColor: color, backgroundColor: color + '18' }}>
-      <Text style={{ fontSize: 13, fontWeight: '800', color }}>{score}</Text>
-      <Text style={{ fontSize: 7, color, fontWeight: '700', letterSpacing: 0.3, marginTop: -1 }}>MATCH</Text>
-    </View>
-  );
-};
 
 /** Route waypoint row card (FROM/TO/STOP) */
 const RouteCard = ({
