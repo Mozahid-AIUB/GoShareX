@@ -1,21 +1,83 @@
+# ─── Dependencies ─────────────────────────────────────────
 node_modules/
-.expo/
+.pnp/
+.pnp.js
+
+# ─── Build outputs ────────────────────────────────────────
 dist/
+build/
 web-build/
+*.tsbuildinfo
+
+# ─── Expo ─────────────────────────────────────────────────
+.expo/
+.expo-shared/
+expo-env.d.ts
+
+# ─── Native builds ────────────────────────────────────────
+android/
+ios/
+*.apk
+*.aab
+*.ipa
+
+# ─── Environment & secrets ────────────────────────────────
 .env
-*.orig.*
+.env.local
+.env.development
+.env.production
+.env.*.local
+app.json
+
+# ─── Certificates & keys ──────────────────────────────────
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
 *.pem
-android/
-ios/
-.DS_Store
-*.log
-coverage/
+*.keystore
+google-services.json.local
+GoogleService-Info.plist
+
+# ─── IDE & editor ─────────────────────────────────────────
 .idea/
 .vscode/
-.env
-app.json
+*.swp
+*.swo
+*~
+
+# ─── OS files ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Logs & debug ─────────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+pglite-debug.log
+
+# ─── Test coverage ────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ─── Backups & junk ───────────────────────────────────────
+*.orig.*
+*.zip
+*.tar.gz
+*.bak
+*.tmp
+.archive/*.zip
+.archive/*.txt
+
+# ─── Firebase ─────────────────────────────────────────────
+.firebase/
+.firebaserc.local
+functions/lib/
+functions/node_modules/

@@ -1,96 +1,122 @@
-# RideShare AIUB
+# 🛺 GoShareX — RideShare AIUB
 
-RideShare AIUB is a React Native and Expo app for AIUB students to find nearby rickshaw partners, coordinate quickly, and split fares with less friction.
+> **ভাড়া ভাগ করো, টাকা বাঁচাও** — A React Native app for AIUB students to find nearby ride-share partners and split rickshaw fares.
 
-## Scenario
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
+[![React Native](https://img.shields.io/badge/React%20Native-0.81-61dafb.svg)](https://reactnative.dev/)
+[![Expo](https://img.shields.io/badge/Expo-54-000020.svg)](https://expo.dev/)
+[![Firebase](https://img.shields.io/badge/Firebase-10-ffca28.svg)](https://firebase.google.com/)
+[![License](https://img.shields.io/badge/license-Private-red.svg)]()
 
-The product is centered on one short, repeatable flow:
+---
 
-1. Open the app near AIUB.
-2. Confirm your pickup point.
-3. Choose a destination.
-4. See nearby students going the same way.
-5. Send a request or open chat.
-6. Meet up and share the ride.
+## 📱 What It Does
 
-The current home experience is already shaped around that scenario, rather than being a generic transport marketplace.
+AIUB students opening the app near campus can find others heading the same way within seconds:
 
-## Current API-Backed Implementation
+1. Confirm pickup point (Main Gate, Gate 2, etc.)
+2. Pick a destination (Kuril, Badda, Gulshan, etc.)
+3. See live nearby riders within 30 meters
+4. Chat, confirm the deal, share the ride, split the fare
 
-The workspace now contains a reusable Google service layer and partial UI integration for it.
+---
 
-### Google APIs in code
+## 🚀 Quick Start
 
-- `Maps SDK for Android` and `Maps SDK for iOS`
-- `Places API`
-- `Distance Matrix API`
-- `Directions API`
-- `Routes API`
+```bash
+# 1. Install dependencies
+npm install
 
-### Firebase services in code
+# 2. Set up environment
+cp .env.example .env
+# Fill in Firebase + Google Maps API keys
 
-- Firebase Authentication
-- Firestore
-- Realtime Database
-- Firebase Storage
-- Firebase Cloud Messaging
-- Firebase Analytics wrapper
-- Firebase Crashlytics wrapper
+# 3. Start the app
+npm start            # Expo dev server
+npm run android      # Run on Android
+npm run ios          # Run on iOS
+```
 
-## What Is Implemented Today
+---
 
-### Home flow
+## 🛠️ Tech Stack
 
-The home screen follows the README scenario and acts as the current product entry point:
+| Layer | Tech |
+|---|---|
+| **Frontend** | React Native 0.81, Expo 54, TypeScript 5.9 |
+| **Navigation** | React Navigation 7 (Stack + Bottom Tabs) |
+| **State** | Zustand (lightweight global stores) |
+| **UI** | React Native Paper + custom components |
+| **Maps** | Google Maps SDK + react-native-maps |
+| **Auth** | Firebase Auth (Gmail-only) |
+| **Database** | Firestore + Realtime Database |
+| **Push** | Firebase Cloud Messaging + expo-notifications |
+| **Location** | expo-location (GPS + geofencing) |
 
-- live campus-style hero
-- pickup-point-first flow
-- quick destination selection
-- Google Places-backed destination search
-- live partner feed
-- request state progression in shared store
-- request preview sheet before jumping into chat or map
+---
 
-Key file:
-- [src/screens/home/HomeScreen.tsx](/d:/Way_To_Job/GoShareX/src/screens/home/HomeScreen.tsx)
+## 📂 Project Structure
 
-### Google API usage
+```
+GoShareX/
+├── android/                    # Android native build
+├── assets/                     # Images, fonts, icons
+├── docs/                       # All documentation
+│   ├── CLAUDE.md               # AI assistant context
+│   ├── SETUP_GUIDE.md
+│   ├── ARCHITECTURE.md
+│   ├── FIREBASE_SETUP.md
+│   └── security/               # Security audits & guides
+├── firebase/                   # Firebase rules & indexes
+├── functions/                  # Cloud Functions
+├── scripts/                    # Deploy & seed scripts
+├── src/
+│   ├── api/                    # HTTP client + endpoints
+│   ├── components/             # Reusable UI components
+│   │   ├── auth/
+│   │   ├── board/
+│   │   ├── chat/
+│   │   ├── common/             # Button, Input, Toast, etc.
+│   │   ├── map/
+│   │   └── ride/
+│   ├── config/                 # App, Firebase, Maps config
+│   ├── constants/              # Colors, spacing, fare table
+│   ├── design/                 # Design tokens
+│   ├── hooks/                  # Custom React hooks
+│   ├── i18n/                   # Translations
+│   ├── navigation/             # Stack + tab navigators
+│   ├── screens/                # All screens (feature-grouped)
+│   │   ├── auth/
+│   │   ├── chat/
+│   │   ├── home/
+│   │   ├── map/
+│   │   ├── profile/
+│   │   └── ride/
+│   ├── services/               # Business logic
+│   │   ├── firebase/           # Firestore + Auth + Storage
+│   │   ├── google/             # Maps, Places, Routes
+│   │   ├── location/           # GPS + geofence
+│   │   ├── notifications/      # FCM + local push
+│   │   ├── analytics/          # Event tracking
+│   │   └── enterprise/         # Rate limit, performance
+│   ├── store/                  # Zustand stores
+│   ├── types/                  # TypeScript types
+│   └── utils/                  # Helpers (logger, validators)
+├── App.tsx                     # Root component
+├── index.js                    # RN entry point
+├── app.config.js               # Expo config
+├── package.json
+└── tsconfig.json
+```
 
-The current codebase includes dedicated service modules for:
+---
 
-- [src/services/google/placesService.ts](/d:/Way_To_Job/GoShareX/src/services/google/placesService.ts)
-- [src/services/google/distanceMatrixService.ts](/d:/Way_To_Job/GoShareX/src/services/google/distanceMatrixService.ts)
-- [src/services/google/directionsService.ts](/d:/Way_To_Job/GoShareX/src/services/google/directionsService.ts)
-- [src/services/google/routesService.ts](/d:/Way_To_Job/GoShareX/src/services/google/routesService.ts)
+## 🔑 Environment Variables
 
-What is already connected in UI:
-
-- `Places API` for home destination autocomplete
-- `Distance Matrix API` for partner distance and ranking on the home screen
-
-What is scaffolded in services but not yet fully consumed across the app:
-
-- `Directions API` for meetup walking routes
-- `Routes API` for fare-aware route previews and ride routing
-
-## Environment And Runtime Notes
-
-The environment story in this repo is important:
-
-- Google API keys are read from Expo `extra` via `src/config/env.ts`
-- The app supports one shared `GOOGLE_MAPS_API_KEY` or separate keys per Google API
-- Firebase values are currently hardcoded in `src/config/env.ts` for runtime and are also present in `app.json`
-- `.env.example` documents the expected Google and app-level keys, but the app does not automatically load `.env` by itself unless those values are also exposed through Expo config in your workflow
-
-Primary config files:
-
-- [src/config/env.ts](/d:/Way_To_Job/GoShareX/src/config/env.ts)
-- [app.json](/d:/Way_To_Job/GoShareX/app.json)
-- [.env.example](/d:/Way_To_Job/GoShareX/.env.example)
-
-### Documented environment variables
+Create `.env` from `.env.example`:
 
 ```env
+# Firebase
 FIREBASE_API_KEY=
 FIREBASE_AUTH_DOMAIN=
 FIREBASE_DATABASE_URL=
@@ -98,102 +124,128 @@ FIREBASE_PROJECT_ID=
 FIREBASE_STORAGE_BUCKET=
 FIREBASE_MESSAGING_SENDER_ID=
 FIREBASE_APP_ID=
-FIREBASE_MEASUREMENT_ID=
 
+# Google Maps (one key for all, OR split per API)
 GOOGLE_MAPS_API_KEY=
 GOOGLE_PLACES_API_KEY=
 GOOGLE_ROUTES_API_KEY=
 GOOGLE_DIRECTIONS_API_KEY=
 GOOGLE_DISTANCE_MATRIX_API_KEY=
 
-APP_ENV=development
-APP_VERSION=1.0.0
-API_TIMEOUT=30000
+# Feature flags
 ENABLE_ANALYTICS=true
 ENABLE_CRASHLYTICS=true
-ENABLE_PERFORMANCE_MONITORING=true
-LOCATION_UPDATE_INTERVAL=5000
 PROXIMITY_RADIUS_METERS=30
 GEOFENCE_RADIUS_METERS=100
-RIDE_CONFIRMATION_TIMEOUT_SECONDS=30
-RIDE_WAITING_TIMEOUT_MINUTES=10
-AUTO_CANCEL_INACTIVE_MINUTES=5
-NOTIFICATION_SOUND_ENABLED=true
-VIBRATION_ENABLED=true
-HIGH_PRIORITY_NOTIFICATIONS=true
 ```
 
-## Setup Summary
+📖 See [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md) for full setup.
 
-1. Install dependencies with `npm install`.
-2. Add your Firebase project files and credentials.
-3. Create a Google Maps key, or split keys per API if you prefer.
-4. Make those Google keys available to Expo config so `src/config/env.ts` can read them.
-5. Start the app with `npm start` or run Android with `npm run android`.
+---
 
-Detailed setup:
-- [SETUP_GUIDE.md](/d:/Way_To_Job/GoShareX/SETUP_GUIDE.md)
-- [docs/MAPS_SETUP.md](/d:/Way_To_Job/GoShareX/docs/MAPS_SETUP.md)
-- [docs/FIREBASE_SETUP.md](/d:/Way_To_Job/GoShareX/docs/FIREBASE_SETUP.md)
+## 📜 NPM Scripts
 
-## Architecture Snapshot
+| Command | What it does |
+|---|---|
+| `npm start` | Start Expo dev server |
+| `npm run start:clear` | Start with cleared cache |
+| `npm run android` | Build & run on Android |
+| `npm run ios` | Build & run on iOS |
+| `npm test` | Run Jest in watch mode |
+| `npm run test:ci` | Run tests with coverage |
+| `npm run lint` | ESLint check |
+| `npm run lint:fix` | Auto-fix lint issues |
+| `npm run format` | Format with Prettier |
+| `npm run type-check` | TypeScript compile check |
+| `npm run check` | Run all checks (type + lint + format) |
+| `npm run build:android` | EAS build (Android) |
+| `npm run build:ios` | EAS build (iOS) |
+| `npm run build:preview` | Preview APK for testing |
 
-### Client layer
+---
 
-- React Native
-- Expo
-- TypeScript
-- React Navigation
-- Zustand
-- React Native Paper
+## 🗄️ Firebase Data Model
 
-### Service layer
-
-- authentication
-- location
-- matching
-- chat
-- ride
-- notification
-- Google API service modules
-
-### Data layer
-
-- Firebase Authentication
-- Firestore
-- Realtime Database
-- Firebase Storage
-- Firebase Cloud Messaging
-
-## Implementation Reality
-
-Implemented well enough to demo:
-
-- auth flow
-- bottom tab navigation
-- home screen scenario-first UI
-- partner request state in store
-- Google Places destination search
-- Google Distance Matrix-backed partner ranking
-
-Still in progress:
-
-- full `Directions API` usage in meetup UI
-- full `Routes API` usage in ride preview and map flow
-- broader live map and ride lifecycle wiring
-- dependency cleanup for some native Firebase and notification packages
-
-## Quick Start
-
-```bash
-npm install
-npm start
-npm run android
+### Realtime Database — `active_riders/{userId}`
+```json
+{
+  "name": "Mozahid",
+  "lat": 23.8103,
+  "lng": 90.4125,
+  "destination": "Kuril",
+  "pickupPoint": "Main Gate",
+  "status": "waiting",
+  "rating": 4.9
+}
 ```
 
-## Notes
+### Firestore — `users/{userId}`
+```json
+{
+  "name": "Mozahid",
+  "email": "mozahid@aiub.edu.bd",
+  "studentId": "12-34567-1",
+  "department": "CSE",
+  "rating": 4.9,
+  "totalRides": 47,
+  "totalSaved": 940,
+  "badge": "Elite Rider"
+}
+```
 
-- `app.json` still contains a placeholder EAS project ID.
-- Type-check may still fail in this workspace because some native packages are referenced but not installed.
-- The docs now reflect the current API-backed implementation more closely than the older vision-heavy README.
-`
+### Firestore — `rides/{rideId}`, `chats/{chatId}`, `posts/{postId}`
+See [docs/CLAUDE.md](docs/CLAUDE.md) for full schema.
+
+---
+
+## 🎯 Features
+
+### ✅ Implemented
+- Gmail-only authentication + email verification
+- Live map with 30m proximity matching
+- Real-time chat with deal confirmation
+- Post board (scheduled rides)
+- Profile with badge system + ride history
+- Settings + privacy policy
+- 5-tab bottom navigation
+
+### 🚧 In Progress
+- FCM push notifications
+- Auto-start (movement detection)
+- Auto-complete (geofencing)
+- Badge upgrade & penalty system
+
+---
+
+## 🔒 Security
+
+- All API keys via environment variables (no hardcoded secrets)
+- Firebase Security Rules enforced on all collections
+- Rate limiting on sensitive operations
+- Audit logging for ratings & moderation actions
+- Biometric authentication ready (expo-local-authentication)
+
+📖 See [docs/security/](docs/security/) for full audit reports.
+
+---
+
+## 🤝 Contributing
+
+This is a private student project. For questions, contact the maintainer.
+
+### Code Standards
+- TypeScript strict mode (no `any` allowed in new code)
+- Prettier + ESLint enforced
+- Use `@/` path alias for src imports
+- Use `logger` from `@/utils/logger` (never `console.log`)
+- Components < 500 lines (split larger ones)
+
+---
+
+## 📄 License
+
+Private — All rights reserved.
+
+---
+
+**Built with ❤️ by Mozahid · AIUB CSE**
