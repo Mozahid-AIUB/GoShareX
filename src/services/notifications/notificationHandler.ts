@@ -6,7 +6,7 @@
 
 import * as Notifications from 'expo-notifications';
 import { logError, logWarning } from '@/services/analytics/crashService';
-import { scheduleLocalNotification } from '@/services/notification/notificationService';
+import { scheduleLocalNotification } from '@/services/notifications/notificationService';
 
 function isExpoGo(): boolean {
   try {
