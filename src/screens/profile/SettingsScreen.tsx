@@ -16,6 +16,8 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import type { RootNavProp } from '@/navigation/types';
 import { useAuthStore } from '@/store/authStore';
 import authService from '@/services/firebase/authService';
+import googleAuthService from '@/services/firebase/googleAuthService';
+import { logger } from '@/utils/logger';
 import PremiumIcon from '@/components/common/PremiumIcon';
 import { biometricService } from '@/services/security/biometricService';
 import { useUIStore } from '@/store/uiStore';
@@ -165,9 +167,23 @@ export default function SettingsScreen() {
   const handleLogout = async () => {
     Alert.alert('Sign out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: async () => {
-        try { await authService.logout(); } finally { logout(); }
-      }},
+      {
+        text: 'Sign out',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            // Disconnect Google session too (idempotent — safe if not signed in via Google)
+            await googleAuthService.signOut().catch((e) => {
+              logger.warn('Logout.googleSignOut', e);
+            });
+            await authService.logout();
+          } catch (e) {
+            logger.error('Logout.firebaseSignOut', e);
+          } finally {
+            logout();
+          }
+        },
+      },
     ]);
   };
 

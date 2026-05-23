@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
 
 import HomeScreen from '@/screens/home/HomeScreen';
 import LiveMapScreen from '@/screens/map/LiveMapScreen';
@@ -141,6 +142,12 @@ const BottomTabNavigator = () => {
   return (
     <Tab.Navigator
       id={undefined}
+      screenListeners={{
+        tabPress: () => {
+          // Light haptic on every tab switch — feels premium, costs nothing
+          Haptics.selectionAsync().catch(() => undefined);
+        },
+      }}
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,

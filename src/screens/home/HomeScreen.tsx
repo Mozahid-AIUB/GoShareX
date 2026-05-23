@@ -709,6 +709,15 @@ export default function HomeScreen() {
     }, [setDestination, setCustomDestination])
   );
 
+  // Smart default: auto-set "My current location" as pickup on first mount
+  // if user hasn't picked anything yet — saves a tap on every fresh session.
+  useEffect(() => {
+    if (!pickupPoint) {
+      setPickupPoint(MY_LOCATION_PICKUP_ID);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const lat = useLocationStore((s) => s.latitude);
   const lng = useLocationStore((s) => s.longitude);
   const setLocation = useLocationStore((s) => s.setLocation);
