@@ -158,7 +158,7 @@ const BottomTabNavigator = () => {
           position: 'absolute',
           left: 10,
           right: 10,
-          bottom: Math.max(insets.bottom + 6, 16),
+          bottom: Math.max(insets.bottom + 12, 28),
           height: 60,
           borderRadius: 22,
           backgroundColor: C.bg,
