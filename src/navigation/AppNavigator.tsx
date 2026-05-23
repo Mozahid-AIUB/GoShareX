@@ -21,7 +21,6 @@ import LiveMapScreen from '@/screens/map/LiveMapScreen';
 import PostBoardScreen from '@/screens/board/PostBoardScreen';
 import CreatePostScreen from '@/screens/board/CreatePostScreen';
 import VehicleConfirmScreen from '@/screens/ride/VehicleConfirmScreen';
-import ReportScreen from '@/screens/admin/ReportScreen';
 import PrivacyPolicyScreen from '@/screens/legal/PrivacyPolicyScreen';
 
 const DARK_HEADER = {
@@ -100,11 +99,6 @@ const AppNavigator = () => {
             />
             <Stack.Screen name="PostBoard" component={PostBoardScreen} options={{ headerShown: false }} />
             <Stack.Screen name="CreatePost" component={CreatePostScreen} options={{ headerShown: false }} />
-            <Stack.Screen
-              name="Report"
-              component={ReportScreen}
-              options={{ headerShown: true, title: 'Report User', headerStyle: DARK_HEADER, headerTitleStyle: DARK_HEADER_TITLE, headerTintColor: '#A5B4FC' }}
-            />
             <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ headerShown: false }} />
           </>
         )}

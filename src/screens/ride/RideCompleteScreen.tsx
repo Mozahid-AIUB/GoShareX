@@ -248,20 +248,6 @@ export default function RideCompleteScreen() {
                   </Text>
                 </View>
               </TouchableOpacity>
-
-              {/* Report partner — for bad behavior / no-show / harassment */}
-              <TouchableOpacity
-                onPress={() => {
-                  const rateeId = rider?.userId ?? rider?.uid ?? '';
-                  navigation.navigate('Report', { reportedUserId: rateeId, rideId });
-                }}
-                activeOpacity={0.7}
-                style={st.reportBtn}
-              >
-                <Text style={st.reportBtnTxt}>
-                  Something went wrong? Report partner
-                </Text>
-              </TouchableOpacity>
             </View>
           ) : (
             <View style={st.successCard}>
@@ -359,17 +345,6 @@ const st = StyleSheet.create({
   submitBtnOn:  { backgroundColor: C.primary, borderWidth: 1, borderColor: 'rgba(20,184,166,0.35)' },
   submitBtnOff: { backgroundColor: '#2A2D3A' },
   submitBtnTxt: { fontSize: 15, fontWeight: '800', color: '#fff', letterSpacing: 0.3 },
-  reportBtn: {
-    marginTop: 12,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  reportBtnTxt: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#F87171',
-    textDecorationLine: 'underline',
-  },
 
   successCard: {
     backgroundColor: 'rgba(34,197,94,0.06)', borderWidth: 1, borderColor: 'rgba(34,197,94,0.2)',

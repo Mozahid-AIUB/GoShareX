@@ -46,7 +46,6 @@ export type RootStackParamList = {
   RideHistory: undefined;
   PostBoard: { highlightPostId?: string };
   CreatePost: undefined;
-  Report: { reportedUserId: string; rideId?: string };
   LiveMap: { destination?: string; pickup?: string } | undefined;
   PrivacyPolicy: undefined;
   TermsOfService: undefined;

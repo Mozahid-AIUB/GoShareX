@@ -71,8 +71,8 @@ export const scheduledRatingReminder = functions.pubsub
           notifs.push(
             notifyUser(
               ride.rider1,
-              '⭐ How was your ride partner?',
-              `You shared a ride to ${ride.destination} earlier. Tap to rate — or report if something went wrong.`,
+              '⭐ Help keep our community clean',
+              `Rate your ride partner to ${ride.destination}. Your honest feedback keeps the community safe.`,
               { rideId, screen: 'RideComplete', type: 'rating_reminder' }
             )
           );
@@ -82,8 +82,8 @@ export const scheduledRatingReminder = functions.pubsub
           notifs.push(
             notifyUser(
               ride.rider2,
-              '⭐ How was your ride partner?',
-              `You shared a ride to ${ride.destination} earlier. Tap to rate — or report if something went wrong.`,
+              '⭐ Help keep our community clean',
+              `Rate your ride partner to ${ride.destination}. Your honest feedback keeps the community safe.`,
               { rideId, screen: 'RideComplete', type: 'rating_reminder' }
             )
           );
