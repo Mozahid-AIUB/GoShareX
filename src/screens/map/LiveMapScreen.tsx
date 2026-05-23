@@ -484,7 +484,7 @@ export default function LiveMapScreen() {
       </View>
 
       {/* ── Stats row — single compact bar below top bar ── */}
-      <View style={[s.statsRow, { top: insets.top + 54 }]}>
+      <View style={[s.statsRow, { top: insets.top + 72 }]}>
         <View style={s.statPill}>
           <RNText style={s.statPillNum}>{prioritizedRiders.length}</RNText>
           <RNText style={s.statPillLbl}> Nearby</RNText>
@@ -540,7 +540,7 @@ export default function LiveMapScreen() {
       ) : null}
 
       {showNoRidersSheet && !selectedRider ? (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: tabBarHeight + 12, zIndex: 50, elevation: 50 }}>
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: tabBarHeight + 28, zIndex: 50, elevation: 50 }}>
           <NoRidersSheet
             scanSecs={scanSecs}
             zoneIdx={zoneIdx}
