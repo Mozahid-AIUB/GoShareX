@@ -18,6 +18,8 @@ import { useAuthStore } from '@/store/authStore';
 import authService from '@/services/firebase/authService';
 import PremiumIcon from '@/components/common/PremiumIcon';
 import { biometricService } from '@/services/security/biometricService';
+import { useUIStore } from '@/store/uiStore';
+import { MAP_STYLE_LABELS, type MapStyleId } from '@/config/mapStyles';
 
 // ─── Light theme — matches Home tab ──────────────────────────────────────────
 const C = {
@@ -137,6 +139,8 @@ export default function SettingsScreen() {
   const [shareAnonymous,  setShareAnonymous]   = useState(false);
   const [biometric,       setBiometric]        = useState(false);
   const [biometricAvail,  setBiometricAvail]   = useState(false);
+  const mapStyle    = useUIStore((st) => st.mapStyle);
+  const setMapStyle = useUIStore((st) => st.setMapStyle);
 
   useEffect(() => {
     biometricService.getStatus().then((s) => setBiometricAvail(s.available && s.enrolled));
@@ -217,6 +221,42 @@ export default function SettingsScreen() {
               />
             </>
           )}
+        </View>
+
+        {/* Map Appearance */}
+        <SectionHeader label="Map Appearance" />
+        <View style={s.card}>
+          {(['auto', 'light', 'dark', 'brand'] as MapStyleId[]).map((id, idx, arr) => (
+            <React.Fragment key={id}>
+              <TouchableOpacity
+                style={s.row}
+                onPress={() => setMapStyle(id)}
+                activeOpacity={0.7}
+              >
+                <View style={s.rowIcon}>
+                  <IconMap color={mapStyle === id ? C.primary : C.teal} />
+                </View>
+                <View style={s.rowInfo}>
+                  <Text style={[s.rowLabel, mapStyle === id && { color: C.primary, fontWeight: '800' }]}>
+                    {MAP_STYLE_LABELS[id]}
+                  </Text>
+                  <Text style={s.rowSub}>
+                    {id === 'auto' ? 'Follow system / default Google look' :
+                     id === 'light' ? 'Clean light palette, fewer POIs' :
+                     id === 'dark' ? 'Premium dark theme' :
+                     'GoShareX indigo brand colors'}
+                  </Text>
+                </View>
+                {mapStyle === id && (
+                  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+                    <Circle cx="12" cy="12" r="10" fill={C.primary} />
+                    <Path d="M9 12l2 2 4-4" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                )}
+              </TouchableOpacity>
+              {idx < arr.length - 1 && <View style={s.divider} />}
+            </React.Fragment>
+          ))}
         </View>
 
         {/* Account */}

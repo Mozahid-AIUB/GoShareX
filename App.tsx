@@ -10,11 +10,14 @@ import OfflineBanner from '@/components/common/OfflineBanner';
 import BiometricGate from '@/components/common/BiometricGate';
 import { configureNotificationHandler } from '@/services/firebase/messaging';
 import { validateEnvironment } from '@/config/env';
+import { useUIStore } from '@/store/uiStore';
 
 // Validate required env vars — throws in production if missing, logs in dev
 validateEnvironment();
 // Must run before the first render so foreground notifications are never dropped
 configureNotificationHandler();
+// Load user's saved map style preference
+void useUIStore.getState().loadMapStylePreference();
 
 export default function App() {
   return (

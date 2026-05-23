@@ -45,6 +45,8 @@ import {
 } from './utils/mapHelpers';
 import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
 import { useSnappedLocation } from '@/hooks/useSnappedLocation';
+import { useUIStore } from '@/store/uiStore';
+import { MAP_STYLES } from '@/config/mapStyles';
 
 const { width: SW } = Dimensions.get('window');
 const MY_LOCATION_PICKUP_ID = 'current_location';
@@ -79,6 +81,7 @@ export default function LiveMapScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { user } = useAuthStore();
+  const mapStyle = useUIStore((s) => s.mapStyle);
   const rawLatitude = useLocationStore((s) => s.latitude);
   const rawLongitude = useLocationStore((s) => s.longitude);
   const accuracy = useLocationStore((s) => s.accuracy);
@@ -383,6 +386,7 @@ export default function LiveMapScreen() {
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         style={StyleSheet.absoluteFillObject}
         initialRegion={initialRegion}
+        customMapStyle={MAP_STYLES[mapStyle] as never[]}
 
         showsUserLocation={false}
         showsMyLocationButton={false}
