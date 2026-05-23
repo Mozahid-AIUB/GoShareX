@@ -1309,7 +1309,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={S.safe} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={D.bg} />
+      <StatusBar barStyle="dark-content" backgroundColor={D.bg} />
 
       {/* Route Card — sticky top */}
       {/* Routes API live route strip */}

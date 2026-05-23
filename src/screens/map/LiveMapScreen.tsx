@@ -5,6 +5,7 @@ import {
   FlatList,
   Platform,
   Pressable,
+  StatusBar,
   StyleSheet,
   Text as RNText,
   TouchableOpacity,
@@ -380,6 +381,7 @@ export default function LiveMapScreen() {
 
   return (
     <View style={s.root}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
       {/* ── Map ── */}
       <MapView
         ref={mapRef}

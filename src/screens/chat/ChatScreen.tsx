@@ -5,6 +5,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
   StyleSheet,
   TextInput,
   TouchableOpacity,
@@ -252,6 +253,7 @@ export default function ChatScreen() {
 
   return (
     <View style={s.root}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
       {/* Header */}
       <View style={[s.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity style={s.headerBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
