@@ -7,6 +7,7 @@ import AppNavigator from '@/navigation/AppNavigator';
 import { theme } from '@/constants/theme';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import OfflineBanner from '@/components/common/OfflineBanner';
+import BiometricGate from '@/components/common/BiometricGate';
 import { configureNotificationHandler } from '@/services/firebase/messaging';
 import { validateEnvironment } from '@/config/env';
 
@@ -20,11 +21,13 @@ export default function App() {
     <SafeAreaProvider>
       <PaperProvider theme={theme}>
         <ErrorBoundary>
-          <View style={{ flex: 1 }}>
-            <StatusBar style="dark" backgroundColor="transparent" translucent={false} />
-            <AppNavigator />
-            <OfflineBanner />
-          </View>
+          <BiometricGate>
+            <View style={{ flex: 1 }}>
+              <StatusBar style="dark" backgroundColor="transparent" translucent={false} />
+              <AppNavigator />
+              <OfflineBanner />
+            </View>
+          </BiometricGate>
         </ErrorBoundary>
       </PaperProvider>
     </SafeAreaProvider>

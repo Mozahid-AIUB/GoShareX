@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -17,6 +17,7 @@ import type { RootNavProp } from '@/navigation/types';
 import { useAuthStore } from '@/store/authStore';
 import authService from '@/services/firebase/authService';
 import PremiumIcon from '@/components/common/PremiumIcon';
+import { biometricService } from '@/services/security/biometricService';
 
 // ─── Light theme — matches Home tab ──────────────────────────────────────────
 const C = {
@@ -134,6 +135,28 @@ export default function SettingsScreen() {
   const [notifChat,       setNotifChat]        = useState(true);
   const [locationBg,      setLocationBg]       = useState(true);
   const [shareAnonymous,  setShareAnonymous]   = useState(false);
+  const [biometric,       setBiometric]        = useState(false);
+  const [biometricAvail,  setBiometricAvail]   = useState(false);
+
+  useEffect(() => {
+    biometricService.getStatus().then((s) => setBiometricAvail(s.available && s.enrolled));
+    biometricService.isBiometricLockEnabled().then(setBiometric);
+  }, []);
+
+  const handleBiometricToggle = async (next: boolean) => {
+    if (next) {
+      const ok = await biometricService.authenticate('Enable app lock');
+      if (!ok) {
+        Alert.alert('Cancelled', 'Biometric authentication required to enable lock.');
+        return;
+      }
+      await biometricService.setupBiometricLock();
+      setBiometric(true);
+    } else {
+      await biometricService.disableBiometricLock();
+      setBiometric(false);
+    }
+  };
 
   const handleLogout = async () => {
     Alert.alert('Sign out', 'Are you sure you want to sign out?', [
@@ -182,6 +205,18 @@ export default function SettingsScreen() {
           <ToggleRow icon={<IconMap />}    label="Background location" sub="Required for real-time ride matching" value={locationBg}     onChange={setLocationBg} />
           <View style={s.divider} />
           <ToggleRow icon={<IconShield />} label="Anonymous mode"      sub="Hide your identity in group chats"   value={shareAnonymous} onChange={setShareAnonymous} />
+          {biometricAvail && (
+            <>
+              <View style={s.divider} />
+              <ToggleRow
+                icon={<IconLock />}
+                label="Biometric lock"
+                sub="Require fingerprint/face after 5 min in background"
+                value={biometric}
+                onChange={handleBiometricToggle}
+              />
+            </>
+          )}
         </View>
 
         {/* Account */}
