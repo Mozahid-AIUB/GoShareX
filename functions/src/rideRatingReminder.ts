@@ -2,10 +2,14 @@ import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
 import { notifyUser } from './sendPushNotification';
 
+/** Reminder delay after ride completion (in milliseconds). */
+const REMINDER_DELAY_MS = 2 * 60 * 60 * 1000; // 2 hours
+
 /**
- * Fires 1 hour after a ride completes.
+ * Fires 2 hours after a ride completes.
  * Sends a "How was your partner?" notification to each rider
  * who has not yet submitted a rating for that ride.
+ * The notification also offers a path to report bad behavior.
  */
 export const rideRatingReminder = functions.firestore
   .document('rides/{rideId}')
@@ -19,7 +23,7 @@ export const rideRatingReminder = functions.firestore
 
     const rideId = context.params.rideId;
     // Store reminder timestamp — the scheduledRatingReminder picks it up every 5 min.
-    const reminderAt = Date.now() + 60 * 60 * 1000; // 1 hour
+    const reminderAt = Date.now() + REMINDER_DELAY_MS;
 
     await admin.firestore().collection('rides').doc(rideId).update({
       ratingReminderAt: reminderAt,
@@ -68,7 +72,7 @@ export const scheduledRatingReminder = functions.pubsub
             notifyUser(
               ride.rider1,
               '⭐ How was your ride partner?',
-              `You shared a ride to ${ride.destination} an hour ago. Tap to rate your partner!`,
+              `You shared a ride to ${ride.destination} earlier. Tap to rate — or report if something went wrong.`,
               { rideId, screen: 'RideComplete', type: 'rating_reminder' }
             )
           );
@@ -79,7 +83,7 @@ export const scheduledRatingReminder = functions.pubsub
             notifyUser(
               ride.rider2,
               '⭐ How was your ride partner?',
-              `You shared a ride to ${ride.destination} an hour ago. Tap to rate your partner!`,
+              `You shared a ride to ${ride.destination} earlier. Tap to rate — or report if something went wrong.`,
               { rideId, screen: 'RideComplete', type: 'rating_reminder' }
             )
           );
