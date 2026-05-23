@@ -72,7 +72,7 @@ export const scheduledRatingReminder = functions.pubsub
             notifyUser(
               ride.rider1,
               '⭐ Help keep our community clean',
-              `Rate your ride partner to ${ride.destination}. Your honest feedback keeps the community safe.`,
+              `Rate your last ride partner. Your honest feedback keeps the community safe.`,
               { rideId, screen: 'RideComplete', type: 'rating_reminder' }
             )
           );
@@ -83,7 +83,7 @@ export const scheduledRatingReminder = functions.pubsub
             notifyUser(
               ride.rider2,
               '⭐ Help keep our community clean',
-              `Rate your ride partner to ${ride.destination}. Your honest feedback keeps the community safe.`,
+              `Rate your last ride partner. Your honest feedback keeps the community safe.`,
               { rideId, screen: 'RideComplete', type: 'rating_reminder' }
             )
           );
