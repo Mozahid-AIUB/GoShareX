@@ -171,8 +171,8 @@ const MenuItem = ({ icon, label, sub, onPress, danger, rightBadge }: {
 
 // ─── Trust breakdown ──────────────────────────────────────────────────────────
 const CAT_KEYS: Record<string, keyof TrustBreakdown> = {
-  punctual: 'punctualPct', friendly: 'friendlyPct', tidy: 'tidyPct',
-  respectful: 'respectfulPct', safeRide: 'safeRidePct',
+  friendly: 'friendlyPct',
+  safeRide: 'safeRidePct',
 };
 
 const TrustCard = ({ breakdown }: { breakdown: TrustBreakdown }) => {
@@ -206,7 +206,12 @@ const TrustCard = ({ breakdown }: { breakdown: TrustBreakdown }) => {
           const barColor = pct >= 80 ? C.green : pct >= 60 ? C.amber : C.red;
           return (
             <View key={cat.id} style={tc.catRow}>
-              <PremiumIcon name={cat.id === 'respectful' ? 'handshake-outline' : cat.id === 'safeRide' ? 'shield-check-outline' : cat.id === 'friendly' ? 'emoticon-happy-outline' : cat.id === 'tidy' ? 'sparkles' : 'clock-outline'} size={10} tone={cat.id === 'safeRide' ? 'teal' : cat.id === 'respectful' ? 'violet' : cat.id === 'friendly' ? 'amber' : cat.id === 'tidy' ? 'blue' : 'slate'} containerStyle={tc.catIcon} />
+              <PremiumIcon
+                name={cat.id === 'safeRide' ? 'shield-check-outline' : 'emoticon-happy-outline'}
+                size={10}
+                tone={cat.id === 'safeRide' ? 'teal' : 'amber'}
+                containerStyle={tc.catIcon}
+              />
               <Text style={tc.catLabel}>{cat.label}</Text>
               <View style={tc.barTrack}>
                 <View style={[tc.barFill, { width: `${pct}%`, backgroundColor: barColor }]} />

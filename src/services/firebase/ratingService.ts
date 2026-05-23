@@ -19,12 +19,11 @@ import {
 import { db } from '@/config/firebase.config';
 
 // ─── Category definitions ────────────────────────────────────────────────────
+// Kept minimal: the two traits that matter most for a co-passenger.
+// Anything more is over-asking the user.
 export const RATING_CATEGORIES = [
-  { id: 'punctual',    label: 'On time',       emoji: '⏰' },
-  { id: 'friendly',   label: 'Friendly',       emoji: '😊' },
-  { id: 'tidy',       label: 'Clean & tidy',   emoji: '✨' },
-  { id: 'respectful', label: 'Respectful',     emoji: '🤝' },
-  { id: 'safeRide',   label: 'Safe ride',      emoji: '🛡️' },
+  { id: 'friendly', label: 'Friendly',  emoji: '😊' },
+  { id: 'safeRide', label: 'Safe ride', emoji: '🛡️' },
 ] as const;
 
 export type CategoryId = (typeof RATING_CATEGORIES)[number]['id'];
@@ -41,10 +40,7 @@ export interface RatingPayload {
 export interface TrustBreakdown {
   totalRatings: number;
   avgStars: number;
-  punctualPct: number;
   friendlyPct: number;
-  tidyPct: number;
-  respectfulPct: number;
   safeRidePct: number;
   trustScore: number;  // 0–100 weighted
 }
@@ -61,10 +57,7 @@ export async function submitRating(payload: RatingPayload): Promise<void> {
     rateeId:    payload.rateeId,
     raterId:    payload.raterId,
     stars:      payload.stars,
-    punctual:   payload.categories.includes('punctual'),
     friendly:   payload.categories.includes('friendly'),
-    tidy:       payload.categories.includes('tidy'),
-    respectful: payload.categories.includes('respectful'),
     safeRide:   payload.categories.includes('safeRide'),
     ...(comment && { comment }),
     createdAt:  serverTimestamp(),
@@ -89,37 +82,31 @@ async function recalculateTrust(userId: string): Promise<void> {
   if (snap.empty) return;
 
   let totalStars = 0;
-  let punctual = 0, friendly = 0, tidy = 0, respectful = 0, safeRide = 0;
+  let friendly = 0, safeRide = 0;
   const count = snap.size;
 
   snap.forEach((d) => {
     const r = d.data();
     totalStars    += r.stars ?? 0;
-    if (r.punctual)    punctual++;
-    if (r.friendly)    friendly++;
-    if (r.tidy)        tidy++;
-    if (r.respectful)  respectful++;
-    if (r.safeRide)    safeRide++;
+    if (r.friendly) friendly++;
+    if (r.safeRide) safeRide++;
   });
 
   const avgStars = totalStars / count;
 
   // Trust score formula:
-  // 50% from star average (max 5 → 50 pts)
-  // 50% from category average (avg of 5 category %)
-  const starPoints = (avgStars / 5) * 50;
-  const catAvg = ((punctual + friendly + tidy + respectful + safeRide) / (count * 5));
-  const catPoints = catAvg * 50;
+  // 70% from star average (max 5 → 70 pts) — stars are the strongest signal
+  // 30% from category average (avg of 2 traits) — bonus for positive traits
+  const starPoints = (avgStars / 5) * 70;
+  const catAvg = (friendly + safeRide) / (count * 2);
+  const catPoints = catAvg * 30;
   const trustScore = Math.round(starPoints + catPoints);
 
   const breakdown: TrustBreakdown = {
-    totalRatings:  count,
-    avgStars:      Math.round(avgStars * 10) / 10,
-    punctualPct:   Math.round((punctual    / count) * 100),
-    friendlyPct:   Math.round((friendly    / count) * 100),
-    tidyPct:       Math.round((tidy        / count) * 100),
-    respectfulPct: Math.round((respectful  / count) * 100),
-    safeRidePct:   Math.round((safeRide    / count) * 100),
+    totalRatings: count,
+    avgStars:     Math.round(avgStars * 10) / 10,
+    friendlyPct:  Math.round((friendly / count) * 100),
+    safeRidePct:  Math.round((safeRide / count) * 100),
     trustScore,
   };
 

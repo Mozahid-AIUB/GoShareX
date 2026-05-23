@@ -200,7 +200,12 @@ export default function RideCompleteScreen() {
                           onPress={() => toggleCategory(cat.id)}
                           activeOpacity={0.75}
                         >
-                          <PremiumIcon name={cat.id === 'respectful' ? 'handshake-outline' : cat.id === 'safeRide' ? 'shield-check-outline' : cat.id === 'friendly' ? 'emoticon-happy-outline' : cat.id === 'tidy' ? 'sparkles' : 'clock-outline'} size={10} tone={cat.id === 'safeRide' ? 'teal' : cat.id === 'respectful' ? 'violet' : cat.id === 'friendly' ? 'amber' : cat.id === 'tidy' ? 'blue' : 'slate'} containerStyle={st.catIcon} />
+                          <PremiumIcon
+                            name={cat.id === 'safeRide' ? 'shield-check-outline' : 'emoticon-happy-outline'}
+                            size={10}
+                            tone={cat.id === 'safeRide' ? 'teal' : 'amber'}
+                            containerStyle={st.catIcon}
+                          />
                           <Text style={[st.catLabel, active && st.catLabelActive]}>
                             {cat.label}
                           </Text>
@@ -225,7 +230,7 @@ export default function RideCompleteScreen() {
                     style={st.commentInput}
                     value={comment}
                     onChangeText={(t) => setComment(t.slice(0, 200))}
-                    placeholder="e.g. Very friendly, punctual arrival…"
+                    placeholder="e.g. Friendly partner, smooth ride…"
                     placeholderTextColor={C.muted}
                     multiline
                     numberOfLines={3}
