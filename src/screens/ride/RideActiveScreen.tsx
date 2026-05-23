@@ -11,6 +11,7 @@ import { startGeofencingForDestination, stopGeofencing, registerGeofenceTask } f
 import { startMovementDetection } from '@/services/location/movementDetector';
 import type { RideRoutePreview } from '@/types/ride.types';
 import { logger } from '@/utils/logger';
+import { trackRideComplete } from '@/services/analytics/analyticsService';
 
 // ─── Tokens ──────────────────────────────────────────────────────────────────
 const C = {
@@ -270,6 +271,7 @@ export default function RideActiveScreen() {
     if (!rideId) return;
     try {
       await rideService.completeRide(rideId);
+      trackRideComplete(rideId, fare ?? 0, splitFare ? (fare ?? 0) - splitFare : 0);
       setStatus('completed');
       navigation.navigate('RideComplete', {
         rideId,
