@@ -22,6 +22,7 @@ import { sendRideConfirmed } from '@/services/notifications/fcmService';
 import { buildRideRoutePreview } from '@/services/ride/routePreviewService';
 import type { RideRoutePreview } from '@/types/ride.types';
 import { logger } from '@/utils/logger';
+import { startMovementDetection } from '@/services/location/movementDetector';
 
 const C = {
   bg: '#07090F',
@@ -256,6 +257,23 @@ export default function RideConfirmedScreen() {
       setMarkingReady(false);
     }
   };
+
+  // Auto-mark "I'm here" when movement detected (5+ km/h)
+  // Saves user from having to manually tap when rickshaw starts moving
+  useEffect(() => {
+    if (!rideId || !user?.uid || iAmReady) return;
+
+    const stop = startMovementDetection(() => {
+      logger.info('RideConfirmedScreen', 'Movement detected, auto-marking ready');
+      if (!iAmReady && !markingReady) {
+        rideService
+          .markReady(rideId, user.uid)
+          .catch((e) => logger.warn('autoMarkReady', e));
+      }
+    });
+
+    return () => stop();
+  }, [rideId, user?.uid, iAmReady, markingReady]);
 
   const handleStartManually = async () => {
     if (!rideId || starting) return;
