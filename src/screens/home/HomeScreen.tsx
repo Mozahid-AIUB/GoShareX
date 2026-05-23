@@ -1311,39 +1311,13 @@ export default function HomeScreen() {
     <SafeAreaView style={S.safe} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor={D.bg} />
 
-      {/* Route Card — sticky top */}
-      {/* Routes API live route strip */}
-      {(routeEtaLabel || isFetchingRoute) && (
-        <View style={S.routeStrip}>
-          <IconRouteLine size={14} />
-          {isFetchingRoute ? (
-            <Text style={S.routeStripText}>Updating route...</Text>
-          ) : (
-            <>
-              <Text style={S.routeStripText}>{routeEtaLabel}</Text>
-              {trafficLabel && (
-                <View style={S.trafficBadge}>
-                  <Text style={S.trafficBadgeText}>{trafficLabel}</Text>
-                </View>
-              )}
-            </>
-          )}
-          <TouchableOpacity
-            style={{ marginLeft: 'auto' }}
-            onPress={() => navigation.navigate('Map')}
-            activeOpacity={0.8}
-          >
-            <View style={S.mapPreviewBtn}>
-              <MaterialCommunityIcons name="map-outline" size={13} color={D.primary} />
-              <Text style={S.mapPreviewText}>Route + live ETA</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* Top route strip removed — same ETA is already shown in the middle
+          route card (line ~SearchBar area) and the bottom "Live map" button
+          covers the navigation case. Duplicate was confusing in screenshots. */}
 
       <ScrollView
         style={S.scroll}
-        contentContainerStyle={[S.scrollContent, { paddingBottom: 100 }]}
+        contentContainerStyle={[S.scrollContent, { paddingBottom: 140 }]}
         showsVerticalScrollIndicator={false}
         onScroll={e => setElevated(e.nativeEvent.contentOffset.y > 8)}
         scrollEventThrottle={16}
