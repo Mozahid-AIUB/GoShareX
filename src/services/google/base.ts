@@ -16,6 +16,10 @@ export const GOOGLE_API_ENDPOINTS = {
   directions: 'https://maps.googleapis.com/maps/api/directions/json',
   distanceMatrix: 'https://maps.googleapis.com/maps/api/distancematrix/json',
   routes: 'https://routes.googleapis.com/directions/v2:computeRoutes',
+  roadsSnap: 'https://roads.googleapis.com/v1/snapToRoads',
+  roadsNearest: 'https://roads.googleapis.com/v1/nearestRoads',
+  staticMap: 'https://maps.googleapis.com/maps/api/staticmap',
+  streetViewStatic: 'https://maps.googleapis.com/maps/api/streetview',
 } as const;
 
 export const buildQueryString = (params: Record<string, QueryValue>): string => {

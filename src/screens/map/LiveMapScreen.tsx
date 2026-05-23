@@ -44,6 +44,7 @@ import {
   ZONE_LEVELS,
 } from './utils/mapHelpers';
 import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
+import { useSnappedLocation } from '@/hooks/useSnappedLocation';
 
 const { width: SW } = Dimensions.get('window');
 const MY_LOCATION_PICKUP_ID = 'current_location';
@@ -78,10 +79,15 @@ export default function LiveMapScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { user } = useAuthStore();
-  const latitude = useLocationStore((s) => s.latitude);
-  const longitude = useLocationStore((s) => s.longitude);
+  const rawLatitude = useLocationStore((s) => s.latitude);
+  const rawLongitude = useLocationStore((s) => s.longitude);
   const accuracy = useLocationStore((s) => s.accuracy);
   const speedKmh = useLocationStore((s) => s.speedKmh);
+
+  // Snap raw GPS to nearest road for smooth marker movement (Roads API)
+  const snapped = useSnappedLocation(rawLatitude, rawLongitude);
+  const latitude = snapped?.latitude ?? rawLatitude;
+  const longitude = snapped?.longitude ?? rawLongitude;
   const setLocation = useLocationStore((s) => s.setLocation);
   const setTracking = useLocationStore((s) => s.setTracking);
   const { destination: storeDestination, customDestination, pickupPoint: storePickupPoint, routeSearchNonce, requestStates, setPartner, setStatus, setRequestState } = useRideStore();

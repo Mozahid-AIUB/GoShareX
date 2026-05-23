@@ -36,6 +36,10 @@ import {
 import { LiveDot, MiniAvatar } from './components/ChatBadges';
 import { QUICK_REPLIES, formatCountdown } from './utils/chatHelpers';
 import { useScreenTracking } from '@/hooks/useScreenTracking';
+import { getRoutePreviewUrl } from '@/services/google/staticMapService';
+import { getDestinationByName, getDestinationById } from '@/constants/destinations';
+import { getPickupPointById } from '@/constants/pickupPoints';
+import { Image } from 'react-native';
 
 // â”€â”€â”€ Design tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const C = {
@@ -309,6 +313,32 @@ export default function ChatScreen() {
         </View>
       )}
 
+      {/* Static map ride preview */}
+      {(() => {
+        const destName = chatMeta?.destination ?? destination ?? rider?.destination;
+        const dest = destName
+          ? (getDestinationByName(destName) ?? getDestinationById(destName))
+          : null;
+        const pickup = getPickupPointById(pickupPoint ?? 'main_gate');
+        if (!dest || !pickup) return null;
+        const previewUrl = getRoutePreviewUrl(
+          { latitude: pickup.lat, longitude: pickup.lng },
+          { latitude: dest.lat, longitude: dest.lng },
+          undefined,
+          { width: 600, height: 180, zoom: 13 },
+        );
+        return (
+          <View style={s.mapPreviewWrap}>
+            <Image source={{ uri: previewUrl }} style={s.mapPreviewImg} resizeMode="cover" />
+            <View style={s.mapPreviewOverlay}>
+              <Text style={s.mapPreviewText}>
+                {pickup.name}  →  {dest.name}
+              </Text>
+            </View>
+          </View>
+        );
+      })()}
+
       {/* Messages */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -453,6 +483,32 @@ const s = StyleSheet.create({
   fareBannerLabel: { fontSize: 12, color: C.textSub, fontWeight: '600' },
   fareBannerFare: { fontSize: 13, color: C.text, fontWeight: '600' },
   fareBannerSplit: { color: C.teal, fontWeight: '800' },
+
+  mapPreviewWrap: {
+    position: 'relative',
+    marginHorizontal: 12,
+    marginTop: 10,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  mapPreviewImg: { width: '100%', height: 120 },
+  mapPreviewOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(8,12,20,0.78)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  mapPreviewText: {
+    color: C.text,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
 
   emptyMsgs: { alignItems: 'center', marginTop: 60 },
   emptyMsgsText: { fontSize: 13, color: C.textSub, textAlign: 'center', lineHeight: 20 },
