@@ -35,6 +35,7 @@ import {
 } from './components/ChatIcons';
 import { LiveDot, MiniAvatar } from './components/ChatBadges';
 import { QUICK_REPLIES, formatCountdown } from './utils/chatHelpers';
+import { useScreenTracking } from '@/hooks/useScreenTracking';
 
 // â”€â”€â”€ Design tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const C = {
@@ -54,6 +55,7 @@ const C = {
 };
 
 export default function ChatScreen() {
+  useScreenTracking('Chat');
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();

@@ -26,6 +26,7 @@ import { useAuthStore } from '@/store/authStore';
 import type { User } from '@/types/auth.types';
 import PremiumIcon from '@/components/common/PremiumIcon';
 import { logger } from '@/utils/logger';
+import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
 
 const SW = Dimensions.get('window').width;
 
@@ -276,6 +277,7 @@ function isRecoverable(err: unknown) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
+  useScreenFocusTracking('Profile');
   const navigation = useNavigation<MainTabNavProp>();
   const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();

@@ -91,6 +91,7 @@ import {
   type VisiblePartner,
   type AppNotification,
 } from './utils/homeHelpers';
+import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
 
 
 // ─── Design Tokens — light theme matching the S StyleSheet ───────────────────
@@ -640,6 +641,7 @@ const DestinationModal = ({
 
 // ─── MAIN SCREEN ─────────────────────────────────────────────────────────────
 export default function HomeScreen() {
+  useScreenFocusTracking('Home');
   const navigation = useNavigation<MainTabNavProp>();
   const tabBarHeight = useBottomTabBarHeight();
   const {

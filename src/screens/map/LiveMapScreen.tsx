@@ -43,6 +43,7 @@ import {
   distanceToRoute,
   ZONE_LEVELS,
 } from './utils/mapHelpers';
+import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
 
 const { width: SW } = Dimensions.get('window');
 const MY_LOCATION_PICKUP_ID = 'current_location';
@@ -70,6 +71,7 @@ const C = {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function LiveMapScreen() {
+  useScreenFocusTracking('LiveMap');
   const route = useRoute<any>();
   const routeParams = route?.params as { destination?: string; pickup?: string } | undefined;
   const navigation = useNavigation<any>();

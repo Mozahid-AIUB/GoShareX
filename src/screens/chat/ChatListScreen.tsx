@@ -43,6 +43,7 @@ import {
   type ChatItem,
   type GroupRoom,
 } from './utils/chatHelpers';
+import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
 
 const C = {
   bg: premiumTheme.bg,
@@ -63,6 +64,7 @@ const C = {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ChatListScreen() {
+  useScreenFocusTracking('ChatList');
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { user } = useAuthStore();

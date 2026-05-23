@@ -23,6 +23,7 @@ import { useAuthStore } from '@/store/authStore';
 import { createPost } from '@/services/firebase/postService';
 import placesService, { PlaceSuggestion } from '@/services/google/placesService';
 import { getErrorMessage } from '@/utils/errorHandler';
+import { trackEvent } from '@/services/analytics/analyticsService';
 
 const C = {
   bg: '#FAF8FF',
@@ -294,6 +295,7 @@ export default function CreatePostScreen() {
         note: note.trim() || null,
         maxRiders,
       });
+      trackEvent('post_created', { destination, ride_type: rideType, max_riders: maxRiders });
       navigation.goBack();
     } catch (err: unknown) {
       setLoading(false);

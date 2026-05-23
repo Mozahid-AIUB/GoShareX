@@ -22,8 +22,11 @@ import { C } from '@/components/auth/authColors';
 import { LogoMark, IconEmail, IconLock, IconArrow, IconUser, IconBack } from '@/components/auth/AuthIcons';
 import FormField from '@/components/auth/FormField';
 import { getErrorCode, getErrorMessage } from '@/utils/errorHandler';
+import { useScreenTracking } from '@/hooks/useScreenTracking';
+import { trackEvent } from '@/services/analytics/analyticsService';
 
 export default function RegisterScreen() {
+  useScreenTracking('Register');
   const navigation = useNavigation<RootNavProp>();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');

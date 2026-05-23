@@ -36,7 +36,30 @@
       "Bash(firebase projects:list)",
       "Bash(python -c ' *)",
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('package:', d['client'][0]['client_info']['android_client_info']['package_name']\\); print\\('has_sha1:', bool\\(d['client'][0].get\\('oauth_client'\\)\\)\\)\")",
-      "Bash(eas build:list --platform android --limit 5)"
+      "Bash(eas build:list --platform android --limit 5)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(java -version)",
+      "Bash(eas build:list --limit 5)",
+      "Bash(eas account:view)",
+      "Bash(mkdir -p docs/security .archive && ls -d docs .archive docs/security)",
+      "Bash(git mv *)",
+      "Bash(git rm *)",
+      "Bash(git checkout *)",
+      "Bash(git reset *)",
+      "Bash(npx expo *)",
+      "Bash(xargs wc -l)",
+      "Bash(npm audit *)",
+      "Bash(awk 'NR < 122 || NR >= 714' src/screens/home/HomeScreen.tsx)",
+      "Bash(awk 'NR >= 530' src/screens/map/LiveMapScreen.tsx)",
+      "Bash(awk 'NR < 58 || NR >= 529' src/screens/map/LiveMapScreen.tsx)",
+      "Bash(awk 'NR >= 346 && NR <= 800' src/screens/chat/ChatListScreen.tsx)",
+      "Bash(awk 'NR < 43 || \\(NR >= 345 && NR < 870\\)' src/screens/chat/ChatListScreen.tsx)",
+      "Bash(awk 'NR < 45 || NR >= 122' src/screens/chat/ChatScreen.tsx)"
+    ],
+    "additionalDirectories": [
+      "d:\\Way_To_Job\\GoShareX\\docs"
     ]
   }
 }

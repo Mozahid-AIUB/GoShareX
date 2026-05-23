@@ -25,10 +25,13 @@ import { useAnimatedPress } from '@/hooks/useAnimatedPress';
 import { C, ONE_DAY_MS } from '@/components/auth/authColors';
 import { LogoMark, IconEmail, IconLock, IconArrow, IconGoogle } from '@/components/auth/AuthIcons';
 import FormField from '@/components/auth/FormField';
+import { useScreenTracking } from '@/hooks/useScreenTracking';
+import { trackEvent } from '@/services/analytics/analyticsService';
 
 type SuspendedError = { code: 'USER_SUSPENDED'; suspendedUntil?: number };
 
 export default function LoginScreen() {
+  useScreenTracking('Login');
   const navigation = useNavigation<RootNavProp>();
   const { setUser } = useAuthStore();
 
@@ -78,7 +81,10 @@ export default function LoginScreen() {
     try {
       const user = await authService.login({ email: email.trim().toLowerCase(), password });
       const ok = await afterAuth(user.uid, user.suspendedUntil);
-      if (ok) setUser(user);
+      if (ok) {
+        setUser(user);
+        trackEvent('login', { method: 'email' });
+      }
     } catch (error: any) {
       if ((error as SuspendedError)?.code === 'USER_SUSPENDED') {
         handleSuspended(error.suspendedUntil ?? Date.now() + ONE_DAY_MS);
@@ -117,7 +123,10 @@ export default function LoginScreen() {
     try {
       const user = await googleAuthService.signInWithGoogle();
       const ok = await afterAuth(user.uid, user.suspendedUntil);
-      if (ok) setUser(user);
+      if (ok) {
+        setUser(user);
+        trackEvent('login', { method: 'google' });
+      }
     } catch (error: any) {
       if ((error as SuspendedError)?.code === 'USER_SUSPENDED') {
         handleSuspended(error.suspendedUntil ?? Date.now() + ONE_DAY_MS);

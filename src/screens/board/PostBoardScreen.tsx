@@ -16,6 +16,7 @@ import { cancelPost, joinPost, leavePost, subscribeToOpenPosts } from '@/service
 import { useAuthStore } from '@/store/authStore';
 import type { Post } from '@/types/post.types';
 import { getErrorMessage } from '@/utils/errorHandler';
+import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
 
 const C = {
   bg: '#F5F5FA', card: '#FFFFFF', border: '#E8E4F4',
@@ -298,6 +299,7 @@ const cd = StyleSheet.create({
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function PostBoardScreen() {
+  useScreenFocusTracking('PostBoard');
   const navigation = useNavigation<RootNavProp>();
   const tabBarH = useBottomTabBarHeight();
   const { user } = useAuthStore();
