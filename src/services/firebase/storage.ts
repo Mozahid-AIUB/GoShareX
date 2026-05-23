@@ -1,7 +1,8 @@
 /**
  * storage.ts — Firebase Storage helpers for user profile photos.
  *
- * Storage path: `profile_photos/{uid}.jpg`
+ * Storage path: `users/{uid}/profile-pic`
+ * Matches the Storage Security Rule in firebase/storage.rules.
  */
 
 import {
@@ -12,7 +13,7 @@ import {
 } from 'firebase/storage';
 import { storage } from '@/services/firebase/config';
 
-const PROFILE_PHOTOS_PATH = 'profile_photos';
+const profilePicPath = (uid: string) => `users/${uid}/profile-pic`;
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -20,7 +21,7 @@ const PROFILE_PHOTOS_PATH = 'profile_photos';
  * Upload a profile photo from a local URI (e.g. from image picker).
  * Converts the URI to a Blob and uploads it, then returns the public download URL.
  *
- * @param uid  Firebase Auth UID — used as the filename to guarantee uniqueness
+ * @param uid  Firebase Auth UID — used as folder name (matches storage rule)
  * @param uri  Local file URI returned by the image picker
  * @returns    Public download URL of the uploaded photo
  */
@@ -32,7 +33,7 @@ export async function uploadProfilePhoto(uid: string, uri: string): Promise<stri
   }
   const blob = await response.blob();
 
-  const photoRef = storageRef(storage, `${PROFILE_PHOTOS_PATH}/${uid}.jpg`);
+  const photoRef = storageRef(storage, profilePicPath(uid));
   await uploadBytes(photoRef, blob, {
     contentType: 'image/jpeg',
     customMetadata: { uid, uploadedAt: String(Date.now()) },
@@ -47,7 +48,7 @@ export async function uploadProfilePhoto(uid: string, uri: string): Promise<stri
  * to guard against missing photos.
  */
 export async function deleteProfilePhoto(uid: string): Promise<void> {
-  const photoRef = storageRef(storage, `${PROFILE_PHOTOS_PATH}/${uid}.jpg`);
+  const photoRef = storageRef(storage, profilePicPath(uid));
   try {
     await deleteObject(photoRef);
   } catch (error: any) {
