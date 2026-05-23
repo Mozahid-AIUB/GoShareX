@@ -19,11 +19,7 @@ import type { RootNavProp } from '@/navigation/types';
 import { useAuthStore } from '@/store/authStore';
 import { updateUser } from '@/services/firebase/userService';
 import { isValidName } from '@/utils/validators';
-import { uploadProfilePhoto } from '@/services/firebase/storage';
-import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'react-native';
-import { logger } from '@/utils/logger';
-import { getErrorMessage } from '@/utils/errorHandler';
 
 const C = {
   bg: '#F4F6FB',
@@ -102,50 +98,16 @@ export default function EditProfileScreen() {
   const { user, setUser } = useAuthStore();
 
   const [name, setName]   = useState('');
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [photoUploading, setPhotoUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors]   = useState<Record<string, string>>({});
   const btnScale = useRef(new Animated.Value(1)).current;
 
+  // Photo is auto-set from Google Sign-In; user cannot change it
+  const photoUri = user?.photoURL ?? null;
+
   useEffect(() => {
     setName(user?.name ?? '');
-    setPhotoUri(user?.photoURL ?? null);
   }, [user]);
-
-  const handlePickPhoto = async () => {
-    try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert('Permission needed', 'Please allow photo library access.');
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.7,
-      });
-      if (result.canceled || !result.assets[0] || !user?.uid) return;
-
-      const localUri = result.assets[0].uri;
-      setPhotoUri(localUri);
-      setPhotoUploading(true);
-      try {
-        const photoURL = await uploadProfilePhoto(user.uid, localUri);
-        const updated = await updateUser(user.uid, { photoURL });
-        setUser(updated);
-      } catch (err: unknown) {
-        logger.error('EditProfile.uploadPhoto', err);
-        Alert.alert('Upload failed', getErrorMessage(err) || 'Please try again.');
-        setPhotoUri(user.photoURL ?? null);
-      } finally {
-        setPhotoUploading(false);
-      }
-    } catch (err: unknown) {
-      logger.error('EditProfile.pickPhoto', err);
-    }
-  };
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
@@ -186,36 +148,19 @@ export default function EditProfileScreen() {
             <View style={{ width: 36 }} />
           </View>
 
-          {/* Avatar preview */}
+          {/* Avatar preview (read-only — auto from Google account) */}
           <View style={s.avatarSection}>
-            <TouchableOpacity onPress={handlePickPhoto} activeOpacity={0.8} disabled={photoUploading}>
-              <View style={s.avatarCircle}>
-                {photoUri ? (
-                  <Image source={{ uri: photoUri }} style={s.avatarImg} />
-                ) : (
-                  <Text style={s.avatarLetter}>
-                    {(name || user?.name || 'U').charAt(0).toUpperCase()}
-                  </Text>
-                )}
-                <View style={s.cameraBadge}>
-                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-                    <Path
-                      d="M23 19V8a2 2 0 00-2-2h-3.17l-1.85-2H8.02L6.17 6H3a2 2 0 00-2 2v11a2 2 0 002 2h18a2 2 0 002-2z"
-                      stroke="#fff"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <Circle cx="12" cy="13" r="4" stroke="#fff" strokeWidth="2" />
-                  </Svg>
-                </View>
-              </View>
-            </TouchableOpacity>
+            <View style={s.avatarCircle}>
+              {photoUri ? (
+                <Image source={{ uri: photoUri }} style={s.avatarImg} />
+              ) : (
+                <Text style={s.avatarLetter}>
+                  {(name || user?.name || 'U').charAt(0).toUpperCase()}
+                </Text>
+              )}
+            </View>
             <Text style={s.avatarName}>{name || user?.name || 'Your Name'}</Text>
             <Text style={s.avatarEmail}>{user?.email ?? ''}</Text>
-            <Text style={s.tapHint}>
-              {photoUploading ? 'Uploading...' : 'Tap photo to change'}
-            </Text>
           </View>
 
           {/* Form */}
@@ -262,10 +207,8 @@ const s = StyleSheet.create({
   avatarCircle:  { width: 96, height: 96, borderRadius: 48, backgroundColor: 'rgba(124,58,237,0.12)', borderWidth: 2, borderColor: 'rgba(124,58,237,0.3)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarImg:     { width: '100%', height: '100%' },
   avatarLetter:  { fontSize: 38, fontWeight: '900', color: C.primary },
-  cameraBadge:   { position: 'absolute', bottom: 0, right: 0, width: 30, height: 30, borderRadius: 15, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.bg },
   avatarName:    { fontSize: 18, fontWeight: '800', color: C.text, marginTop: 8 },
   avatarEmail:   { fontSize: 12, color: C.textMuted },
-  tapHint:       { fontSize: 11, color: C.primary, fontWeight: '600', marginTop: 4 },
 
   card:    { marginHorizontal: 16, backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.border, padding: 20, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
 
