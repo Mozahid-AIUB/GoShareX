@@ -53,6 +53,7 @@ import {
   type PickupHistoryEntry,
 } from '@/services/search/searchHistoryService';
 import { getStreetViewUrl } from '@/services/google/staticMapService';
+import geocodingService from '@/services/google/geocodingService';
 import { Image } from 'react-native';
 import {
   IconSunrise,
@@ -465,13 +466,14 @@ const PickupModal = ({
 
 // ─── DESTINATION SEARCH MODAL ────────────────────────────────────────────────
 const DestinationModal = ({
-  visible, onClose, onSelect, onSelectSuggestion, onSelectCustomHistory, currentLocation,
+  visible, onClose, onSelect, onSelectSuggestion, onSelectCustomHistory, onUseAsAddress, currentLocation,
 }: {
   visible: boolean;
   onClose: () => void;
   onSelect: (item: RouteDestination) => void;
   onSelectSuggestion: (item: PlaceSuggestion) => void;
   onSelectCustomHistory: (entry: SearchEntry) => void;
+  onUseAsAddress: (rawText: string) => Promise<void>;
   currentLocation: { latitude: number; longitude: number } | null;
 }) => {
   const [query, setQuery] = useState('');
@@ -642,10 +644,35 @@ const DestinationModal = ({
               </>
             )}
 
-            {/* No results */}
+            {/* No results — offer geocoding fallback */}
             {!showHistory && !isSearching && remoteSuggestions.length === 0 && !error && (
-              <View style={{ alignItems: 'center', paddingVertical: 24 }}>
-                <Text style={{ fontSize: 13, color: D.textMuted }}>No results found for "{query}"</Text>
+              <View style={{ alignItems: 'center', paddingVertical: 24, gap: 12 }}>
+                <Text style={{ fontSize: 13, color: D.textMuted }}>
+                  No suggestions for "{query}"
+                </Text>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                    backgroundColor: D.primarySoft,
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: D.primaryMid,
+                  }}
+                  onPress={async () => {
+                    await onUseAsAddress(query);
+                    onClose();
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <MaterialCommunityIcons name="map-search" size={16} color={D.primary} />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: D.primary }}>
+                    Use "{query}" as address
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
           </ScrollView>
@@ -1129,6 +1156,42 @@ export default function HomeScreen() {
     });
   };
 
+  const handleUseAsAddress = async (rawText: string) => {
+    const text = rawText.trim();
+    if (!text) return;
+    try {
+      const result = await geocodingService.geocode(text);
+      if (!result) {
+        Alert.alert('Address not found', `Could not locate "${text}". Please check spelling.`);
+        return;
+      }
+      const customId = `geo_${result.placeId || Date.now()}`;
+      setCustomDestination({
+        id: customId,
+        name: text,
+        lat: result.latitude,
+        lng: result.longitude,
+        placeId: result.placeId,
+        address: result.formattedAddress,
+      });
+      setDestination(customId);
+      setWaypoints(prev => {
+        const copy = [...prev];
+        copy[activeDestIdx] = { ...copy[activeDestIdx], label: text };
+        return copy;
+      });
+      recordSearch({
+        id: customId,
+        name: text,
+        lat: result.latitude,
+        lng: result.longitude,
+        placeId: result.placeId,
+      }).catch(() => { });
+    } catch {
+      Alert.alert('Geocoding failed', 'Could not look up that address. Try again.');
+    }
+  };
+
   const handleSuggestionSelect = async (item: PlaceSuggestion) => {
     try {
       const details = await placesService.getPlaceDetails({ placeId: item.placeId });
@@ -1581,6 +1644,7 @@ export default function HomeScreen() {
         onSelect={handleDestSelect}
         onSelectSuggestion={handleSuggestionSelect}
         onSelectCustomHistory={handleCustomHistorySelect}
+        onUseAsAddress={handleUseAsAddress}
         currentLocation={currentLocation}
       />
 

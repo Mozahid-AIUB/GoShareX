@@ -410,6 +410,13 @@ export default function CreatePostScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            <Text style={{ fontSize: 11, color: '#7C7B91', marginTop: 8, fontWeight: '600' }}>
+              {maxRiders === 2
+                ? '💡 Fare split 50/50 — half each'
+                : maxRiders === 3
+                  ? '💡 Fare split 3-way — each pays ~33%'
+                  : '💡 Group ride · fare split 4-way — each pays ~25%. Pickup order will be auto-optimized.'}
+            </Text>
           </View>
 
           {/* Note */}

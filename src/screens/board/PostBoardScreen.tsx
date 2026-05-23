@@ -133,6 +133,13 @@ const PostCard = React.memo(({ item, onJoin, onLeave, onCancel, onChat, isBusy, 
               <VehicleIcon type={rt.vehicleType} tone={rt.tone} size={20} />
               <Text style={[cd.rtTxt, { color: rt.color }]}>{rt.label}</Text>
             </View>
+            {item.maxRiders >= 3 && (
+              <View style={[cd.rtPill, { backgroundColor: 'rgba(124,58,237,0.1)' }]}>
+                <Text style={[cd.rtTxt, { color: '#7C3AED' }]}>
+                  Group · {item.maxRiders}
+                </Text>
+              </View>
+            )}
             <View style={[cd.spotPill, spots === 0 ? cd.spotFull : cd.spotOpen]}>
               <Text style={[cd.spotTxt, spots === 0 ? { color: C.red } : { color: C.green }]}>
                 {spots === 0 ? 'Full' : `${spots} spot${spots > 1 ? 's' : ''}`}
