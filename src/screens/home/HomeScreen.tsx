@@ -2037,7 +2037,7 @@ const S = StyleSheet.create({
   section: { marginBottom: 22 },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1A1A2E', marginBottom: 6, letterSpacing: -0.2 },
   sectionSub: { fontSize: 13, color: '#9896A8', fontWeight: '600', letterSpacing: 0.1 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
   liveCountBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: 'rgba(20,184,166,0.1)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
@@ -2208,17 +2208,17 @@ const S = StyleSheet.create({
   // ── Empty state ──
   emptyState: {
     alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 32, marginBottom: 12,
+    paddingVertical: 16, marginBottom: 0,
   },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: '#1A1A2E', marginTop: 12, letterSpacing: -0.2 },
+  emptyTitle: { fontSize: 16, fontWeight: '800', color: '#1A1A2E', marginTop: 8, letterSpacing: -0.2 },
   emptySubtitle: { fontSize: 13, color: '#6E7E99', marginTop: 4, textAlign: 'center', fontWeight: '500' },
-  emptySub: { fontSize: 12, color: '#6E7E99', marginTop: 8, textAlign: 'center', fontWeight: '400', lineHeight: 18 },
+  emptySub: { fontSize: 12, color: '#6E7E99', marginTop: 4, textAlign: 'center', fontWeight: '400', lineHeight: 18 },
 
   // ── Post ride button ──
   postRideBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    marginTop: 8, borderWidth: 1.5, borderStyle: 'dashed',
-    borderColor: '#6366F1', borderRadius: 14, paddingVertical: 15,
+    marginTop: 4, borderWidth: 1.5, borderStyle: 'dashed',
+    borderColor: '#6366F1', borderRadius: 14, paddingVertical: 13,
   },
   postRideText: { fontSize: 14, fontWeight: '600', color: '#6366F1' },
 
