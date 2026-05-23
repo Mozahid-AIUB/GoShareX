@@ -1,8 +1,8 @@
 export const bn = {
   greeting: 'হ্যালো, %{name} 👋',
   findRider: 'Rider খুঁজো 🔍',
-  loginButton: 'AIUB Account দিয়ে Login করো',
-  loginError: 'শুধু AIUB email দিয়ে login করা যাবে',
+  loginButton: 'Google দিয়ে Login করো',
+  loginError: 'বৈধ email দিয়ে login করুন',
   rideConfirmed: 'Ride নিশ্চিত হয়েছে ✅',
   youSaved: '💰 তুমি %{amount} টাকা বাঁচিয়েছো!',
   lifetimeSavings: 'তুমি এখন পর্যন্ত %{total} টাকা বাঁচিয়েছো!',

@@ -83,7 +83,7 @@ const TrustBadge: React.FC<TrustBadgeProps> = ({
           {config.label}
         </AppText>
         <AppText variant="caption" style={styles.fullSub}>
-          Verified AIUB Rider
+          Verified Rider
         </AppText>
       </View>
     </View>

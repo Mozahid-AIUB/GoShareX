@@ -6,16 +6,16 @@ import {
   User,
 } from 'firebase/auth';
 import { auth } from './config';
-import { isAIUBEmail } from '@/utils/validators';
+import { isValidEmail } from '@/utils/validators';
 
 export async function registerUser(email: string, password: string): Promise<User> {
-  if (!isAIUBEmail(email)) throw new Error('শুধু AIUB email দিয়ে register করা যাবে');
+  if (!isValidEmail(email)) throw new Error('Please enter a valid email address');
   const { user } = await createUserWithEmailAndPassword(auth, email, password);
   return user;
 }
 
 export async function loginUser(email: string, password: string): Promise<User> {
-  if (!isAIUBEmail(email)) throw new Error('শুধু AIUB email দিয়ে login করা যাবে');
+  if (!isValidEmail(email)) throw new Error('Please enter a valid email address');
   const { user } = await signInWithEmailAndPassword(auth, email, password);
   return user;
 }

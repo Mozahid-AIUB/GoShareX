@@ -52,6 +52,8 @@ import {
   type SearchEntry,
   type PickupHistoryEntry,
 } from '@/services/search/searchHistoryService';
+import { getStreetViewUrl } from '@/services/google/staticMapService';
+import { Image } from 'react-native';
 import {
   IconSunrise,
   IconSun,
@@ -409,34 +411,48 @@ const PickupModal = ({
                   <MaterialCommunityIcons name="history" size={13} color="#9896A8" />
                   <Text style={S.pickupSectionLabel}>Frequently used</Text>
                 </View>
-                {frequentPickups.map((fp) => (
-                  <TouchableOpacity
-                    key={fp.id}
-                    style={[S.pickupItem, S.pickupItemFrequent, selected === fp.id && S.pickupItemSelected]}
-                    onPress={() => { onSelect(fp.id); onClose(); }}
-                    activeOpacity={0.82}
-                  >
-                    <View style={[S.pickupIcon, { backgroundColor: 'rgba(99,102,241,0.08)' }, selected === fp.id && { backgroundColor: D.primary }]}>
-                      <MaterialCommunityIcons
-                        name="map-marker-check"
-                        size={18}
-                        color={selected === fp.id ? '#FFFFFF' : D.primary}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[S.pickupName, selected === fp.id && { color: D.primary }]}>{fp.name}</Text>
-                      <Text style={S.pickupNameBn}>
-                        Used {fp.count} time{fp.count !== 1 ? 's' : ''}
-                      </Text>
-                    </View>
-                    {selected === fp.id
-                      ? <MaterialCommunityIcons name="check-circle" size={20} color={D.primary} />
-                      : <View style={S.pickupCountBadge}>
-                        <Text style={S.pickupCountText}>{fp.count}×</Text>
+                {frequentPickups.map((fp) => {
+                  const hasCoords = fp.lat != null && fp.lng != null;
+                  const streetViewUrl = hasCoords
+                    ? getStreetViewUrl({ latitude: fp.lat!, longitude: fp.lng! }, { width: 120, height: 80 })
+                    : null;
+                  return (
+                    <TouchableOpacity
+                      key={fp.id}
+                      style={[S.pickupItem, S.pickupItemFrequent, selected === fp.id && S.pickupItemSelected]}
+                      onPress={() => { onSelect(fp.id); onClose(); }}
+                      activeOpacity={0.82}
+                    >
+                      {streetViewUrl ? (
+                        <Image
+                          source={{ uri: streetViewUrl }}
+                          style={{ width: 56, height: 56, borderRadius: 10, marginRight: 4 }}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={[S.pickupIcon, { backgroundColor: 'rgba(99,102,241,0.08)' }, selected === fp.id && { backgroundColor: D.primary }]}>
+                          <MaterialCommunityIcons
+                            name="map-marker-check"
+                            size={18}
+                            color={selected === fp.id ? '#FFFFFF' : D.primary}
+                          />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={[S.pickupName, selected === fp.id && { color: D.primary }]}>{fp.name}</Text>
+                        <Text style={S.pickupNameBn}>
+                          Used {fp.count} time{fp.count !== 1 ? 's' : ''}
+                        </Text>
                       </View>
-                    }
-                  </TouchableOpacity>
-                ))}
+                      {selected === fp.id
+                        ? <MaterialCommunityIcons name="check-circle" size={20} color={D.primary} />
+                        : <View style={S.pickupCountBadge}>
+                          <Text style={S.pickupCountText}>{fp.count}×</Text>
+                        </View>
+                      }
+                    </TouchableOpacity>
+                  );
+                })}
               </>
             )}
 
