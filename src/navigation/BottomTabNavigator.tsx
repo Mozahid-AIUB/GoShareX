@@ -104,12 +104,13 @@ const ti = StyleSheet.create({
   wrap: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderRadius: 16,
-    gap: 2,
+    gap: 3,
     position: 'relative',
-    minWidth: 56,
+    minWidth: 60,
+    minHeight: 52,
   },
   wrapActive: {
     backgroundColor: 'rgba(99,102,241,0.10)',
@@ -173,7 +174,12 @@ const BottomTabNavigator = () => {
           paddingTop: 0,
           paddingBottom: 0,
         },
-        tabBarItemStyle: { paddingVertical: 0, height: 60 },
+        tabBarItemStyle: {
+          paddingVertical: 0,
+          height: 60,
+          justifyContent: 'center',
+          alignItems: 'center',
+        },
       }}
     >
       <Tab.Screen
