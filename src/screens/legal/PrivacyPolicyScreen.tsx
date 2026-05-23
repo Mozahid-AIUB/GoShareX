@@ -79,7 +79,7 @@ export default function PrivacyPolicyScreen() {
         </Section>
 
         <Section title="10. Contact Us">
-          {`For privacy-related questions or data deletion requests:\n\nEmail: engineering.students.ai@gmail.com\nApp: GoShareX\nDeveloper: Mozahid Islam, AIUB CSE\n\nWe will respond within 7 business days.`}
+          {`For privacy-related questions or data deletion requests:\n\nEmail: mozahidislam343@gmail.com\nApp: GoShareX\nDeveloper: Mozahid Islam\n\nWe will respond within 7 business days.`}
         </Section>
 
         <View style={s.footer}>

@@ -282,9 +282,12 @@ export default function SettingsScreen() {
         {/* Legal */}
         <SectionHeader label="Legal & Compliance" />
         <View style={s.card}>
-          <LinkRow icon={<IconGavel />}              label="Terms of Service" sub="Financial disclaimer included" onPress={() => openLink(TERMS_URL)} />
-          <View style={s.divider} />
-          <LinkRow icon={<IconShield color={C.teal} />} label="Privacy Policy" sub="How we handle your data"   onPress={() => openLink(PRIVACY_URL)} />
+          <LinkRow
+            icon={<IconGavel />}
+            label="Terms & Privacy Policy"
+            sub="How we handle your data + ride rules"
+            onPress={() => navigation.navigate('Legal')}
+          />
         </View>
 
         {/* App info */}

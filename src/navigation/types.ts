@@ -49,6 +49,7 @@ export type RootStackParamList = {
   LiveMap: { destination?: string; pickup?: string } | undefined;
   PrivacyPolicy: undefined;
   TermsOfService: undefined;
+  Legal: { initialTab?: 'terms' | 'privacy' } | undefined;
 };
 
 export type RootNavProp<
