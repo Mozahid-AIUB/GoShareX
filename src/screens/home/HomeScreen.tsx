@@ -1061,9 +1061,12 @@ export default function HomeScreen() {
   }, [setLocation]);
 
   // Derive user name — rerun whenever store or auth user updates
+  // Hide if it looks like a student ID / number-only string (data quality fallback)
   const userName = useMemo(() => {
     const raw = storeUser?.name?.trim() || auth.currentUser?.displayName?.trim() || '';
     if (!raw) return '';
+    // If "name" looks like an ID (digits + dashes only), don't show it
+    if (/^[\d\s-]+$/.test(raw)) return '';
     return raw.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
   }, [storeUser?.name, auth.currentUser?.displayName]);
 
