@@ -3,5 +3,8 @@ export { default as directionsService } from './directionsService';
 export { default as distanceMatrixService } from './distanceMatrixService';
 export { default as routesService } from './routesService';
 export { default as roadsService } from './roadsService';
+export { default as geocodingService } from './geocodingService';
 export * from './staticMapService';
 export { GoogleApiError } from './base';
+export type { RichPlaceDetails } from './placesService';
+export type { GeocodingResult } from './geocodingService';

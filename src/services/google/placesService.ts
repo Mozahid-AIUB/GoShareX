@@ -49,9 +49,35 @@ interface PlaceDetailsResponse {
         lng: number;
       };
     };
+    rating?: number;
+    user_ratings_total?: number;
+    types?: string[];
+    photos?: Array<{ photo_reference: string; width: number; height: number }>;
+    opening_hours?: {
+      open_now?: boolean;
+      weekday_text?: string[];
+    };
+    international_phone_number?: string;
+    website?: string;
   };
   status: string;
   error_message?: string;
+}
+
+export interface RichPlaceDetails {
+  placeId: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  rating?: number;
+  ratingCount?: number;
+  types?: string[];
+  photoUrls?: string[];
+  openNow?: boolean;
+  openingHours?: string[];
+  phone?: string;
+  website?: string;
 }
 
 class PlacesService {
@@ -155,6 +181,51 @@ class PlacesService {
       address: data.result.formatted_address ?? '',
       latitude: data.result.geometry.location.lat,
       longitude: data.result.geometry.location.lng,
+    };
+  }
+
+  /**
+   * Rich Place Details: photos, hours, rating.
+   * Costs more per call than basic getPlaceDetails — use only when user
+   * actually views a destination card.
+   */
+  async getRichDetails(placeId: string, language = 'en'): Promise<RichPlaceDetails | null> {
+    if (!ENV.googlePlacesApiKey || ENV.googlePlacesApiKey === 'placeholder') return null;
+
+    const query = buildQueryString({
+      key: ENV.googlePlacesApiKey,
+      place_id: placeId,
+      language,
+      fields:
+        'place_id,name,formatted_address,geometry,rating,user_ratings_total,types,photos,opening_hours,international_phone_number,website',
+    });
+
+    const data = await fetchJson<PlaceDetailsResponse>(
+      `${GOOGLE_API_ENDPOINTS.placesDetails}?${query}`,
+    );
+
+    const r = data.result;
+    const location = r?.geometry?.location;
+    if (data.status !== 'OK' || !r || !location) return null;
+
+    const photoUrls = (r.photos ?? []).slice(0, 4).map((p) =>
+      `https://maps.googleapis.com/maps/api/place/photo?maxwidth=600&photo_reference=${encodeURIComponent(p.photo_reference)}&key=${ENV.googlePlacesApiKey}`,
+    );
+
+    return {
+      placeId: r.place_id ?? placeId,
+      name: r.name ?? 'Selected place',
+      address: r.formatted_address ?? '',
+      latitude: location.lat,
+      longitude: location.lng,
+      rating: r.rating,
+      ratingCount: r.user_ratings_total,
+      types: r.types,
+      photoUrls: photoUrls.length ? photoUrls : undefined,
+      openNow: r.opening_hours?.open_now,
+      openingHours: r.opening_hours?.weekday_text,
+      phone: r.international_phone_number,
+      website: r.website,
     };
   }
 }

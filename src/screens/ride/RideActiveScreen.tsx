@@ -12,6 +12,10 @@ import { startMovementDetection } from '@/services/location/movementDetector';
 import type { RideRoutePreview } from '@/types/ride.types';
 import { logger } from '@/utils/logger';
 import { trackRideComplete } from '@/services/analytics/analyticsService';
+import { shareRide } from '@/services/ride/shareRideService';
+import { getDestinationByName, getDestinationById } from '@/constants/destinations';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useLocationStore } from '@/store/locationStore';
 
 // ─── Tokens ──────────────────────────────────────────────────────────────────
 const C = {
@@ -285,6 +289,30 @@ export default function RideActiveScreen() {
     }
   };
 
+  const handleShareRide = async () => {
+    const destName = rider?.destination ?? 'destination';
+    const dest =
+      getDestinationByName(destName) ?? getDestinationById(destName) ?? null;
+    const myLat = useLocationStore.getState().latitude;
+    const myLng = useLocationStore.getState().longitude;
+    if (!dest) {
+      Alert.alert('Cannot share', 'Destination coordinates unknown.');
+      return;
+    }
+    await shareRide({
+      riderName: 'I',
+      destinationName: dest.name,
+      destinationLat: dest.lat,
+      destinationLng: dest.lng,
+      currentLat: myLat ?? undefined,
+      currentLng: myLng ?? undefined,
+      etaMinutes: currentRoutePreview?.durationSeconds
+        ? Math.round(currentRoutePreview.durationSeconds / 60)
+        : undefined,
+      rideId: rideId ?? undefined,
+    });
+  };
+
   const handleComplete = () => {
     Alert.alert(
       'Complete Ride',
@@ -323,6 +351,15 @@ export default function RideActiveScreen() {
               <LiveDot />
               <Text style={styles.liveText}>RIDE IN PROGRESS</Text>
             </View>
+            <TouchableOpacity
+              style={styles.shareBtn}
+              onPress={handleShareRide}
+              activeOpacity={0.8}
+              hitSlop={8}
+            >
+              <MaterialCommunityIcons name="share-variant" size={16} color="#A5B4FC" />
+              <Text style={styles.shareBtnText}>Share</Text>
+            </TouchableOpacity>
             <TimerRing elapsed={elapsed} />
           </View>
 
@@ -385,8 +422,21 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 120 },
 
   header: { alignItems: 'center', marginBottom: 28 },
-  liveRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20 },
+  liveRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   liveText: { fontSize: 11, fontWeight: '800', color: C.green, letterSpacing: 1.5 },
+  shareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: 'rgba(124,111,247,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(124,111,247,0.3)',
+    marginBottom: 16,
+  },
+  shareBtnText: { fontSize: 12, fontWeight: '700', color: '#A5B4FC', letterSpacing: 0.3 },
 
   timerWrap: { width: 160, height: 160, alignItems: 'center', justifyContent: 'center' },
   timerInner: { position: 'absolute', alignItems: 'center' },
