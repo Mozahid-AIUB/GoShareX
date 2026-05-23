@@ -93,7 +93,9 @@ const TabIcon = ({
   <View style={[ti.wrap, focused && ti.wrapActive]}>
     {focused && <View style={ti.glow} />}
     {icon}
-    <Text style={[ti.label, focused && ti.labelActive]}>{label}</Text>
+    <Text style={[ti.label, focused && ti.labelActive]} numberOfLines={1}>
+      {label}
+    </Text>
   </View>
 );
 
@@ -101,11 +103,12 @@ const ti = StyleSheet.create({
   wrap: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 2,
     position: 'relative',
+    minWidth: 56,
   },
   wrapActive: {
     backgroundColor: 'rgba(99,102,241,0.10)',
@@ -114,7 +117,7 @@ const ti = StyleSheet.create({
   },
   glow: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 20,
+    borderRadius: 16,
     backgroundColor: C.activeGlow,
     opacity: 0.5,
   },
@@ -122,7 +125,7 @@ const ti = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: C.textInactive,
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
     marginTop: 1,
   },
   labelActive: {
@@ -145,11 +148,11 @@ const BottomTabNavigator = () => {
         lazy: true,
         tabBarStyle: {
           position: 'absolute',
-          left: 12,
-          right: 12,
-          bottom: 12,
-          height: 72,
-          borderRadius: 24,
+          left: 10,
+          right: 10,
+          bottom: Math.max(insets.bottom, 10),
+          height: 64,
+          borderRadius: 22,
           backgroundColor: C.bg,
           borderTopWidth: 0,
           borderWidth: 1.5,
@@ -159,8 +162,11 @@ const BottomTabNavigator = () => {
           shadowRadius: 20,
           shadowOffset: { width: 0, height: 6 },
           elevation: 12,
+          paddingHorizontal: 4,
+          paddingTop: 0,
+          paddingBottom: 0,
         },
-        tabBarItemStyle: { paddingVertical: 4 },
+        tabBarItemStyle: { paddingVertical: 0, height: 64 },
       }}
     >
       <Tab.Screen
