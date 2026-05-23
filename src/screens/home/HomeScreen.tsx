@@ -1317,7 +1317,7 @@ export default function HomeScreen() {
 
       <ScrollView
         style={S.scroll}
-        contentContainerStyle={[S.scrollContent, { paddingBottom: 180 }]}
+        contentContainerStyle={[S.scrollContent, { paddingBottom: tabBarHeight + 32 }]}
         showsVerticalScrollIndicator={false}
         onScroll={e => setElevated(e.nativeEvent.contentOffset.y > 8)}
         scrollEventThrottle={16}
