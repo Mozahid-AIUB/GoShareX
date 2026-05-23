@@ -516,7 +516,7 @@ export default function LiveMapScreen() {
       </View>
 
       {!showNoRidersSheet ? (
-        <View style={[s.scanChip, { bottom: tabBarHeight + (selectedRider ? 210 : 24) }]}>
+        <View style={[s.scanChip, { bottom: tabBarHeight + (selectedRider ? 210 : 8) }]}>
           <Animated.View style={[s.scanDot, {
             opacity: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.2, 1] }),
             transform: [{ scale: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.6, 1] }) }],
@@ -531,7 +531,7 @@ export default function LiveMapScreen() {
         </View>
       ) : null}
 
-      <View style={{ position: 'absolute', bottom: tabBarHeight + (selectedRider ? 210 : 24), right: 12, zIndex: 10 }}>
+      <View style={{ position: 'absolute', bottom: tabBarHeight + (selectedRider ? 210 : 8), right: 12, zIndex: 10 }}>
         <Speedometer speedKmh={hasLoc ? (speedKmh ?? 0) : null} />
       </View>
 

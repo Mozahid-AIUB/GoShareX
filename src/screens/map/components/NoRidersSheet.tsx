@@ -6,8 +6,14 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text as RNText, TouchableOpacity, View } from 'react-native';
 import Svg, { Path, Circle as SvgCircle } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
 
 import { ZONE_LEVELS } from '../utils/mapHelpers';
+
+const tap = (cb: () => void) => () => {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+  cb();
+};
 
 type Props = {
   scanSecs: number;
@@ -88,7 +94,7 @@ export const NoRidersSheet = ({
       </View>
 
       <View style={nrs.actionsRow}>
-        <TouchableOpacity style={nrs.cta} onPress={onPostForLater} activeOpacity={0.9}>
+        <TouchableOpacity style={nrs.cta} onPress={tap(onPostForLater)} activeOpacity={0.75}>
           <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
             <Path
               d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"
@@ -101,7 +107,7 @@ export const NoRidersSheet = ({
           <RNText style={nrs.ctaText}>Post request</RNText>
         </TouchableOpacity>
 
-        <TouchableOpacity style={nrs.chip} onPress={onExpandZone} activeOpacity={0.8}>
+        <TouchableOpacity style={nrs.chip} onPress={tap(onExpandZone)} activeOpacity={0.6}>
           {canExpand ? (
             <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
               <Path
@@ -126,7 +132,7 @@ export const NoRidersSheet = ({
           <RNText style={nrs.chipText}>{canExpand ? `${nextZone}m` : 'Retry'}</RNText>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[nrs.chip, nrs.chipMuted]} onPress={onKeepWaiting} activeOpacity={0.8}>
+        <TouchableOpacity style={[nrs.chip, nrs.chipMuted]} onPress={tap(onKeepWaiting)} activeOpacity={0.6}>
           <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
             <SvgCircle cx="12" cy="12" r="10" stroke="#94A3B8" strokeWidth="2" />
             <Path d="M12 6v6l4 2" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" />
