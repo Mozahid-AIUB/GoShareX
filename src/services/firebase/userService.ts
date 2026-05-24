@@ -148,13 +148,49 @@ export async function updateUser(
 }
 
 /**
- * Atomically increment the user's `totalRides` counter.
+ * Atomically increment the user's `totalRides` counter
+ * and recalculate completionRate (completed / started * 100).
  */
 export async function incrementRideCount(uid: string): Promise<void> {
-  await updateDoc(doc(db, COLLECTION, uid), {
+  const ref = doc(db, COLLECTION, uid);
+  await updateDoc(ref, {
     totalRides: increment(1),
     lastActive: Date.now(),
   });
+  await recalcCompletionRate(uid);
+}
+
+/**
+ * Atomically increment the `startedRides` counter — called when a ride
+ * is confirmed/started (independent of whether it later completes or
+ * gets cancelled). Used to derive an honest completionRate.
+ */
+export async function incrementStartedRides(uid: string): Promise<void> {
+  const ref = doc(db, COLLECTION, uid);
+  await updateDoc(ref, {
+    startedRides: increment(1),
+    lastActive: Date.now(),
+  });
+  await recalcCompletionRate(uid);
+}
+
+/**
+ * Recompute completionRate = round(totalRides / startedRides * 100).
+ * Capped at 100, falls back to 100 if no startedRides yet (clean signup state).
+ */
+async function recalcCompletionRate(uid: string): Promise<void> {
+  const ref = doc(db, COLLECTION, uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data() as UserProfile & { startedRides?: number };
+  const started = data.startedRides ?? 0;
+  const completed = data.totalRides ?? 0;
+  if (started === 0) {
+    await updateDoc(ref, { completionRate: 100 });
+    return;
+  }
+  const rate = Math.min(100, Math.round((completed / started) * 100));
+  await updateDoc(ref, { completionRate: rate });
 }
 
 /**

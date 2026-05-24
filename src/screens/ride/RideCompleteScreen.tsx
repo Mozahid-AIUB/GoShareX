@@ -126,7 +126,7 @@ export default function RideCompleteScreen() {
       });
       setSubmitted(true);
       clearRide();
-      setTimeout(() => navigation.navigate('MainApp' as any), 1400);
+      setTimeout(() => navigation.navigate('MainApp'), 1400);
     } catch {
       setBusy(false);
     }

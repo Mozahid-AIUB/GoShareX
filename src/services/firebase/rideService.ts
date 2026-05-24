@@ -1,5 +1,5 @@
 import { updateBadge } from '@/services/user/badgePenaltyService';
-import { incrementRideCount, addSavings, getUser } from '@/services/firebase/userService';
+import { incrementRideCount, incrementStartedRides, addSavings, getUser } from '@/services/firebase/userService';
 import { addCancellationStrike } from '@/services/user/penaltyService';
 import { trackRideComplete } from '@/services/analytics/analyticsService';
 import { collection, doc, addDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
@@ -54,6 +54,14 @@ class RideService {
       rider1Ready: false,
       rider2Ready: false,
     });
+
+    // Track started rides for honest completionRate. Settled independently
+    // so counter errors don't break ride creation.
+    await Promise.allSettled([
+      incrementStartedRides(rider1Id),
+      incrementStartedRides(rider2Id),
+    ]);
+
     return rideDoc.id;
   }
 

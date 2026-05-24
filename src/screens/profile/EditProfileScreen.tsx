@@ -161,6 +161,7 @@ export default function EditProfileScreen() {
             </View>
             <Text style={s.avatarName}>{name || user?.name || 'Your Name'}</Text>
             <Text style={s.avatarEmail}>{user?.email ?? ''}</Text>
+            <Text style={s.avatarHint}>Photo auto-syncs from your Google account</Text>
           </View>
 
           {/* Form */}
@@ -209,6 +210,7 @@ const s = StyleSheet.create({
   avatarLetter:  { fontSize: 38, fontWeight: '900', color: C.primary },
   avatarName:    { fontSize: 18, fontWeight: '800', color: C.text, marginTop: 8 },
   avatarEmail:   { fontSize: 12, color: C.textMuted },
+  avatarHint:    { fontSize: 11, color: C.textMuted, marginTop: 6, fontStyle: 'italic' },
 
   card:    { marginHorizontal: 16, backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.border, padding: 20, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
 

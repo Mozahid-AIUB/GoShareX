@@ -171,7 +171,7 @@ export default function ChatScreen() {
     if (!roomExpired || historyDeleted) return;
     setHistoryDeleted(true);
     if (chatId) void chatService.deleteChat(chatId);
-    const t = setTimeout(() => navigation.navigate('MainApp' as any), 2000);
+    const t = setTimeout(() => navigation.navigate('MainApp'), 2000);
     return () => clearTimeout(t);
   }, [roomExpired, historyDeleted, chatId]);
 
@@ -193,7 +193,7 @@ export default function ChatScreen() {
             } catch (e) {
               logger.warn('ChatScreen.leave', e);
             } finally {
-              navigation.navigate('MainApp' as any);
+              navigation.navigate('MainApp');
             }
           },
         },
@@ -312,7 +312,7 @@ export default function ChatScreen() {
         ) : (
           <TouchableOpacity
             style={s.headerBtn}
-            onPress={() => navigation.navigate('MainApp' as any)}
+            onPress={() => navigation.navigate('MainApp')}
             activeOpacity={0.7}
           >
             <IconChat />

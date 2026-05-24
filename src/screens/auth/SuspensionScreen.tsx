@@ -80,7 +80,7 @@ export default function SuspensionScreen() {
       Alert.alert(
         'Account পুনরুদ্ধার',
         'তোমার suspension শেষ হয়েছে। আবার ride share করো।',
-        [{ text: 'ঠিক আছে', onPress: () => navigation.navigate('Auth' as any) }],
+        [{ text: 'ঠিক আছে', onPress: () => navigation.navigate('Auth') }],
       );
     }
   }, [countdown]);

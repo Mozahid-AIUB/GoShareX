@@ -301,7 +301,7 @@ export default function RideConfirmedScreen() {
         text: 'Cancel', style: 'destructive', onPress: async () => {
           if (rideId && user?.uid) await rideService.cancelRide(rideId, user.uid);
           setStatus('idle');
-          navigation.navigate('MainApp' as any);
+          navigation.navigate('MainApp');
         },
       },
     ]);
