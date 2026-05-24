@@ -1,0 +1,1 @@
+- [Pre-test reminder](pre_test_reminder.md) — Remind user about manual setup (Firebase deploy, icon PNGs, EAS) when they say they're about to build/test.
