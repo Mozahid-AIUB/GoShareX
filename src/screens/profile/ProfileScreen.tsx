@@ -175,14 +175,19 @@ const CAT_KEYS: Record<string, keyof TrustBreakdown> = {
   safeRide: 'safeRidePct',
 };
 
-const TrustCard = ({ breakdown }: { breakdown: TrustBreakdown }) => {
+const TrustCard = ({ breakdown, onExplain }: { breakdown: TrustBreakdown; onExplain: () => void }) => {
   const scoreColor = breakdown.trustScore >= 80 ? C.green : breakdown.trustScore >= 60 ? C.amber : C.red;
   return (
-    <View style={tc.wrap}>
+    <TouchableOpacity onPress={onExplain} activeOpacity={0.85} style={tc.wrap}>
       <View style={tc.header}>
-        <View>
-          <Text style={tc.title}>Trust Score</Text>
-          <Text style={tc.sub}>Based on {breakdown.totalRatings} anonymous ratings</Text>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Text style={tc.title}>Trust Score</Text>
+            <View style={tc.infoIcon}>
+              <Text style={tc.infoIconText}>i</Text>
+            </View>
+          </View>
+          <Text style={tc.sub}>Based on {breakdown.totalRatings} anonymous ratings · tap for info</Text>
         </View>
         <View style={[tc.scoreBadge, { borderColor: `${scoreColor}40`, backgroundColor: `${scoreColor}12` }]}>
           <Text style={[tc.scoreNum, { color: scoreColor }]}>{breakdown.trustScore}</Text>
@@ -225,9 +230,68 @@ const TrustCard = ({ breakdown }: { breakdown: TrustBreakdown }) => {
         <PremiumIcon name="lock-outline" size={10} tone="slate" />
         <Text style={tc.anonNote}>Individual raters are never revealed</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
+
+// ─── Trust Score explanation modal ────────────────────────────────────────────
+const TrustExplainModal = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => (
+  <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Pressable style={tx.overlay} onPress={onClose}>
+      <Pressable style={tx.card} onPress={(e) => e.stopPropagation()}>
+        <View style={tx.header}>
+          <Text style={tx.title}>How Trust Score Works</Text>
+          <TouchableOpacity onPress={onClose} style={tx.closeBtn} activeOpacity={0.7}>
+            <Text style={tx.closeTxt}>✕</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={tx.intro}>
+          Your Trust Score (0–100) reflects how well other riders rated their experience with you. Higher = more trusted.
+        </Text>
+
+        <View style={tx.formulaBox}>
+          <Text style={tx.formulaLabel}>Formula</Text>
+          <Text style={tx.formulaText}>
+            <Text style={tx.formulaBold}>70%</Text> from your average stars (1–5)
+          </Text>
+          <Text style={tx.formulaText}>
+            <Text style={tx.formulaBold}>30%</Text> from positive trait %s (Friendly + Safe)
+          </Text>
+        </View>
+
+        <View style={tx.scaleRow}>
+          <View style={[tx.scaleBox, { backgroundColor: 'rgba(34,197,94,0.12)', borderColor: 'rgba(34,197,94,0.3)' }]}>
+            <Text style={[tx.scaleNum, { color: C.green }]}>80–100</Text>
+            <Text style={tx.scaleLbl}>Excellent</Text>
+          </View>
+          <View style={[tx.scaleBox, { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.3)' }]}>
+            <Text style={[tx.scaleNum, { color: C.amber }]}>60–79</Text>
+            <Text style={tx.scaleLbl}>Good</Text>
+          </View>
+          <View style={[tx.scaleBox, { backgroundColor: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.3)' }]}>
+            <Text style={[tx.scaleNum, { color: C.red }]}>0–59</Text>
+            <Text style={tx.scaleLbl}>Improve</Text>
+          </View>
+        </View>
+
+        <View style={tx.tipBox}>
+          <Text style={tx.tipTitle}>How to improve</Text>
+          <Text style={tx.tipItem}>• Be on time at the pickup point</Text>
+          <Text style={tx.tipItem}>• Greet your partner friendly</Text>
+          <Text style={tx.tipItem}>• Settle the fare fairly before starting</Text>
+          <Text style={tx.tipItem}>• Stay respectful during the ride</Text>
+        </View>
+
+        <View style={tx.privacyRow}>
+          <Text style={tx.privacyText}>
+            Ratings stay anonymous — the other person never knows what you scored them.
+          </Text>
+        </View>
+      </Pressable>
+    </Pressable>
+  </Modal>
+);
 
 // ─── Report modal ─────────────────────────────────────────────────────────────
 const ReportModal = ({ visible, onClose, userEmail }: { visible: boolean; onClose: () => void; userEmail?: string }) => {
@@ -290,6 +354,7 @@ export default function ProfileScreen() {
   const [profile, setProfile]     = useState<User | null>(user);
   const [breakdown, setBreakdown] = useState<TrustBreakdown | null>(null);
   const [reportVisible, setReportVisible] = useState(false);
+  const [trustExplainVisible, setTrustExplainVisible] = useState(false);
   const [disclaimerVisible, setDisclaimerVisible] = useState(false);
   const fadeAnim  = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
@@ -417,7 +482,6 @@ export default function ProfileScreen() {
               {[
                 { val: String(totalRides), lbl: 'Rides' },
                 { val: `৳${totalSaved}`,  lbl: 'Saved' },
-                { val: `${completion}%`,  lbl: 'Done' },
                 { val: trustScore > 0 ? `${trustScore}` : '—', lbl: 'Trust' },
               ].map((item, i) => (
                 <View key={i} style={[s.quickItem, i > 0 && s.quickBorder]}>
@@ -437,7 +501,9 @@ export default function ProfileScreen() {
           </View>
 
           {/* ── Trust breakdown ── */}
-          {breakdown && breakdown.totalRatings > 0 && <TrustCard breakdown={breakdown} />}
+          {breakdown && breakdown.totalRatings > 0 && (
+            <TrustCard breakdown={breakdown} onExplain={() => setTrustExplainVisible(true)} />
+          )}
 
           {/* ── Strikes warning ── */}
           {strikes > 0 && (
@@ -499,6 +565,7 @@ export default function ProfileScreen() {
       </Animated.ScrollView>
 
       <ReportModal visible={reportVisible} onClose={() => setReportVisible(false)} userEmail={profile?.email} />
+      <TrustExplainModal visible={trustExplainVisible} onClose={() => setTrustExplainVisible(false)} />
 
       {/* Financial Disclaimer Modal */}
       <Modal visible={disclaimerVisible} transparent animationType="slide" onRequestClose={() => setDisclaimerVisible(false)}>
@@ -693,6 +760,40 @@ const tc = StyleSheet.create({
   catPct:     { fontSize: 12, fontWeight: '800', width: 36, textAlign: 'right' },
   anonRow:    { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   anonNote:   { fontSize: 10, color: C.textMuted, textAlign: 'center', fontStyle: 'italic' },
+  infoIcon:   { width: 14, height: 14, borderRadius: 7, backgroundColor: 'rgba(99,102,241,0.18)', alignItems: 'center', justifyContent: 'center' },
+  infoIconText: { fontSize: 9, fontWeight: '900', color: C.primary, fontStyle: 'italic' },
+});
+
+// ─── Trust explain modal styles ───────────────────────────────────────────────
+const tx = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  card: {
+    width: '100%', maxWidth: 420, backgroundColor: '#FFFFFF', borderRadius: 22,
+    padding: 22, borderWidth: 1, borderColor: '#EDE8F5',
+    shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 14,
+  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  title: { fontSize: 17, fontWeight: '900', color: '#1A1A2E', letterSpacing: -0.3 },
+  closeBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+  closeTxt: { fontSize: 13, fontWeight: '900', color: '#475569' },
+  intro: { fontSize: 13, color: '#475569', lineHeight: 20, marginBottom: 16 },
+
+  formulaBox: { backgroundColor: 'rgba(99,102,241,0.06)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.18)', borderRadius: 14, padding: 14, marginBottom: 14, gap: 4 },
+  formulaLabel: { fontSize: 10, fontWeight: '800', color: '#6366F1', letterSpacing: 0.6, marginBottom: 4 },
+  formulaText: { fontSize: 13, color: '#1A1A2E' },
+  formulaBold: { fontWeight: '900', color: '#6366F1' },
+
+  scaleRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  scaleBox: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
+  scaleNum: { fontSize: 13, fontWeight: '900', marginBottom: 2 },
+  scaleLbl: { fontSize: 10, fontWeight: '700', color: '#475569' },
+
+  tipBox: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, marginBottom: 12 },
+  tipTitle: { fontSize: 12, fontWeight: '800', color: '#1A1A2E', marginBottom: 6 },
+  tipItem: { fontSize: 12, color: '#475569', lineHeight: 20 },
+
+  privacyRow: { borderTopWidth: 1, borderTopColor: '#EDE8F5', paddingTop: 12 },
+  privacyText: { fontSize: 11, color: '#94A3B8', textAlign: 'center', lineHeight: 16, fontStyle: 'italic' },
 });
 
 // ─── Disclaimer styles ────────────────────────────────────────────────────────
