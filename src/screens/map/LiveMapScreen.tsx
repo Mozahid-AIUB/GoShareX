@@ -516,7 +516,7 @@ export default function LiveMapScreen() {
       </View>
 
       {!showNoRidersSheet ? (
-        <View style={[s.scanChip, { bottom: tabBarHeight + (selectedRider ? 210 : 8) }]}>
+        <View style={[s.scanChip, { bottom: selectedRider ? 210 : 8 }]}>
           <Animated.View style={[s.scanDot, {
             opacity: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.2, 1] }),
             transform: [{ scale: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.6, 1] }) }],
@@ -531,18 +531,18 @@ export default function LiveMapScreen() {
         </View>
       ) : null}
 
-      <View style={{ position: 'absolute', bottom: tabBarHeight + (selectedRider ? 210 : 8), right: 12, zIndex: 10 }}>
+      <View style={{ position: 'absolute', bottom: selectedRider ? 210 : 8, right: 12, zIndex: 10 }}>
         <Speedometer speedKmh={hasLoc ? (speedKmh ?? 0) : null} />
       </View>
 
       {selectedRider ? (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: tabBarHeight + 20 }}>
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 8 }}>
           <SelectedSheet rider={selectedRider} meetupRoute={meetupRoute} onChat={openChat} onClose={() => setSelectedRider(null)} />
         </View>
       ) : null}
 
       {showNoRidersSheet && !selectedRider ? (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: tabBarHeight + 6, zIndex: 50, elevation: 50 }}>
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 50, elevation: 50 }}>
           <NoRidersSheet
             scanSecs={scanSecs}
             zoneIdx={zoneIdx}
