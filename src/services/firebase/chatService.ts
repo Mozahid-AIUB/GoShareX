@@ -50,6 +50,11 @@ export interface Chat {
 // All chats expire after 10 minutes — messages + doc fully deleted
 const CHAT_DURATION_MS = 10 * 60 * 1000;
 
+// Anonymous group chat capacity (hidden-identity room).
+// At least 2 to be considered active, up to 10 strangers.
+export const ANON_GROUP_MIN_PARTICIPANTS = 2;
+export const ANON_GROUP_MAX_PARTICIPANTS = 10;
+
 class ChatService {
 
   private buildAnonymousAlias(position: number): string {
@@ -294,7 +299,7 @@ class ChatService {
         participants,
         participantAliases: aliases,
         participantNames: aliases,
-        searching: participants.length < 10,
+        searching: participants.length < ANON_GROUP_MAX_PARTICIPANTS,
         lastMessageTime: Date.now(),
       }, { merge: true });
       return chatId;
@@ -331,7 +336,7 @@ class ChatService {
         const currentParticipants = data.participants ?? [];
         if (
           data.searching !== true ||
-          currentParticipants.length >= 10 ||
+          currentParticipants.length >= ANON_GROUP_MAX_PARTICIPANTS ||
           (data.expiresAt ?? 0) <= Date.now() ||
           currentParticipants.includes(userId)
         ) return null;
@@ -346,7 +351,7 @@ class ChatService {
           participants,
           participantAliases: aliases,
           participantNames: aliases,
-          searching: participants.length < 10,
+          searching: participants.length < ANON_GROUP_MAX_PARTICIPANTS,
           lastMessageTime: Date.now(),
         }, { merge: true });
 
@@ -370,8 +375,8 @@ class ChatService {
       mode: 'anonymous_group',
       anonymous: true,
       searching: true,
-      minParticipants: 2,
-      maxParticipants: 10,
+      minParticipants: ANON_GROUP_MIN_PARTICIPANTS,
+      maxParticipants: ANON_GROUP_MAX_PARTICIPANTS,
       expiresAt,
       createdAt: serverTimestamp(),
       dealConfirmed: { [userId]: false },
