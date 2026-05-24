@@ -175,6 +175,32 @@ export default function ChatScreen() {
     return () => clearTimeout(t);
   }, [roomExpired, historyDeleted, chatId]);
 
+  const handleLeave = () => {
+    if (!chatId || !user) return;
+    Alert.alert(
+      'Leave chat?',
+      isAnonymousGroup
+        ? 'You will be removed from this group. You can join another anytime.'
+        : 'This will end the conversation for both of you.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await chatService.leaveChat(chatId, user.uid);
+            } catch (e) {
+              logger.warn('ChatScreen.leave', e);
+            } finally {
+              navigation.navigate('MainApp' as any);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const sendMsg = async (msgText?: string) => {
     const content = msgText ?? text.trim();
     if (!content || !chatId || !user) return;
@@ -275,13 +301,23 @@ export default function ChatScreen() {
                 : partnerOnline ? 'Online' : destination ?? rider?.destination ?? 'Ride Chat'}
           </Text>
         </View>
-        <TouchableOpacity
-          style={s.headerBtn}
-          onPress={() => navigation.navigate('MainApp' as any)}
-          activeOpacity={0.7}
-        >
-          <IconChat />
-        </TouchableOpacity>
+        {isAnonymousRoom ? (
+          <TouchableOpacity
+            style={s.leaveBtn}
+            onPress={handleLeave}
+            activeOpacity={0.7}
+          >
+            <Text style={s.leaveBtnText}>Leave</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={s.headerBtn}
+            onPress={() => navigation.navigate('MainApp' as any)}
+            activeOpacity={0.7}
+          >
+            <IconChat />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Info banner */}
@@ -443,6 +479,12 @@ const s = StyleSheet.create({
     backgroundColor: C.bg,
   },
   headerBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  leaveBtn: {
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14,
+    backgroundColor: 'rgba(244,63,94,0.12)',
+    borderWidth: 1, borderColor: 'rgba(244,63,94,0.25)',
+  },
+  leaveBtnText: { fontSize: 12, fontWeight: '800', color: '#F43F5E', letterSpacing: 0.2 },
   headerCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   headerTitle: { fontSize: 16, fontWeight: '800', color: C.text },

@@ -47,8 +47,10 @@ export interface Chat {
   dealConfirmed?: Record<string, boolean>;
 }
 
-// All chats expire after 10 minutes — messages + doc fully deleted
-const CHAT_DURATION_MS = 10 * 60 * 1000;
+// Chat expiry durations — messages + doc fully deleted on expiry
+const RIDE_CHAT_DURATION_MS = 10 * 60 * 1000;       // 10 min for ride coordination
+const ANON_1V1_DURATION_MS = 5 * 60 * 1000;          // 5 min for 1v1 anonymous
+const ANON_GROUP_DURATION_MS = 10 * 60 * 1000;       // 10 min for group anonymous
 
 // Anonymous group chat capacity (hidden-identity room).
 // At least 2 to be considered active, up to 10 strangers.
@@ -87,6 +89,63 @@ class ChatService {
     }
   }
 
+  /**
+   * User voluntarily leaves a chat.
+   * - 1v1: room is destroyed (other side gets auto-dismissed on snapshot)
+   * - Group: user is removed from participants; if last person, room destroyed
+   * - Ride: same as 1v1 (both must agree, so leaving ends it)
+   */
+  async leaveChat(chatId: string, userId: string): Promise<void> {
+    const chatRef = doc(db, 'chats', chatId);
+    try {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(chatRef);
+        if (!snap.exists()) return;
+        const data = snap.data() as Chat;
+        const participants = data.participants ?? [];
+        const remaining = participants.filter((p) => p !== userId);
+
+        // 1v1 / ride: leaving = destroying the room
+        if (data.mode === 'anonymous_1v1' || data.mode === 'ride') {
+          tx.delete(chatRef);
+          return;
+        }
+
+        // Group: if last person, destroy; else remove + leave system msg
+        if (remaining.length === 0) {
+          tx.delete(chatRef);
+          return;
+        }
+
+        const aliases = { ...(data.participantAliases ?? {}) };
+        delete aliases[userId];
+
+        tx.update(chatRef, {
+          participants: remaining,
+          participantAliases: aliases,
+          participantNames: aliases,
+          searching: remaining.length < ANON_GROUP_MAX_PARTICIPANTS,
+          lastMessageTime: Date.now(),
+        });
+      });
+
+      // For group: leave a system note so others see the departure
+      // (Outside the transaction since we just need a best-effort message.)
+      const after = await getDoc(chatRef);
+      if (after.exists() && (after.data() as Chat).mode === 'anonymous_group') {
+        await this.appendSystemMessage(chatId, 'An anonymous member left the group.');
+      }
+
+      // 1v1 deletion also cleans up the messages subcollection
+      if (!after.exists()) {
+        await this.deleteChat(chatId).catch(() => undefined);
+      }
+    } catch (e) {
+      logger.warn('chatService.leaveChat', e);
+      throw e;
+    }
+  }
+
   // Create or get existing ride chat — always sets a 10-min expiry
   async getOrCreateChat(
     user1Id: string,
@@ -102,7 +161,7 @@ class ChatService {
     const existing = await getDoc(chatRef);
 
     if (!existing.exists()) {
-      const expiresAt = Date.now() + CHAT_DURATION_MS;
+      const expiresAt = Date.now() + RIDE_CHAT_DURATION_MS;
       await setDoc(chatRef, {
         participants: [user1Id, user2Id],
         participantNames: { [user1Id]: user1Name, [user2Id]: user2Name },
@@ -244,7 +303,7 @@ class ChatService {
       });
 
       if (joinedId) {
-        await this.appendSystemMessage(joinedId, 'Another anonymous user joined. Chat auto-deletes in 10 minutes.');
+        await this.appendSystemMessage(joinedId, 'Another anonymous user joined. Chat auto-deletes in 5 minutes.');
         return joinedId;
       }
     }
@@ -263,7 +322,7 @@ class ChatService {
 
     const chatsRef = collection(db, 'chats');
     const roomRef = doc(chatsRef);
-    const expiresAt = Date.now() + CHAT_DURATION_MS;
+    const expiresAt = Date.now() + ANON_1V1_DURATION_MS;
     await setDoc(roomRef, {
       participants: [userId],
       participantNames: { [userId]: this.buildAnonymousAlias(1) },
@@ -282,7 +341,7 @@ class ChatService {
       lastMessageTime: Date.now(),
     });
 
-    await this.appendSystemMessage(roomRef.id, 'Anonymous room created. Waiting for another person to join. Auto-deletes in 10 minutes.');
+    await this.appendSystemMessage(roomRef.id, 'Anonymous room created. Waiting for another person to join. Auto-deletes in 5 minutes.');
     return roomRef.id;
   }
 
@@ -383,7 +442,7 @@ class ChatService {
 
     const chatsRef = collection(db, 'chats');
     const roomRef = doc(chatsRef);
-    const expiresAt = Date.now() + CHAT_DURATION_MS;
+    const expiresAt = Date.now() + ANON_GROUP_DURATION_MS;
     await setDoc(roomRef, {
       participants: [userId],
       participantNames: { [userId]: this.buildAnonymousAlias(1) },
