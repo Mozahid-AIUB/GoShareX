@@ -36,6 +36,11 @@ service cloud.firestore {
       allow create: if isOwner(userId) && isAuth();
       allow update: if isOwner(userId) && isValidUpdate();
       allow delete: if false;
+
+      // ── Blocked subcollection — only owner can read/write their own block list
+      match /blocked/{blockId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // ── Active Riders ──────────────────────────────────────────────────────────
@@ -79,7 +84,11 @@ service cloud.firestore {
                       && request.resource.data.senderId == request.auth.uid
                       && request.resource.data.text.size() > 0
                       && request.resource.data.text.size() <= 1000;
-        allow update: if false;
+        // Sender can soft-delete their own message within 60s (writes text='[deleted]')
+        allow update: if isAuth() && isNotSuspended()
+                      && resource.data.senderId == request.auth.uid
+                      && request.resource.data.text == '[deleted]'
+                      && (request.time.toMillis() - resource.data.timestamp) < 60000;
         // Allow any authenticated user to delete messages (batch cleanup with chat doc)
         allow delete: if isAuth();
       }

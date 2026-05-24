@@ -12,6 +12,8 @@ import BiometricGate from '@/components/common/BiometricGate';
 import { configureNotificationHandler } from '@/services/firebase/messaging';
 import { validateEnvironment } from '@/config/env';
 import { useUIStore } from '@/store/uiStore';
+import { useAuthStore } from '@/store/authStore';
+import { startPresenceTracking, stopPresenceTracking } from '@/services/firebase/presenceService';
 
 // Validate required env vars — throws in production if missing, logs in dev
 validateEnvironment();
@@ -19,6 +21,8 @@ validateEnvironment();
 configureNotificationHandler();
 // Load user's saved map style preference
 void useUIStore.getState().loadMapStylePreference();
+// Load privacy preferences (chat typing/read/presence toggles)
+import('@/store/privacyStore').then((m) => void m.usePrivacyStore.getState().load());
 
 // Keep native splash visible until we explicitly hide it (after preload finishes).
 // Catches the race where SplashScreen API is unavailable in older Expo Go.
@@ -39,6 +43,19 @@ export default function App() {
     // RN screen on slower devices.
     const t = setTimeout(() => setReady(true), 200);
     return () => clearTimeout(t);
+  }, []);
+
+  // Track presence when logged in
+  useEffect(() => {
+    const unsub = useAuthStore.subscribe((state) => {
+      const uid = state.user?.uid;
+      if (uid) startPresenceTracking(uid);
+      else if (!state.isAuthenticated) {
+        // best-effort cleanup; onDisconnect server-side covers crash case
+        void stopPresenceTracking(state.user?.uid ?? '').catch(() => undefined);
+      }
+    });
+    return unsub;
   }, []);
 
   const onLayoutRootView = useCallback(async () => {

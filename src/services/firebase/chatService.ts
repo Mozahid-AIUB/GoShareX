@@ -45,6 +45,10 @@ export interface Chat {
   lastMessage?: string;
   lastMessageTime?: number;
   dealConfirmed?: Record<string, boolean>;
+  /** uid -> last read timestamp (for read receipts) */
+  lastRead?: Record<string, number>;
+  /** uid -> { alias, at } (for typing indicator) */
+  typing?: Record<string, { alias: string; at: number } | null>;
 }
 
 // Chat expiry durations — messages + doc fully deleted on expiry
@@ -144,6 +148,39 @@ class ChatService {
       logger.warn('chatService.leaveChat', e);
       throw e;
     }
+  }
+
+  /**
+   * Block another user. Their messages will be hidden from this user
+   * client-side, and they won't be matchable into new anonymous chats.
+   *
+   * For ride chats this is a no-op (you already know who the partner is —
+   * use the existing report flow instead).
+   */
+  async blockUser(
+    blockerId: string,
+    blockedAlias: string,
+    chatId: string,
+  ): Promise<void> {
+    const blockRef = doc(db, 'users', blockerId, 'blocked', `${chatId}_${blockedAlias}`);
+    await setDoc(blockRef, {
+      chatId,
+      blockedAlias,
+      createdAt: Date.now(),
+    });
+    logger.info('chatService.blockUser', `Blocked ${blockedAlias} in ${chatId}`);
+  }
+
+  /**
+   * Returns the set of {chatId, alias} pairs this user has blocked.
+   * Use client-side to filter incoming messages.
+   */
+  async getBlockedAliases(userId: string): Promise<Array<{ chatId: string; alias: string }>> {
+    const snap = await getDocs(collection(db, 'users', userId, 'blocked'));
+    return snap.docs.map((d) => {
+      const data = d.data();
+      return { chatId: data.chatId, alias: data.blockedAlias };
+    });
   }
 
   // Create or get existing ride chat — always sets a 10-min expiry
@@ -485,6 +522,62 @@ class ChatService {
     });
     const chatRef = doc(db, 'chats', chatId);
     await setDoc(chatRef, { lastMessage: clean, lastMessageTime: Date.now() }, { merge: true });
+  }
+
+  /**
+   * Mark this user as currently typing.
+   * Writes to chat doc with TTL — caller must clear via clearTyping().
+   * Throttled by caller (debounce 800ms in UI).
+   */
+  async setTyping(chatId: string, userId: string, alias: string): Promise<void> {
+    const ref = doc(db, 'chats', chatId);
+    await setDoc(
+      ref,
+      {
+        typing: {
+          [userId]: { alias, at: Date.now() },
+        },
+      },
+      { merge: true },
+    );
+  }
+
+  async clearTyping(chatId: string, userId: string): Promise<void> {
+    const ref = doc(db, 'chats', chatId);
+    await setDoc(
+      ref,
+      { typing: { [userId]: null } },
+      { merge: true },
+    );
+  }
+
+  /**
+   * Mark messages as read up to a timestamp.
+   * Used for read receipts in ride chat (Type 1).
+   */
+  async markRead(chatId: string, userId: string): Promise<void> {
+    const ref = doc(db, 'chats', chatId);
+    await setDoc(
+      ref,
+      { lastRead: { [userId]: Date.now() } },
+      { merge: true },
+    );
+  }
+
+  /**
+   * Soft-delete a message within 60s of sending (sender only).
+   * Replaces text with [deleted] placeholder rather than full removal —
+   * preserves message order + read receipts.
+   */
+  async deleteOwnMessage(chatId: string, messageId: string, userId: string): Promise<void> {
+    const ref = doc(db, 'chats', chatId, 'messages', messageId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new Error('Message not found');
+    const data = snap.data();
+    if (data.senderId !== userId) throw new Error('Not the sender');
+    const age = Date.now() - (data.timestamp ?? 0);
+    if (age > 60 * 1000) throw new Error('Too late to delete (60s limit)');
+    await setDoc(ref, { text: '[deleted]', deletedAt: Date.now() }, { merge: true });
   }
 
   listenToMessages(chatId: string, callback: (messages: Message[]) => void): () => void {

@@ -14,6 +14,7 @@ export enum STORAGE_KEYS {
   LAST_KNOWN_LOCATION = '@rideshare/last_known_location',
   CHAT_READ_TIMES = '@rideshare/chat_read_times',
   MAP_STYLE = '@rideshare/map_style',
+  PRIVACY_PREFS = '@rideshare/privacy_prefs',
 }
 
 /**

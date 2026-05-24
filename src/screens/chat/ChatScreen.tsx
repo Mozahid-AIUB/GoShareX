@@ -25,6 +25,8 @@ import { getFare } from '@/constants/fareTable';
 import { sendRideRequest } from '@/services/notifications/fcmService';
 import { storage, STORAGE_KEYS } from '@/utils/storage';
 import { logger } from '@/utils/logger';
+import { listenToPresence } from '@/services/firebase/presenceService';
+import { usePrivacyStore } from '@/store/privacyStore';
 
 import {
   IconBack,
@@ -79,8 +81,13 @@ export default function ChatScreen() {
   const [historyDeleted, setHistoryDeleted] = useState(false);
   const [partnerOnline, setPartnerOnline] = useState(false);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+  const [blockedAliases, setBlockedAliases] = useState<Set<string>>(new Set());
+  const [presenceLabel, setPresenceLabel] = useState<string | null>(null);
+  const privacyPrefs = usePrivacyStore();
   const listRef = useRef<FlatList>(null);
   const lastSeenRef = useRef<number>(Date.now());
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingActiveRef = useRef(false);
 
   const fare = getFare(pickupPoint ?? 'main_gate', destination ?? 'kuril');
   const splitFare = Math.ceil(fare / 2);
@@ -157,6 +164,36 @@ export default function ChatScreen() {
     return () => { unsub1(); unsub2(); };
   }, [chatId, user]);
 
+  // Mark read on chat open + when new messages arrive (respects privacy pref)
+  useEffect(() => {
+    if (!chatId || !user || isAnonymousRoom) return;
+    if (!privacyPrefs.sendReadReceipts) return;
+    chatService.markRead(chatId, user.uid).catch((e) => logger.warn('ChatScreen.markRead', e));
+  }, [chatId, user, isAnonymousRoom, messages.length, privacyPrefs.sendReadReceipts]);
+
+  // Load blocked aliases (anonymous group only)
+  useEffect(() => {
+    if (!user || !isAnonymousGroup) return;
+    chatService.getBlockedAliases(user.uid).then((list) => {
+      if (!chatId) return;
+      setBlockedAliases(new Set(list.filter((b) => b.chatId === chatId).map((b) => b.alias)));
+    }).catch(() => undefined);
+  }, [user, chatId, isAnonymousGroup]);
+
+  // Real-time presence — only for ride chat (anonymous keeps identity hidden,
+  // and only if user hasn't disabled the privacy toggle)
+  useEffect(() => {
+    if (isAnonymousRoom || !privacyPrefs.showOnlineStatus) { setPresenceLabel(null); return; }
+    const otherUid = riderUid
+      ?? (chatMeta?.participants ?? []).find((p) => p !== user?.uid);
+    if (!otherUid) return;
+    const unsub = listenToPresence(otherUid, ({ online, label }) => {
+      setPresenceLabel(label);
+      setPartnerOnline(online);
+    });
+    return () => unsub();
+  }, [isAnonymousRoom, riderUid, chatMeta?.participants, user?.uid, privacyPrefs.showOnlineStatus]);
+
   // Countdown timer
   useEffect(() => {
     if (!chatMeta?.expiresAt) { setRemainingMs(null); return; }
@@ -206,6 +243,12 @@ export default function ChatScreen() {
     if (!content || !chatId || !user) return;
     if (roomExpired) { Alert.alert('Session ended', 'This chat session has expired.'); return; }
     setText('');
+    // Clear typing signal immediately on send
+    if (typingTimerRef.current) { clearTimeout(typingTimerRef.current); typingTimerRef.current = null; }
+    if (typingActiveRef.current) {
+      typingActiveRef.current = false;
+      chatService.clearTyping(chatId, user.uid).catch(() => undefined);
+    }
     const senderName = isAnonymousRoom
       ? chatMeta?.participantAliases?.[user.uid] ?? 'Anonymous'
       : user.name ?? 'You';
@@ -242,6 +285,49 @@ export default function ChatScreen() {
     setTimeout(() => setCopiedMsgId(null), 1500);
   }, []);
 
+  // Long-press action sheet: copy + delete (own, <60s) + block (anonymous group)
+  const handleMessageLongPress = useCallback((item: Message) => {
+    const isMe = item.senderId === user?.uid;
+    const canDelete = isMe && Date.now() - (item.timestamp ?? 0) < 60_000;
+    const canBlock = !isMe && isAnonymousGroup;
+
+    const options: { text: string; style?: 'default' | 'destructive' | 'cancel'; onPress?: () => void }[] = [
+      { text: 'Copy', onPress: () => handleCopy(item.id, item.text) },
+    ];
+    if (canDelete) {
+      options.push({
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          if (!chatId || !user) return;
+          try {
+            await chatService.deleteOwnMessage(chatId, item.id, user.uid);
+          } catch (e) {
+            logger.warn('ChatScreen.deleteOwnMsg', e);
+          }
+        },
+      });
+    }
+    if (canBlock) {
+      const alias = chatMeta?.participantAliases?.[item.senderId] ?? 'Anonymous';
+      options.push({
+        text: `Block ${alias}`,
+        style: 'destructive',
+        onPress: async () => {
+          if (!chatId || !user) return;
+          try {
+            await chatService.blockUser(user.uid, alias, chatId);
+            setBlockedAliases((prev) => new Set(prev).add(alias));
+          } catch (e) {
+            logger.warn('ChatScreen.block', e);
+          }
+        },
+      });
+    }
+    options.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert('Message options', undefined, options);
+  }, [user, chatId, chatMeta, isAnonymousGroup, handleCopy]);
+
   const renderMessage = useCallback(({ item }: { item: Message }) => {
     if (item.type === 'system') {
       return (
@@ -256,26 +342,48 @@ export default function ChatScreen() {
     const label = isAnonymousRoom
       ? chatMeta?.participantAliases?.[item.senderId] ?? item.senderName ?? 'Anonymous'
       : item.senderName;
+
+    // Hide blocked users' messages
+    if (!isMe && blockedAliases.has(label ?? '')) return null;
+
     const timeStr = item.timestamp
       ? new Date(item.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
       : '';
     const copied = copiedMsgId === item.id;
+    const isDeleted = item.text === '[deleted]';
+
+    // Read receipt: only for ride chat, only on my own messages, only if partner has read past this ts
+    const partnerReadAt = !isAnonymousRoom && chatMeta?.lastRead
+      ? Math.max(...Object.entries(chatMeta.lastRead)
+          .filter(([uid]) => uid !== user?.uid)
+          .map(([, t]) => Number(t) || 0), 0)
+      : 0;
+    const isRead = isMe && !isAnonymousRoom && partnerReadAt > 0 && partnerReadAt >= (item.timestamp ?? 0);
 
     return (
       <View style={[m.row, isMe && m.rowMe]}>
         {!isMe && <MiniAvatar label={label ?? 'A'} gradient={isAnonymousRoom} />}
-        <TouchableWithoutFeedback onLongPress={() => handleCopy(item.id, item.text)}>
+        <TouchableWithoutFeedback onLongPress={() => handleMessageLongPress(item)}>
           <View style={[m.bubble, isMe ? m.bubbleMe : m.bubbleThem, copied && m.bubbleCopied]}>
             {!isMe && <Text style={m.senderLabel}>{label}</Text>}
-            <Text style={[m.bubbleText, isMe && m.bubbleTextMe]}>{item.text}</Text>
-            <Text style={[m.msgTime, isMe && m.msgTimeMe]}>
-              {copied ? '✓ Copied' : timeStr}
+            <Text style={[m.bubbleText, isMe && m.bubbleTextMe, isDeleted && m.bubbleTextDeleted]}>
+              {isDeleted ? 'message deleted' : item.text}
             </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+              <Text style={[m.msgTime, isMe && m.msgTimeMe]}>
+                {copied ? '✓ Copied' : timeStr}
+              </Text>
+              {isMe && !isAnonymousRoom && !isDeleted && (
+                <Text style={[m.readMark, isRead && m.readMarkSeen]}>
+                  {isRead ? '✓✓' : '✓'}
+                </Text>
+              )}
+            </View>
           </View>
         </TouchableWithoutFeedback>
       </View>
     );
-  }, [user?.uid, chatMeta, isAnonymousRoom, copiedMsgId, handleCopy]);
+  }, [user?.uid, chatMeta, isAnonymousRoom, copiedMsgId, handleMessageLongPress, blockedAliases]);
 
   return (
     <View style={s.root}>
@@ -298,7 +406,7 @@ export default function ChatScreen() {
               ? 'Session ended'
               : isAnonymousRoom && remainingMs !== null
                 ? `Ends in ${formatCountdown(remainingMs)}`
-                : partnerOnline ? 'Online' : destination ?? rider?.destination ?? 'Ride Chat'}
+                : presenceLabel ?? destination ?? rider?.destination ?? 'Ride Chat'}
           </Text>
         </View>
         {isAnonymousRoom ? (
@@ -414,12 +522,47 @@ export default function ChatScreen() {
           ))}
         </View>
 
+        {/* Typing indicator (someone else typing) */}
+        {(() => {
+          const others = Object.entries(chatMeta?.typing ?? {}).filter(
+            ([uid, info]) => uid !== user?.uid && info && (Date.now() - ((info as { at?: number }).at ?? 0) < 5000),
+          );
+          if (others.length === 0) return null;
+          const label = isAnonymousRoom ? (others[0][1] as { alias?: string }).alias ?? 'Anonymous' : 'Partner';
+          return (
+            <View style={s.typingRow}>
+              <View style={s.typingDots}>
+                <View style={s.typingDot} />
+                <View style={s.typingDot} />
+                <View style={s.typingDot} />
+              </View>
+              <Text style={s.typingText}>{label} is typing…</Text>
+            </View>
+          );
+        })()}
+
         {/* Input row */}
         <View style={[s.inputRow, { paddingBottom: insets.bottom + 10 }]}>
           <TextInput
             style={s.input}
             value={text}
-            onChangeText={setText}
+            onChangeText={(t) => {
+              setText(t);
+              // Throttled typing signal — only if user hasn't disabled it in privacy prefs
+              if (!privacyPrefs.showTypingIndicator) return;
+              if (chatId && user && t.length > 0) {
+                if (!typingActiveRef.current) {
+                  typingActiveRef.current = true;
+                  const alias = chatMeta?.participantAliases?.[user.uid] ?? user.name ?? 'You';
+                  chatService.setTyping(chatId, user.uid, alias).catch(() => undefined);
+                }
+                if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+                typingTimerRef.current = setTimeout(() => {
+                  typingActiveRef.current = false;
+                  if (chatId && user) chatService.clearTyping(chatId, user.uid).catch(() => undefined);
+                }, 3000);
+              }
+            }}
             placeholder={roomExpired ? 'Session has ended' : 'Write a message...'}
             placeholderTextColor={C.textMuted}
             multiline
@@ -575,6 +718,17 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingTop: 8, gap: 8,
     backgroundColor: C.bg,
   },
+
+  typingRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 16, paddingTop: 6, paddingBottom: 4,
+  },
+  typingDots: { flexDirection: 'row', gap: 3 },
+  typingDot: {
+    width: 5, height: 5, borderRadius: 2.5,
+    backgroundColor: C.textMuted,
+  },
+  typingText: { fontSize: 11, color: C.textMuted, fontStyle: 'italic' },
   input: {
     flex: 1, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20,
     paddingHorizontal: 16, paddingVertical: 10,
@@ -634,6 +788,9 @@ const m = StyleSheet.create({
   bubbleTextMe: { color: C.white },
   msgTime: { fontSize: 10, color: C.textMuted, marginTop: 4, textAlign: 'left' },
   msgTimeMe: { color: 'rgba(255,255,255,0.55)', textAlign: 'right' },
+  bubbleTextDeleted: { fontStyle: 'italic', opacity: 0.6 },
+  readMark: { fontSize: 11, color: 'rgba(255,255,255,0.45)', marginLeft: 2 },
+  readMarkSeen: { color: '#34D399' },
 });
 
 

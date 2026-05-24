@@ -21,6 +21,7 @@ import { logger } from '@/utils/logger';
 import PremiumIcon from '@/components/common/PremiumIcon';
 import { biometricService } from '@/services/security/biometricService';
 import { useUIStore } from '@/store/uiStore';
+import { usePrivacyStore } from '@/store/privacyStore';
 import { MAP_STYLE_LABELS, type MapStyleId } from '@/config/mapStyles';
 
 // ─── Light theme — matches Home tab ──────────────────────────────────────────
@@ -143,6 +144,7 @@ export default function SettingsScreen() {
   const [biometricAvail,  setBiometricAvail]   = useState(false);
   const mapStyle    = useUIStore((st) => st.mapStyle);
   const setMapStyle = useUIStore((st) => st.setMapStyle);
+  const privacy = usePrivacyStore();
 
   useEffect(() => {
     biometricService.getStatus().then((s) => setBiometricAvail(s.available && s.enrolled));
@@ -237,6 +239,34 @@ export default function SettingsScreen() {
               />
             </>
           )}
+        </View>
+
+        {/* Chat Privacy */}
+        <SectionHeader label="Chat Privacy" />
+        <View style={s.card}>
+          <ToggleRow
+            icon={<IconShield color={C.teal} />}
+            label="Show online status"
+            sub="Let ride partners see when you're online or last seen"
+            value={privacy.showOnlineStatus}
+            onChange={privacy.setShowOnlineStatus}
+          />
+          <View style={s.divider} />
+          <ToggleRow
+            icon={<IconShield color={C.teal} />}
+            label="Send read receipts"
+            sub="Partners see when you've read their message"
+            value={privacy.sendReadReceipts}
+            onChange={privacy.setSendReadReceipts}
+          />
+          <View style={s.divider} />
+          <ToggleRow
+            icon={<IconShield color={C.teal} />}
+            label="Show typing indicator"
+            sub='Let others see "typing..." when you compose'
+            value={privacy.showTypingIndicator}
+            onChange={privacy.setShowTypingIndicator}
+          />
         </View>
 
         {/* Map Appearance */}
