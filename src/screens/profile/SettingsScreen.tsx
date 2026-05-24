@@ -242,37 +242,34 @@ export default function SettingsScreen() {
         {/* Map Appearance */}
         <SectionHeader label="Map Appearance" />
         <View style={s.card}>
-          {(['auto', 'light', 'dark', 'brand'] as MapStyleId[]).map((id, idx, arr) => (
-            <React.Fragment key={id}>
-              <TouchableOpacity
-                style={s.row}
-                onPress={() => setMapStyle(id)}
-                activeOpacity={0.7}
-              >
-                <View style={s.rowIcon}>
-                  <IconMap color={mapStyle === id ? C.primary : C.teal} />
-                </View>
-                <View style={s.rowInfo}>
-                  <Text style={[s.rowLabel, mapStyle === id && { color: C.primary, fontWeight: '800' }]}>
+          {(['auto', 'light', 'dark', 'brand'] as MapStyleId[]).map((id, idx, arr) => {
+            const selected = mapStyle === id;
+            const previewColor =
+              id === 'auto' ? '#9CA3AF' :
+              id === 'light' ? '#F8FAFC' :
+              id === 'dark'  ? '#0F172A' :
+              C.primary;
+            const previewBorder =
+              id === 'light' ? '#CBD5E1' : 'transparent';
+            return (
+              <React.Fragment key={id}>
+                <TouchableOpacity
+                  style={mapSel.row}
+                  onPress={() => setMapStyle(id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[mapSel.swatch, { backgroundColor: previewColor, borderColor: previewBorder }]} />
+                  <Text style={[mapSel.label, selected && mapSel.labelSelected]}>
                     {MAP_STYLE_LABELS[id]}
                   </Text>
-                  <Text style={s.rowSub}>
-                    {id === 'auto' ? 'Follow system / default Google look' :
-                     id === 'light' ? 'Clean light palette, fewer POIs' :
-                     id === 'dark' ? 'Premium dark theme' :
-                     'GoShareX indigo brand colors'}
-                  </Text>
-                </View>
-                {mapStyle === id && (
-                  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-                    <Circle cx="12" cy="12" r="10" fill={C.primary} />
-                    <Path d="M9 12l2 2 4-4" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                )}
-              </TouchableOpacity>
-              {idx < arr.length - 1 && <View style={s.divider} />}
-            </React.Fragment>
-          ))}
+                  <View style={[mapSel.radio, selected && mapSel.radioSelected]}>
+                    {selected && <View style={mapSel.radioInner} />}
+                  </View>
+                </TouchableOpacity>
+                {idx < arr.length - 1 && <View style={s.divider} />}
+              </React.Fragment>
+            );
+          })}
         </View>
 
         {/* Account */}
@@ -416,4 +413,49 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
   },
   logoutText: { fontSize: 15, fontWeight: '800', color: C.red },
+});
+
+// ─── Map Appearance — compact selection list ─────────────────────────────────
+const mapSel = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 14,
+  },
+  swatch: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    borderWidth: 1.5,
+  },
+  label: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: C.text,
+  },
+  labelSelected: {
+    color: C.primary,
+    fontWeight: '800',
+  },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioSelected: {
+    borderColor: C.primary,
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: C.primary,
+  },
 });
