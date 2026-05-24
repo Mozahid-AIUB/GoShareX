@@ -198,7 +198,8 @@ class ChatService {
     await Promise.all(snap.docs.map((d) => this.deleteChat(d.id)));
   }
 
-  async startAnonymousOneToOne(userId: string): Promise<string> {
+  // Try to join one of the existing waiting 1v1 rooms. Returns chatId or null.
+  private async tryJoinWaiting1v1(userId: string): Promise<string | null> {
     const chatsRef = collection(db, 'chats');
     const waitingQuery = query(
       chatsRef,
@@ -214,13 +215,11 @@ class ChatService {
       const alreadyJoined = room.participants?.includes(userId);
       const expired = !!room.expiresAt && room.expiresAt <= now;
       const hasSlot = (room.participants?.length ?? 0) < 2;
-
       if (alreadyJoined || expired || !hasSlot) continue;
 
       const joinedId = await runTransaction(db, async (transaction) => {
         const latest = await transaction.get(roomDoc.ref);
         if (!latest.exists()) return null;
-
         const data = latest.data() as Chat;
         if (
           data.searching !== true ||
@@ -234,7 +233,6 @@ class ChatService {
           ...(data.participantAliases ?? {}),
           [userId]: this.buildAnonymousAlias(participants.length),
         };
-
         transaction.set(roomDoc.ref, {
           participants,
           participantAliases: aliases,
@@ -242,7 +240,6 @@ class ChatService {
           searching: false,
           lastMessageTime: Date.now(),
         }, { merge: true });
-
         return roomDoc.id;
       });
 
@@ -251,7 +248,20 @@ class ChatService {
         return joinedId;
       }
     }
+    return null;
+  }
 
+  async startAnonymousOneToOne(userId: string): Promise<string> {
+    // Try existing waiting rooms first
+    const firstAttempt = await this.tryJoinWaiting1v1(userId);
+    if (firstAttempt) return firstAttempt;
+
+    // Race-condition guard: another user may have just created a room
+    // while we were checking. Quick retry before creating our own.
+    const retry = await this.tryJoinWaiting1v1(userId);
+    if (retry) return retry;
+
+    const chatsRef = collection(db, 'chats');
     const roomRef = doc(chatsRef);
     const expiresAt = Date.now() + CHAT_DURATION_MS;
     await setDoc(roomRef, {
@@ -285,7 +295,7 @@ class ChatService {
       const data = latest.data() as Chat;
       const currentParticipants = data.participants ?? [];
       if (
-        currentParticipants.length >= 10 ||
+        currentParticipants.length >= ANON_GROUP_MAX_PARTICIPANTS ||
         (data.expiresAt ?? 0) <= Date.now() ||
         currentParticipants.includes(userId)
       ) return null;
@@ -309,7 +319,8 @@ class ChatService {
     return chatId;
   }
 
-  async startAnonymousGroup(userId: string): Promise<string> {
+  // Try to join one of the existing waiting group rooms. Returns chatId or null.
+  private async tryJoinWaitingGroup(userId: string): Promise<string | null> {
     const chatsRef = collection(db, 'chats');
     const waitingQuery = query(
       chatsRef,
@@ -324,14 +335,12 @@ class ChatService {
       const room = roomDoc.data() as Chat;
       const alreadyJoined = room.participants?.includes(userId);
       const expired = !!room.expiresAt && room.expiresAt <= now;
-      const hasSlot = (room.participants?.length ?? 0) < 10;
-
+      const hasSlot = (room.participants?.length ?? 0) < ANON_GROUP_MAX_PARTICIPANTS;
       if (alreadyJoined || expired || !hasSlot) continue;
 
       const joinedId = await runTransaction(db, async (transaction) => {
         const latest = await transaction.get(roomDoc.ref);
         if (!latest.exists()) return null;
-
         const data = latest.data() as Chat;
         const currentParticipants = data.participants ?? [];
         if (
@@ -346,7 +355,6 @@ class ChatService {
           ...(data.participantAliases ?? {}),
           [userId]: this.buildAnonymousAlias(participants.length),
         };
-
         transaction.set(roomDoc.ref, {
           participants,
           participantAliases: aliases,
@@ -354,7 +362,6 @@ class ChatService {
           searching: participants.length < ANON_GROUP_MAX_PARTICIPANTS,
           lastMessageTime: Date.now(),
         }, { merge: true });
-
         return roomDoc.id;
       });
 
@@ -363,7 +370,18 @@ class ChatService {
         return joinedId;
       }
     }
+    return null;
+  }
 
+  async startAnonymousGroup(userId: string): Promise<string> {
+    const firstAttempt = await this.tryJoinWaitingGroup(userId);
+    if (firstAttempt) return firstAttempt;
+
+    // Race-condition guard: someone else may have just created/joined.
+    const retry = await this.tryJoinWaitingGroup(userId);
+    if (retry) return retry;
+
+    const chatsRef = collection(db, 'chats');
     const roomRef = doc(chatsRef);
     const expiresAt = Date.now() + CHAT_DURATION_MS;
     await setDoc(roomRef, {
