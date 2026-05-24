@@ -497,7 +497,25 @@ export default function ChatListScreen() {
             <View style={s.empty}>
               <View style={s.emptyOrb}><IconMessage /></View>
               <Text style={s.emptyTitle}>No active conversations</Text>
-              <Text style={s.emptySub}>Start an anonymous 1:1 or join a group room.</Text>
+              <Text style={s.emptySub}>
+                Start an anonymous chat with a stranger or join a group room — your identity stays hidden.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+                <TouchableOpacity
+                  style={s.emptyCta}
+                  onPress={handle1v1}
+                  activeOpacity={0.85}
+                >
+                  <Text style={s.emptyCtaText}>Find 1:1</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.emptyCta, s.emptyCtaTeal]}
+                  onPress={handleGroup}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[s.emptyCtaText, { color: C.teal }]}>Join Group</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           }
         />
@@ -587,4 +605,14 @@ const s = StyleSheet.create({
   emptyOrb: { width: 68, height: 68, borderRadius: 34, backgroundColor: 'rgba(124,111,247,0.12)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(124,111,247,0.25)', marginBottom: 16 },
   emptyTitle: { fontSize: 17, fontWeight: '900', color: C.text, marginBottom: 8 },
   emptySub: { fontSize: 13, color: C.textSub, textAlign: 'center', lineHeight: 20 },
+  emptyCta: {
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14,
+    backgroundColor: 'rgba(124,111,247,0.14)',
+    borderWidth: 1, borderColor: 'rgba(124,111,247,0.3)',
+  },
+  emptyCtaTeal: {
+    backgroundColor: 'rgba(20,184,166,0.12)',
+    borderColor: 'rgba(20,184,166,0.3)',
+  },
+  emptyCtaText: { fontSize: 13, fontWeight: '800', color: '#A78BFA', letterSpacing: 0.2 },
 });
