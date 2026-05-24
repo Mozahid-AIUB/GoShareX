@@ -494,11 +494,8 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* ── Stats grid ── */}
+          {/* ── Stats grid (Trust Score already shown in TrustCard above) ── */}
           <View style={s.grid}>
-            <Pressable onPress={() => setTrustExplainVisible(true)}>
-              <StatCard label="Trust Score" value={`${trustScore}/100`} color={C.teal}    icon={<IconShield />}  progress={trustScore} />
-            </Pressable>
             <StatCard label="Rating"      value={rating.toFixed(1)}   color={C.pink}    icon={<IconStar />}    progress={(rating / 5) * 100} />
             <StatCard label="Total Rides" value={String(totalRides)}  color={C.primary} icon={<IconRide />}    progress={Math.min((totalRides / 50) * 100, 100)} />
             <StatCard label="Saved (৳)"   value={`৳${totalSaved}`}    color={C.amber}   icon={<IconHistory />} progress={Math.min((totalSaved / 1000) * 100, 100)} />
@@ -744,26 +741,26 @@ const s = StyleSheet.create({
 // ─── Trust card styles ────────────────────────────────────────────────────────
 const tc = StyleSheet.create({
   wrap: {
-    backgroundColor: C.card, borderRadius: 20, borderWidth: 1,
-    borderColor: C.border, padding: 16, marginBottom: 12,
+    backgroundColor: C.card, borderRadius: 16, borderWidth: 1,
+    borderColor: C.border, padding: 12, marginBottom: 10,
   },
-  header:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  title:      { color: C.text, fontSize: 14, fontWeight: '800', marginBottom: 2 },
-  sub:        { color: C.textSub, fontSize: 11, fontWeight: '500' },
-  scoreBadge: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6, alignItems: 'center', flexDirection: 'row', gap: 2 },
-  scoreNum:   { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
-  scoreOf:    { fontSize: 11, fontWeight: '700', marginTop: 4 },
-  starRow:    { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 14 },
-  starNum:    { color: C.amber, fontSize: 14, fontWeight: '800', marginLeft: 6 },
-  cats:       { gap: 10 },
+  header:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
+  title:      { color: C.text, fontSize: 13, fontWeight: '800', marginBottom: 1 },
+  sub:        { color: C.textSub, fontSize: 10, fontWeight: '500' },
+  scoreBadge: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, alignItems: 'center', flexDirection: 'row', gap: 2 },
+  scoreNum:   { fontSize: 18, fontWeight: '900', letterSpacing: -0.5 },
+  scoreOf:    { fontSize: 10, fontWeight: '700', marginTop: 3 },
+  starRow:    { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 10 },
+  starNum:    { color: C.amber, fontSize: 13, fontWeight: '800', marginLeft: 5 },
+  cats:       { gap: 6 },
   catRow:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  catIcon:    { width: 20, height: 20 },
-  catLabel:   { color: C.textSub, fontSize: 12, fontWeight: '600', width: 90 },
-  barTrack:   { flex: 1, height: 5, borderRadius: 3, backgroundColor: '#EDE8F5', overflow: 'hidden' },
-  barFill:    { height: '100%', borderRadius: 3 },
-  catPct:     { fontSize: 12, fontWeight: '800', width: 36, textAlign: 'right' },
-  anonRow:    { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  anonNote:   { fontSize: 10, color: C.textMuted, textAlign: 'center', fontStyle: 'italic' },
+  catIcon:    { width: 18, height: 18 },
+  catLabel:   { color: C.textSub, fontSize: 11, fontWeight: '600', width: 75 },
+  barTrack:   { flex: 1, height: 4, borderRadius: 2, backgroundColor: '#EDE8F5', overflow: 'hidden' },
+  barFill:    { height: '100%', borderRadius: 2 },
+  catPct:     { fontSize: 11, fontWeight: '800', width: 32, textAlign: 'right' },
+  anonRow:    { marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  anonNote:   { fontSize: 9, color: C.textMuted, textAlign: 'center', fontStyle: 'italic' },
   infoIcon:   { width: 14, height: 14, borderRadius: 7, backgroundColor: 'rgba(99,102,241,0.18)', alignItems: 'center', justifyContent: 'center' },
   infoIconText: { fontSize: 9, fontWeight: '900', color: C.primary, fontStyle: 'italic' },
 });
