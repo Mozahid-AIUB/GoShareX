@@ -396,7 +396,9 @@ export default function ProfileScreen() {
   const totalRides = profile?.totalRides ?? 0;
   const rating     = profile?.rating ?? 5;
   const totalSaved = profile?.totalSaved ?? 0;
-  const completion = profile?.completionRate ?? 100;
+  // NOTE: profile.completionRate is set to 100 at signup but never recalculated,
+  // so we don't show it. Could be wired up to (completedRides / startedRides * 100)
+  // once a 'startedRides' counter exists.
   const trustScore = breakdown?.trustScore ?? profile?.trustScore ?? 0;
   const strikes    = profile?.strikes ?? 0;
   const joinedAt   = useMemo(() => profile?.createdAt
@@ -494,10 +496,12 @@ export default function ProfileScreen() {
 
           {/* ── Stats grid ── */}
           <View style={s.grid}>
-            <StatCard label="Trust Score" value={`${trustScore}/100`} color={C.teal}    icon={<IconShield />}  progress={trustScore} />
-            <StatCard label="Completion"  value={`${completion}%`}    color={C.amber}   icon={<IconHistory />} progress={completion} />
+            <Pressable onPress={() => setTrustExplainVisible(true)}>
+              <StatCard label="Trust Score" value={`${trustScore}/100`} color={C.teal}    icon={<IconShield />}  progress={trustScore} />
+            </Pressable>
             <StatCard label="Rating"      value={rating.toFixed(1)}   color={C.pink}    icon={<IconStar />}    progress={(rating / 5) * 100} />
             <StatCard label="Total Rides" value={String(totalRides)}  color={C.primary} icon={<IconRide />}    progress={Math.min((totalRides / 50) * 100, 100)} />
+            <StatCard label="Saved (৳)"   value={`৳${totalSaved}`}    color={C.amber}   icon={<IconHistory />} progress={Math.min((totalSaved / 1000) * 100, 100)} />
           </View>
 
           {/* ── Trust breakdown ── */}
