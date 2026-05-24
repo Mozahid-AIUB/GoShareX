@@ -4,15 +4,42 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text as RNText, TouchableOpacity, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text as RNText, View } from 'react-native';
 import Svg, { Path, Circle as SvgCircle } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 
 import { ZONE_LEVELS } from '../utils/mapHelpers';
 
 const tap = (cb: () => void) => () => {
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
   cb();
+};
+
+// Press-feel button: scales down on tap, then springs back.
+// Accepts flex via wrapperStyle so it can be used in a row layout where
+// some buttons grow (CTA: flex:1) and others stay compact (chips).
+const PressyChip = ({
+  style,
+  wrapperStyle,
+  onPress,
+  children,
+}: {
+  style: any;
+  wrapperStyle?: any;
+  onPress: () => void;
+  children: React.ReactNode;
+}) => {
+  const scale = useRef(new Animated.Value(1)).current;
+  return (
+    <Pressable
+      onPressIn={() => Animated.spring(scale, { toValue: 0.92, useNativeDriver: true, tension: 200, friction: 8 }).start()}
+      onPressOut={() => Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 200, friction: 8 }).start()}
+      onPress={onPress}
+      style={wrapperStyle}
+    >
+      <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
+    </Pressable>
+  );
 };
 
 type Props = {
@@ -32,15 +59,18 @@ export const NoRidersSheet = ({
   onKeepWaiting,
   destination,
 }: Props) => {
-  const slideAnim = useRef(new Animated.Value(100)).current;
+  const slideAnim = useRef(new Animated.Value(180)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
   const ring1 = useRef(new Animated.Value(0.6)).current;
   const ring2 = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
+    // Punchy spring entrance: slide up + scale pop + fade
     Animated.parallel([
-      Animated.spring(slideAnim, { toValue: 0, tension: 50, friction: 12, useNativeDriver: false }),
-      Animated.timing(opacityAnim, { toValue: 1, duration: 300, useNativeDriver: false }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 80, friction: 9, useNativeDriver: false }),
+      Animated.spring(scaleAnim, { toValue: 1, tension: 90, friction: 7, useNativeDriver: false }),
+      Animated.timing(opacityAnim, { toValue: 1, duration: 240, useNativeDriver: false }),
     ]).start();
 
     const pulse = () => {
@@ -61,7 +91,10 @@ export const NoRidersSheet = ({
 
   return (
     <Animated.View
-      style={[nrs.sheet, { transform: [{ translateY: slideAnim }], opacity: opacityAnim }]}
+      style={[
+        nrs.sheet,
+        { transform: [{ translateY: slideAnim }, { scale: scaleAnim }], opacity: opacityAnim },
+      ]}
     >
       <View style={nrs.handle} />
 
@@ -94,7 +127,7 @@ export const NoRidersSheet = ({
       </View>
 
       <View style={nrs.actionsRow}>
-        <TouchableOpacity style={nrs.cta} onPress={tap(onPostForLater)} activeOpacity={0.75}>
+        <PressyChip style={nrs.cta} wrapperStyle={{ flex: 1 }} onPress={tap(onPostForLater)}>
           <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
             <Path
               d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"
@@ -105,9 +138,9 @@ export const NoRidersSheet = ({
             <SvgCircle cx="9" cy="7" r="4" stroke="#fff" strokeWidth="2.2" />
           </Svg>
           <RNText style={nrs.ctaText}>Post request</RNText>
-        </TouchableOpacity>
+        </PressyChip>
 
-        <TouchableOpacity style={nrs.chip} onPress={tap(onExpandZone)} activeOpacity={0.6}>
+        <PressyChip style={nrs.chip} onPress={tap(onExpandZone)}>
           {canExpand ? (
             <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
               <Path
@@ -130,15 +163,15 @@ export const NoRidersSheet = ({
             </Svg>
           )}
           <RNText style={nrs.chipText}>{canExpand ? `${nextZone}m` : 'Retry'}</RNText>
-        </TouchableOpacity>
+        </PressyChip>
 
-        <TouchableOpacity style={[nrs.chip, nrs.chipMuted]} onPress={tap(onKeepWaiting)} activeOpacity={0.6}>
+        <PressyChip style={[nrs.chip, nrs.chipMuted]} onPress={tap(onKeepWaiting)}>
           <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
             <SvgCircle cx="12" cy="12" r="10" stroke="#94A3B8" strokeWidth="2" />
             <Path d="M12 6v6l4 2" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" />
           </Svg>
           <RNText style={[nrs.chipText, { color: '#94A3B8' }]}>Wait</RNText>
-        </TouchableOpacity>
+        </PressyChip>
       </View>
     </Animated.View>
   );
