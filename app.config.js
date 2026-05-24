@@ -8,15 +8,11 @@ export default {
         orientation: "portrait",
         privacy: "unlisted",
         icon: "./assets/images/icon.png",
-        splash: {
-            image: "./assets/images/gosharex-matrix-splash.png",
-            resizeMode: "contain",
-            backgroundColor: "#07122B"
-        },
+        userInterfaceStyle: "light",
         android: {
             adaptiveIcon: {
                 foregroundImage: "./assets/images/adaptive-icon.png",
-                backgroundColor: "#1A73E8"
+                backgroundColor: "#6366F1"
             },
             package: "com.gosharex.app",
             config: {
@@ -45,6 +41,19 @@ export default {
             "expo-location",
             "expo-notifications",
             "@react-native-google-signin/google-signin",
+            [
+                "expo-splash-screen",
+                {
+                    image: "./assets/images/gosharex-matrix-splash.png",
+                    backgroundColor: "#07122B",
+                    imageWidth: 240,
+                    resizeMode: "contain",
+                    dark: {
+                        image: "./assets/images/gosharex-matrix-splash.png",
+                        backgroundColor: "#07122B"
+                    }
+                }
+            ],
             [
                 "expo-build-properties",
                 {

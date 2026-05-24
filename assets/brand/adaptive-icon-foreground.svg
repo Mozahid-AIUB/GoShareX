@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Android Adaptive Icon Foreground
+  - 1024x1024 with safe zone in the middle 660px (66%)
+  - Background color is configured separately in app.config.js
+-->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="rickshaw2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FBBF24"/>
+      <stop offset="1" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Safe zone is the inner 660x660 (Android masks corners on circle/squircle launchers) -->
+  <!-- "G" letterform centered -->
+  <path d="
+    M 512 332
+    C 392 332, 332 432, 332 564
+    C 332 696, 392 796, 512 796
+    C 632 796, 692 712, 692 592
+    L 692 552
+    L 552 552
+    L 552 612
+    L 612 612
+    C 602 672, 572 722, 512 722
+    C 442 722, 412 652, 412 564
+    C 412 476, 442 406, 512 406
+    C 562 406, 592 440, 602 484
+    L 692 484
+    C 676 388, 612 332, 512 332
+    Z
+  " fill="#FFFFFF"/>
+
+  <!-- Small rickshaw accent under G -->
+  <g transform="translate(442, 720)" opacity="0.85">
+    <rect x="20" y="0" width="100" height="40" rx="6" fill="url(#rickshaw2)"/>
+    <path d="M 10 0 Q 70 -20 130 0 L 130 8 Q 70 -8 10 8 Z" fill="url(#rickshaw2)"/>
+    <circle cx="35" cy="50" r="14" fill="#1F2937"/>
+    <circle cx="105" cy="50" r="14" fill="#1F2937"/>
+    <circle cx="35" cy="50" r="6" fill="#FBBF24"/>
+    <circle cx="105" cy="50" r="6" fill="#FBBF24"/>
+  </g>
+</svg>

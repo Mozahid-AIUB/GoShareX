@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  GoShareX App Icon
+  - 1024x1024 master (Apple/Play Store requirement)
+  - Indigo gradient background, white "G" + minimal rickshaw silhouette
+  - Convert to PNG: see assets/brand/README.md
+-->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#4338CA"/>
+    </linearGradient>
+    <linearGradient id="rickshaw" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FBBF24"/>
+      <stop offset="1" stop-color="#F59E0B"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8"/>
+      <feOffset dx="0" dy="6" result="offsetblur"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.25"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect width="1024" height="1024" rx="224" ry="224" fill="url(#bg)"/>
+
+  <!-- Subtle decorative dots (matrix vibe) -->
+  <g opacity="0.08" fill="#FFFFFF">
+    <circle cx="120" cy="120" r="4"/>
+    <circle cx="200" cy="180" r="3"/>
+    <circle cx="900" cy="140" r="5"/>
+    <circle cx="850" cy="220" r="3"/>
+    <circle cx="150" cy="900" r="4"/>
+    <circle cx="880" cy="880" r="4"/>
+  </g>
+
+  <!-- White "G" letterform - bold, modern -->
+  <g filter="url(#shadow)">
+    <path d="
+      M 360 280
+      C 240 280, 180 380, 180 512
+      C 180 644, 240 744, 360 744
+      C 480 744, 540 660, 540 540
+      L 540 500
+      L 400 500
+      L 400 560
+      L 460 560
+      C 450 620, 420 670, 360 670
+      C 290 670, 260 600, 260 512
+      C 260 424, 290 354, 360 354
+      C 410 354, 440 388, 450 432
+      L 540 432
+      C 524 336, 460 280, 360 280
+      Z
+    " fill="#FFFFFF"/>
+  </g>
+
+  <!-- Rickshaw silhouette - bottom right, small accent -->
+  <g transform="translate(620, 580)" opacity="0.95">
+    <!-- Canopy -->
+    <path d="M 20 60 Q 100 20 180 60 L 180 80 Q 100 50 20 80 Z" fill="url(#rickshaw)"/>
+    <!-- Body -->
+    <rect x="40" y="80" width="120" height="60" rx="6" fill="url(#rickshaw)"/>
+    <!-- Wheels -->
+    <circle cx="60" cy="160" r="22" fill="#1F2937"/>
+    <circle cx="60" cy="160" r="10" fill="#FBBF24"/>
+    <circle cx="160" cy="160" r="22" fill="#1F2937"/>
+    <circle cx="160" cy="160" r="10" fill="#FBBF24"/>
+  </g>
+</svg>
