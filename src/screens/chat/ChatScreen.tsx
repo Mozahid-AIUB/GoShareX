@@ -2,6 +2,7 @@
 import {
   Alert,
   Clipboard,
+  Dimensions,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -11,12 +12,10 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
-  Animated,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
 import { useAuthStore } from '@/store/authStore';
 import { useRideStore } from '@/store/rideStore';
@@ -61,6 +60,12 @@ const C = {
   green: '#10B981',
 };
 
+const CHAT_DURATION_MS = {
+  ride: 10 * 60 * 1000,
+  anonymous_1v1: 5 * 60 * 1000,
+  anonymous_group: 10 * 60 * 1000,
+} as const;
+
 export default function ChatScreen() {
   useScreenTracking('Chat');
   const route = useRoute<any>();
@@ -68,6 +73,7 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const { destination, pickupPoint } = useRideStore();
+  const screenWidth = Dimensions.get('window').width;
 
   const rider = route.params?.rider;
   const requestedAnonymousMode = route.params?.anonymousMode as 'anonymous_1v1' | 'anonymous_group' | undefined;
@@ -83,11 +89,13 @@ export default function ChatScreen() {
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
   const [blockedAliases, setBlockedAliases] = useState<Set<string>>(new Set());
   const [presenceLabel, setPresenceLabel] = useState<string | null>(null);
+  const [chatAccessLost, setChatAccessLost] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
   const privacyPrefs = usePrivacyStore();
   const listRef = useRef<FlatList>(null);
-  const lastSeenRef = useRef<number>(Date.now());
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingActiveRef = useRef(false);
+  const accessLossAlertShownRef = useRef(false);
 
   const fare = getFare(pickupPoint ?? 'main_gate', destination ?? 'kuril');
   const splitFare = Math.ceil(fare / 2);
@@ -101,9 +109,15 @@ export default function ChatScreen() {
 
   const countdownProgress = useMemo(() => {
     if (!chatMeta?.expiresAt) return 0;
-    const startedAt = chatMeta.expiresAt - 15 * 60 * 1000;
-    return Math.max(0, Math.min(1, (Date.now() - startedAt) / (15 * 60 * 1000)));
-  }, [chatMeta?.expiresAt, remainingMs]);
+    const totalDuration =
+      chatMeta?.mode === 'anonymous_1v1'
+        ? CHAT_DURATION_MS.anonymous_1v1
+        : chatMeta?.mode === 'anonymous_group'
+          ? CHAT_DURATION_MS.anonymous_group
+          : CHAT_DURATION_MS.ride;
+    const remaining = Math.max(0, chatMeta.expiresAt - Date.now());
+    return Math.max(0, Math.min(1, remaining / totalDuration));
+  }, [chatMeta?.expiresAt, chatMeta?.mode, remainingMs]);
 
   const title = useMemo(() => {
     if (isAnonymousGroup) return 'Anonymous Group';
@@ -143,7 +157,36 @@ export default function ChatScreen() {
 
   useEffect(() => {
     if (!chatId || !user) return;
-    const unsub1 = chatService.listenToMessages(chatId, setMessages);
+    const handleChatAccessError = (error: Error) => {
+      const message = error?.message ?? '';
+      if (
+        !accessLossAlertShownRef.current &&
+        (
+          message.includes('permission-denied') ||
+          message.includes('Missing or insufficient permissions') ||
+          message.includes('chat-not-found')
+        )
+      ) {
+        accessLossAlertShownRef.current = true;
+        setChatAccessLost(true);
+        const anonymousOrTransientRoom =
+          requestedAnonymousMode !== undefined ||
+          chatMeta?.anonymous === true ||
+          roomExpired;
+
+        if (anonymousOrTransientRoom) {
+          navigation.navigate('MainApp');
+          return;
+        }
+
+        Alert.alert(
+          'Chat unavailable',
+          'This chat is no longer available for your account. You will be returned to home.',
+          [{ text: 'OK', onPress: () => navigation.navigate('MainApp') }],
+        );
+      }
+    };
+    const unsub1 = chatService.listenToMessages(chatId, setMessages, handleChatAccessError);
     const unsub2 = chatService.listenToChat(chatId, (chat) => {
       setChatMeta(chat);
       if (chat.lastMessageTime) {
@@ -160,16 +203,16 @@ export default function ChatScreen() {
           });
         }
       }
-    });
+    }, handleChatAccessError);
     return () => { unsub1(); unsub2(); };
-  }, [chatId, user]);
+  }, [chatId, user, fare, navigation, rider, requestedAnonymousMode, chatMeta?.anonymous, roomExpired]);
 
   // Mark read on chat open + when new messages arrive (respects privacy pref)
   useEffect(() => {
-    if (!chatId || !user || isAnonymousRoom) return;
+    if (!chatId || !user || isAnonymousRoom || chatAccessLost) return;
     if (!privacyPrefs.sendReadReceipts) return;
     chatService.markRead(chatId, user.uid).catch((e) => logger.warn('ChatScreen.markRead', e));
-  }, [chatId, user, isAnonymousRoom, messages.length, privacyPrefs.sendReadReceipts]);
+  }, [chatId, user, isAnonymousRoom, messages.length, privacyPrefs.sendReadReceipts, chatAccessLost]);
 
   // Load blocked aliases (anonymous group only)
   useEffect(() => {
@@ -203,17 +246,31 @@ export default function ChatScreen() {
     return () => clearInterval(timer);
   }, [chatMeta?.expiresAt]);
 
+  useEffect(() => {
+    if (isWaiting) {
+      setInputFocused(false);
+    }
+  }, [isWaiting]);
+
   // Auto-delete ALL chat types on room expiry and redirect
   useEffect(() => {
     if (!roomExpired || historyDeleted) return;
     setHistoryDeleted(true);
     if (chatId) void chatService.deleteChat(chatId);
-    const t = setTimeout(() => navigation.navigate('MainApp'), 2000);
+    const t = setTimeout(() => {
+      // Navigate back to the previous chat list or main app
+      navigation.goBack();
+      setTimeout(() => {
+        if (navigation.canGoBack()) return;
+        // Only navigate to MainApp if we can't go back
+        navigation.navigate('MainApp');
+      }, 100);
+    }, 3000);
     return () => clearTimeout(t);
-  }, [roomExpired, historyDeleted, chatId]);
+  }, [roomExpired, historyDeleted, chatId, navigation]);
 
   const handleLeave = () => {
-    if (!chatId || !user) return;
+    if (!chatId || !user || chatAccessLost) return;
     Alert.alert(
       'Leave chat?',
       isAnonymousGroup
@@ -240,7 +297,8 @@ export default function ChatScreen() {
 
   const sendMsg = async (msgText?: string) => {
     const content = msgText ?? text.trim();
-    if (!content || !chatId || !user) return;
+    if (!content || !chatId || !user || chatAccessLost) return;
+    if (isWaiting) return;
     if (roomExpired) { Alert.alert('Session ended', 'This chat session has expired.'); return; }
     setText('');
     // Clear typing signal immediately on send
@@ -252,12 +310,18 @@ export default function ChatScreen() {
     const senderName = isAnonymousRoom
       ? chatMeta?.participantAliases?.[user.uid] ?? 'Anonymous'
       : user.name ?? 'You';
-    await chatService.sendMessage(chatId, user.uid, senderName, content);
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    try {
+      await chatService.sendMessage(chatId, user.uid, senderName, content);
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (e) {
+      setText(content);
+      Alert.alert('Send failed', 'Message could not be sent. Please try again.');
+      logger.warn('ChatScreen.sendMsg', e);
+    }
   };
 
   const handleDealConfirm = async () => {
-    if (!chatId || !user || isAnonymousRoom) return;
+    if (!chatId || !user || isAnonymousRoom || chatAccessLost) return;
     setMyDealPressed(true);
 
     // Notify the other rider via Expo Push API (fcm_tokens read is now allowed for auth users)
@@ -282,7 +346,7 @@ export default function ChatScreen() {
   const handleCopy = useCallback((msgId: string, txt: string) => {
     Clipboard.setString(txt);
     setCopiedMsgId(msgId);
-    setTimeout(() => setCopiedMsgId(null), 1500);
+    setTimeout(() => setCopiedMsgId(null), 2000);
   }, []);
 
   // Long-press action sheet: copy + delete (own, <60s) + block (anonymous group)
@@ -355,23 +419,33 @@ export default function ChatScreen() {
     // Read receipt: only for ride chat, only on my own messages, only if partner has read past this ts
     const partnerReadAt = !isAnonymousRoom && chatMeta?.lastRead
       ? Math.max(...Object.entries(chatMeta.lastRead)
-          .filter(([uid]) => uid !== user?.uid)
-          .map(([, t]) => Number(t) || 0), 0)
+        .filter(([uid]) => uid !== user?.uid)
+        .map(([, t]) => Number(t) || 0), 0)
       : 0;
     const isRead = isMe && !isAnonymousRoom && partnerReadAt > 0 && partnerReadAt >= (item.timestamp ?? 0);
+
+    const maxBubbleWidth = screenWidth < 400 ? 0.85 : 0.75;
 
     return (
       <View style={[m.row, isMe && m.rowMe]}>
         {!isMe && <MiniAvatar label={label ?? 'A'} gradient={isAnonymousRoom} />}
         <TouchableWithoutFeedback onLongPress={() => handleMessageLongPress(item)}>
-          <View style={[m.bubble, isMe ? m.bubbleMe : m.bubbleThem, copied && m.bubbleCopied]}>
+          <View
+            style={[
+              m.bubble,
+              { maxWidth: `${maxBubbleWidth * 100}%` },
+              isMe ? m.bubbleMe : m.bubbleThem,
+              copied && m.bubbleCopied,
+            ]}
+          >
+            {copied && <View style={m.copiedOverlay} />}
             {!isMe && <Text style={m.senderLabel}>{label}</Text>}
             <Text style={[m.bubbleText, isMe && m.bubbleTextMe, isDeleted && m.bubbleTextDeleted]}>
               {isDeleted ? 'message deleted' : item.text}
             </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+            <View style={m.bubbleFooter}>
               <Text style={[m.msgTime, isMe && m.msgTimeMe]}>
-                {copied ? '✓ Copied' : timeStr}
+                {copied ? '✓' : timeStr}
               </Text>
               {isMe && !isAnonymousRoom && !isDeleted && (
                 <Text style={[m.readMark, isRead && m.readMarkSeen]}>
@@ -379,6 +453,11 @@ export default function ChatScreen() {
                 </Text>
               )}
             </View>
+            {copied && (
+              <View style={m.copiedLabel}>
+                <Text style={m.copiedLabelText}>Copied!</Text>
+              </View>
+            )}
           </View>
         </TouchableWithoutFeedback>
       </View>
@@ -401,13 +480,13 @@ export default function ChatScreen() {
             }
             <Text style={s.headerTitle} numberOfLines={1}>{title}</Text>
           </View>
-          <Text style={s.headerSub} numberOfLines={1}>
-            {roomExpired
-              ? 'Session ended'
-              : isAnonymousRoom && remainingMs !== null
-                ? `Ends in ${formatCountdown(remainingMs)}`
+          {!isAnonymousRoom && (
+            <Text style={s.headerSub} numberOfLines={1}>
+              {roomExpired
+                ? 'Session ended'
                 : presenceLabel ?? destination ?? rider?.destination ?? 'Ride Chat'}
-          </Text>
+            </Text>
+          )}
         </View>
         {isAnonymousRoom ? (
           <TouchableOpacity
@@ -439,17 +518,28 @@ export default function ChatScreen() {
                   {isAnonymousGroup ? `Group | ${participantCount}/10 members` : 'Private 1:1'}
                 </Text>
               </View>
-              <Text style={s.anonNote}>
-                {isWaiting ? 'Waiting for another person to join...' : 'Identities are hidden. Messages auto-delete after session.'}
-              </Text>
+              {!isWaiting && <Text style={s.anonNote}>Hidden identity</Text>}
             </View>
             <View style={s.timerCircle}>
               <Text style={s.timerCircleNum}>{formatCountdown(remainingMs ?? 0)}</Text>
               <Text style={s.timerCircleLabel}>left</Text>
             </View>
           </View>
+          {isWaiting && (
+            <View style={s.waitingBannerInline}>
+              <View style={s.waitingBannerDots}>
+                <View style={s.waitingDot} />
+                <View style={s.waitingDot} />
+                <View style={s.waitingDot} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.waitingBannerText}>Waiting for match...</Text>
+                <Text style={s.waitingBannerSub}>Stay here to enter the chat instantly.</Text>
+              </View>
+            </View>
+          )}
           <View style={s.timerTrack}>
-            <View style={[s.timerFill, { width: `${countdownProgress * 100}%` as any }]} />
+            <View style={[s.timerFill, { width: `${(1 - countdownProgress) * 100}%` as any }]} />
           </View>
         </View>
       ) : (
@@ -488,39 +578,57 @@ export default function ChatScreen() {
       {/* Messages */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={insets.top + 60}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 60 : 60}
       >
         <FlatList
           ref={listRef}
           data={messages}
           keyExtractor={(m) => m.id}
           renderItem={renderMessage}
-          contentContainerStyle={{ padding: 16, gap: 10 }}
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingHorizontal: screenWidth < 400 ? 10 : 16,
+            paddingVertical: 10,
+            paddingBottom: isWaiting ? 20 : 10,
+            gap: 8,
+          }}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           ListEmptyComponent={
-            <View style={s.emptyMsgs}>
-              <Text style={s.emptyMsgsText}>
-                {isWaiting ? 'Waiting for another user to join...' : 'No messages yet. Say hello!'}
-              </Text>
-            </View>
+            isWaiting ? (
+              <View style={s.waitingStage}>
+                <View style={s.waitingOrb}>
+                  <View style={s.waitingOrbInner} />
+                </View>
+                <Text style={s.waitingTitle}>Looking for another person</Text>
+                <Text style={s.waitingText}>
+                  Stay on this screen. You will enter the chat as soon as someone joins.
+                </Text>
+              </View>
+            ) : (
+              <View style={s.emptyMsgs}>
+                <Text style={s.emptyMsgsText}>No messages yet. Say hello!</Text>
+              </View>
+            )
           }
         />
 
         {/* Quick replies */}
-        <View style={s.quickRow}>
-          {QUICK_REPLIES.map((qr) => (
-            <TouchableOpacity
-              key={qr.id}
-              style={[s.qrBtn, roomExpired && s.qrBtnDisabled]}
-              onPress={() => { void sendMsg(qr.text); }}
-              disabled={roomExpired}
-              activeOpacity={0.75}
-            >
-              <Text style={s.qrText}>{qr.text}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {!isWaiting && (
+          <View style={[s.quickRow, { paddingHorizontal: screenWidth < 360 ? 8 : 10 }]}>
+            {QUICK_REPLIES.map((qr) => (
+              <TouchableOpacity
+                key={qr.id}
+                style={[s.qrBtn, roomExpired && s.qrBtnDisabled]}
+                onPress={() => { void sendMsg(qr.text); }}
+                disabled={roomExpired}
+                activeOpacity={0.75}
+              >
+                <Text style={[s.qrText, { fontSize: screenWidth < 360 ? 10 : 11 }]}>{qr.text}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Typing indicator (someone else typing) */}
         {(() => {
@@ -542,15 +650,44 @@ export default function ChatScreen() {
         })()}
 
         {/* Input row */}
-        <View style={[s.inputRow, { paddingBottom: insets.bottom + 10 }]}>
+        <View
+          style={[
+            s.inputRow,
+            {
+              paddingBottom: insets.bottom + 10,
+              paddingHorizontal: screenWidth < 360 ? 8 : 10,
+              gap: screenWidth < 360 ? 6 : 7,
+            },
+          ]}
+        >
           <TextInput
-            style={s.input}
+            style={[
+              s.input,
+              isWaiting && s.inputDisabled,
+              inputFocused && s.inputFocused,
+              roomExpired && s.inputExpired,
+            ]}
             value={text}
             onChangeText={(t) => {
+              // Block input during waiting or after expiry
+              if (isWaiting || roomExpired) return;
               setText(t);
+
+              if (t.length === 0) {
+                if (typingTimerRef.current) {
+                  clearTimeout(typingTimerRef.current);
+                  typingTimerRef.current = null;
+                }
+                if (typingActiveRef.current && chatId && user) {
+                  typingActiveRef.current = false;
+                  chatService.clearTyping(chatId, user.uid).catch(() => undefined);
+                }
+                return;
+              }
+
               // Throttled typing signal — only if user hasn't disabled it in privacy prefs
               if (!privacyPrefs.showTypingIndicator) return;
-              if (chatId && user && t.length > 0) {
+              if (chatId && user) {
                 if (!typingActiveRef.current) {
                   typingActiveRef.current = true;
                   const alias = chatMeta?.participantAliases?.[user.uid] ?? user.name ?? 'You';
@@ -563,17 +700,30 @@ export default function ChatScreen() {
                 }, 3000);
               }
             }}
-            placeholder={roomExpired ? 'Session has ended' : 'Write a message...'}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
+            placeholder={
+              roomExpired
+                ? 'Session ended'
+                : isWaiting
+                  ? 'Keyboard locked - waiting for match...'
+                  : 'Type message...'
+            }
             placeholderTextColor={C.textMuted}
             multiline
             maxLength={300}
-            editable={!roomExpired}
+            editable={!roomExpired && !isWaiting}
+            scrollEnabled={true}
           />
           <TouchableOpacity
-            style={[s.sendBtn, (roomExpired || !text.trim()) && s.sendBtnDisabled]}
+            style={[
+              s.sendBtn,
+              (roomExpired || isWaiting || !text.trim()) && s.sendBtnDisabled,
+              !roomExpired && !isWaiting && text.trim() && s.sendBtnActive,
+            ]}
             onPress={() => { void sendMsg(); }}
-            disabled={roomExpired || !text.trim()}
-            activeOpacity={0.8}
+            disabled={roomExpired || isWaiting || !text.trim()}
+            activeOpacity={0.85}
           >
             <IconSend />
           </TouchableOpacity>
@@ -604,7 +754,7 @@ export default function ChatScreen() {
         {roomExpired && (
           <View style={s.expiredBanner}>
             <Text style={s.expiredTitle}>Session ended</Text>
-            <Text style={s.expiredSub}>Chat history has been deleted. Returning to home...</Text>
+            <Text style={s.expiredSub}>Chat history has been deleted. Returning...</Text>
           </View>
         )}
       </KeyboardAvoidingView>
@@ -617,48 +767,60 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   header: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingBottom: 12,
+    paddingHorizontal: 10, paddingBottom: 6,
     borderBottomWidth: 1, borderBottomColor: C.border,
     backgroundColor: C.bg,
   },
   headerBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   leaveBtn: {
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14,
+    paddingHorizontal: 11, paddingVertical: 6, borderRadius: 13,
     backgroundColor: 'rgba(244,63,94,0.12)',
     borderWidth: 1, borderColor: 'rgba(244,63,94,0.25)',
   },
-  leaveBtnText: { fontSize: 12, fontWeight: '800', color: '#F43F5E', letterSpacing: 0.2 },
+  leaveBtnText: { fontSize: 11, fontWeight: '800', color: '#F43F5E', letterSpacing: 0.2 },
   headerCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  headerTitle: { fontSize: 16, fontWeight: '800', color: C.text },
-  headerSub: { fontSize: 11, color: C.textSub, marginTop: 2 },
+  headerTitle: { fontSize: 14, fontWeight: '800', color: C.text },
+  headerSub: { fontSize: 9, color: C.textSub, marginTop: 0 },
   onlineDot: { width: 8, height: 8, borderRadius: 4 },
 
   anonBanner: {
     backgroundColor: 'rgba(245,158,11,0.08)',
     borderBottomWidth: 1, borderBottomColor: 'rgba(245,158,11,0.2)',
-    paddingHorizontal: 16, paddingVertical: 12,
+    paddingHorizontal: 12, paddingVertical: 6,
   },
-  anonBannerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
-  anonBannerLeft: { flex: 1, gap: 4 },
+  anonBannerRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 5 },
+  anonBannerLeft: { flex: 1, gap: 1 },
   anonChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     alignSelf: 'flex-start',
     backgroundColor: 'rgba(245,158,11,0.12)',
-    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 14, paddingHorizontal: 8, paddingVertical: 2,
     borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)',
   },
-  anonChipText: { fontSize: 11, fontWeight: '700', color: C.amber },
-  anonNote: { fontSize: 11, color: '#A0916B', lineHeight: 16 },
+  anonChipText: { fontSize: 9, fontWeight: '700', color: C.amber },
+  anonNote: { fontSize: 9, color: '#A0916B', lineHeight: 12 },
   timerCircle: {
-    width: 54, height: 54, borderRadius: 27,
+    width: 38, height: 38, borderRadius: 19,
     backgroundColor: 'rgba(245,158,11,0.1)',
-    borderWidth: 1.5, borderColor: 'rgba(245,158,11,0.3)',
+    borderWidth: 1.2, borderColor: 'rgba(245,158,11,0.3)',
     alignItems: 'center', justifyContent: 'center',
   },
-  timerCircleNum: { fontSize: 12, fontWeight: '800', color: C.amber },
-  timerCircleLabel: { fontSize: 8, color: C.amber, fontWeight: '600', marginTop: -2 },
-  timerTrack: { height: 3, backgroundColor: 'rgba(245,158,11,0.15)', borderRadius: 2, overflow: 'hidden' },
+  timerCircleNum: { fontSize: 9, fontWeight: '800', color: C.amber },
+  timerCircleLabel: { fontSize: 6, color: C.amber, fontWeight: '600', marginTop: -2 },
+  waitingBannerInline: {
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: 'rgba(245,158,11,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.22)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  timerTrack: { height: 2, backgroundColor: 'rgba(245,158,11,0.15)', borderRadius: 2, overflow: 'hidden' },
   timerFill: { height: '100%', backgroundColor: C.amber, borderRadius: 2 },
 
   fareBanner: {
@@ -699,26 +861,75 @@ const s = StyleSheet.create({
 
   emptyMsgs: { alignItems: 'center', marginTop: 60 },
   emptyMsgsText: { fontSize: 13, color: C.textSub, textAlign: 'center', lineHeight: 20 },
+  waitingStage: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    paddingBottom: 24,
+  },
+  waitingOrb: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(245,158,11,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  waitingOrbInner: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: C.amber,
+  },
+  waitingTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: C.text,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  waitingText: {
+    fontSize: 12,
+    color: C.textSub,
+    textAlign: 'center',
+    lineHeight: 18,
+    maxWidth: 260,
+  },
 
   quickRow: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: C.bg, borderTopWidth: 1, borderTopColor: C.border,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingTop: 6,
+    paddingBottom: 4,
+    backgroundColor: C.bg,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
   },
   qrBtn: {
-    backgroundColor: C.surface, borderRadius: 16,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: 'rgba(148,163,184,0.24)',
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.24)',
   },
   qrBtnDisabled: { opacity: 0.35 },
-  qrText: { fontSize: 12, color: '#C7D2FE', fontWeight: '700' },
+  qrText: { fontSize: 11, color: '#C7D2FE', fontWeight: '700' },
 
   inputRow: {
-    flexDirection: 'row', alignItems: 'flex-end',
-    paddingHorizontal: 12, paddingTop: 8, gap: 8,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    gap: 7,
     backgroundColor: C.bg,
   },
-
   typingRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 16, paddingTop: 6, paddingBottom: 4,
@@ -730,19 +941,55 @@ const s = StyleSheet.create({
   },
   typingText: { fontSize: 11, color: C.textMuted, fontStyle: 'italic' },
   input: {
-    flex: 1, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20,
-    paddingHorizontal: 16, paddingVertical: 10,
-    fontSize: 14, color: C.text, maxHeight: 90,
-    borderWidth: 1, borderColor: 'rgba(148,163,184,0.24)',
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    fontSize: 14,
+    color: C.text,
+    maxHeight: 100,
+    borderWidth: 1.5,
+    borderColor: 'rgba(99,102,241,0.3)',
+  },
+  inputDisabled: {
+    opacity: 0.6,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderColor: 'rgba(148,163,184,0.15)',
+  },
+  inputExpired: {
+    opacity: 0.4,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderColor: 'rgba(244,63,94,0.2)',
+  },
+  inputFocused: {
+    borderColor: 'rgba(99,102,241,0.7)',
+    backgroundColor: 'rgba(99,102,241,0.08)',
+    borderWidth: 2,
   },
   sendBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: C.primary,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: C.primary, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, shadowRadius: 8, elevation: 5,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(99,102,241,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(99,102,241,0.3)',
   },
-  sendBtnDisabled: { opacity: 0.4, shadowOpacity: 0 },
+  sendBtnActive: {
+    backgroundColor: C.primary,
+    borderColor: C.primary,
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  sendBtnDisabled: {
+    opacity: 0.35,
+    shadowOpacity: 0,
+  },
 
   dealBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -761,13 +1008,39 @@ const s = StyleSheet.create({
   dealConfirmedText: { fontSize: 13, color: C.green, fontWeight: '700' },
 
   expiredBanner: {
-    margin: 12, padding: 14, borderRadius: 16,
+    margin: 12,
+    padding: 12,
+    borderRadius: 14,
     backgroundColor: 'rgba(244,63,94,0.08)',
-    borderWidth: 1, borderColor: 'rgba(244,63,94,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(244,63,94,0.2)',
     alignItems: 'center',
   },
-  expiredTitle: { fontSize: 14, fontWeight: '800', color: C.red, marginBottom: 4 },
-  expiredSub: { fontSize: 12, color: '#A87070', textAlign: 'center', lineHeight: 18 },
+  expiredTitle: { fontSize: 13, fontWeight: '800', color: C.red, marginBottom: 3 },
+  expiredSub: { fontSize: 11, color: '#A87070', textAlign: 'center', lineHeight: 16 },
+  waitingBannerDots: {
+    flexDirection: 'row',
+    gap: 4,
+    alignItems: 'center',
+  },
+  waitingDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: C.amber,
+  },
+  waitingBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: C.amber,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  waitingBannerSub: {
+    fontSize: 11,
+    color: 'rgba(245,158,11,0.8)',
+    fontWeight: '600',
+  },
 });
 
 const m = StyleSheet.create({
@@ -779,18 +1052,78 @@ const m = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 6, maxWidth: '80%',
   },
   systemText: { fontSize: 11, color: C.textSub, fontWeight: '600', textAlign: 'center' },
-  bubble: { maxWidth: '75%', padding: 11, borderRadius: 18 },
-  bubbleThem: { backgroundColor: C.surface, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: C.border },
-  bubbleMe: { backgroundColor: C.primary, borderBottomRightRadius: 4 },
-  bubbleCopied: { opacity: 0.75 },
-  senderLabel: { fontSize: 10, fontWeight: '700', color: C.textSub, marginBottom: 3 },
-  bubbleText: { fontSize: 14, color: C.text, lineHeight: 20 },
+  bubble: {
+    padding: 10,
+    borderRadius: 16,
+    position: 'relative',
+  },
+  bubbleThem: {
+    backgroundColor: C.surface,
+    borderBottomLeftRadius: 3,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  bubbleMe: {
+    backgroundColor: C.primary,
+    borderBottomRightRadius: 3,
+  },
+  bubbleCopied: {
+    opacity: 0.85,
+  },
+  copiedOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 16,
+    backgroundColor: 'rgba(20,184,166,0.15)',
+  },
+  copiedLabel: {
+    position: 'absolute',
+    top: -22,
+    right: 0,
+    backgroundColor: 'rgba(20,184,166,0.9)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  copiedLabelText: {
+    fontSize: 10,
+    color: C.white,
+    fontWeight: '700',
+  },
+  bubbleFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 3,
+    marginTop: 3,
+  },
+  senderLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: C.textSub,
+    marginBottom: 2,
+  },
+  bubbleText: {
+    fontSize: 13,
+    color: C.text,
+    lineHeight: 19,
+  },
   bubbleTextMe: { color: C.white },
-  msgTime: { fontSize: 10, color: C.textMuted, marginTop: 4, textAlign: 'left' },
-  msgTimeMe: { color: 'rgba(255,255,255,0.55)', textAlign: 'right' },
+  msgTime: {
+    fontSize: 9,
+    color: C.textMuted,
+    textAlign: 'right',
+  },
+  msgTimeMe: {
+    color: 'rgba(255,255,255,0.5)',
+  },
   bubbleTextDeleted: { fontStyle: 'italic', opacity: 0.6 },
-  readMark: { fontSize: 11, color: 'rgba(255,255,255,0.45)', marginLeft: 2 },
+  readMark: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.45)',
+  },
   readMarkSeen: { color: '#34D399' },
 });
-
-

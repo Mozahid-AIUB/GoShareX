@@ -9,7 +9,6 @@ import {
   setDoc,
   getDoc,
   getDocs,
-  writeBatch,
   limit,
   where,
   runTransaction,
@@ -44,6 +43,8 @@ export interface Chat {
   maxParticipants?: number;
   lastMessage?: string;
   lastMessageTime?: number;
+  closedAt?: number;
+  closedBy?: string;
   dealConfirmed?: Record<string, boolean>;
   /** uid -> last read timestamp (for read receipts) */
   lastRead?: Record<string, number>;
@@ -62,16 +63,25 @@ export const ANON_GROUP_MIN_PARTICIPANTS = 2;
 export const ANON_GROUP_MAX_PARTICIPANTS = 10;
 
 class ChatService {
+  private isExpectedPermissionError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error ?? '');
+    return message.includes('permission-denied') || message.includes('Missing or insufficient permissions');
+  }
 
   private buildAnonymousAlias(position: number): string {
     return `Anonymous ${position}`;
   }
 
-  private async appendSystemMessage(chatId: string, text: string): Promise<void> {
+  private async appendSystemMessage(
+    chatId: string,
+    text: string,
+    actorId: string,
+    actorName: string,
+  ): Promise<void> {
     const messagesRef = collection(db, 'chats', chatId, 'messages');
     await addDoc(messagesRef, {
-      senderId: 'system',
-      senderName: 'System',
+      senderId: actorId,
+      senderName: actorName,
       text,
       type: 'system',
       timestamp: Date.now(),
@@ -79,15 +89,15 @@ class ChatService {
     });
   }
 
-  // Delete all messages + the chat doc entirely
+  // Production-safe client cleanup: mark chat expired and let admin cleanup remove data.
   async deleteChat(chatId: string): Promise<void> {
     try {
-      const messagesRef = collection(db, 'chats', chatId, 'messages');
-      const snap = await getDocs(messagesRef);
-      const batch = writeBatch(db);
-      snap.docs.forEach((d) => batch.delete(d.ref));
-      batch.delete(doc(db, 'chats', chatId));
-      await batch.commit();
+      const chatRef = doc(db, 'chats', chatId);
+      await setDoc(chatRef, {
+        expiresAt: Date.now(),
+        closedAt: Date.now(),
+        searching: false,
+      }, { merge: true });
     } catch (e) {
       logger.warn('chatService.deleteChat', e);
     }
@@ -109,15 +119,30 @@ class ChatService {
         const participants = data.participants ?? [];
         const remaining = participants.filter((p) => p !== userId);
 
-        // 1v1 / ride: leaving = destroying the room
+        // 1v1 / ride: leaving = closing the room for cleanup
         if (data.mode === 'anonymous_1v1' || data.mode === 'ride') {
-          tx.delete(chatRef);
+          tx.update(chatRef, {
+            expiresAt: Date.now(),
+            closedAt: Date.now(),
+            closedBy: userId,
+            searching: false,
+            lastMessageTime: Date.now(),
+          });
           return;
         }
 
-        // Group: if last person, destroy; else remove + leave system msg
+        // Group: if last person, close; else remove membership
         if (remaining.length === 0) {
-          tx.delete(chatRef);
+          tx.update(chatRef, {
+            participants: [],
+            participantAliases: {},
+            participantNames: {},
+            searching: false,
+            expiresAt: Date.now(),
+            closedAt: Date.now(),
+            closedBy: userId,
+            lastMessageTime: Date.now(),
+          });
           return;
         }
 
@@ -133,17 +158,6 @@ class ChatService {
         });
       });
 
-      // For group: leave a system note so others see the departure
-      // (Outside the transaction since we just need a best-effort message.)
-      const after = await getDoc(chatRef);
-      if (after.exists() && (after.data() as Chat).mode === 'anonymous_group') {
-        await this.appendSystemMessage(chatId, 'An anonymous member left the group.');
-      }
-
-      // 1v1 deletion also cleans up the messages subcollection
-      if (!after.exists()) {
-        await this.deleteChat(chatId).catch(() => undefined);
-      }
     } catch (e) {
       logger.warn('chatService.leaveChat', e);
       throw e;
@@ -183,7 +197,7 @@ class ChatService {
     });
   }
 
-  // Create or get existing ride chat — always sets a 10-min expiry
+  // Create or get existing active ride chat — always sets a 10-min expiry
   async getOrCreateChat(
     user1Id: string,
     user1Name: string,
@@ -193,11 +207,25 @@ class ChatService {
     fare: number,
     rideId?: string
   ): Promise<string> {
-    const chatId = [user1Id, user2Id].sort().join('_');
-    const chatRef = doc(db, 'chats', chatId);
-    const existing = await getDoc(chatRef);
+    const chatsRef = collection(db, 'chats');
+    const existingQuery = query(
+      chatsRef,
+      where('mode', '==', 'ride'),
+      where('participants', 'array-contains', user1Id),
+      limit(10),
+    );
+    const existingSnap = await getDocs(existingQuery);
+    const now = Date.now();
 
-    if (!existing.exists()) {
+    for (const existing of existingSnap.docs) {
+      const data = existing.data() as Chat;
+      const samePair = data.participants?.includes(user2Id);
+      const active = (data.expiresAt ?? 0) > now && !(data.closedAt && data.closedAt <= now);
+      if (samePair && active) return existing.id;
+    }
+
+    const chatRef = doc(chatsRef);
+    if (!(await getDoc(chatRef)).exists()) {
       const expiresAt = Date.now() + RIDE_CHAT_DURATION_MS;
       await setDoc(chatRef, {
         participants: [user1Id, user2Id],
@@ -213,9 +241,14 @@ class ChatService {
         lastMessage: '',
         lastMessageTime: Date.now(),
       });
-      await this.appendSystemMessage(chatId, 'Chat started. This conversation will auto-delete in 10 minutes.');
+      await this.appendSystemMessage(
+        chatRef.id,
+        'Chat started. This conversation will auto-delete in 10 minutes.',
+        user1Id,
+        user1Name,
+      );
     }
-    return chatId;
+    return chatRef.id;
   }
 
   // Returns existing active (non-expired) anonymous room for this user, or null
@@ -255,7 +288,22 @@ class ChatService {
     return null;
   }
 
-  async cleanupDuplicateAnonymousRooms(userId: string): Promise<{ chatId: string; mode: 'anonymous_1v1' | 'anonymous_group' } | null> {
+  /**
+   * Find this user's active anonymous room.
+   *
+   * Behavior:
+   * - If `preferredMode` given (user is trying to start that mode): prefer a
+   *   room of that mode. Don't redirect them to a different-mode active room.
+   * - Without preferredMode: return the most-recent active room.
+   * - Delete actual duplicates within the same mode (>1 of same mode).
+   *
+   * Bug fix: previously kept whichever room had recent messages regardless of
+   * mode, so a user clicking 'Find 1v1' got redirected to an old group.
+   */
+  async cleanupDuplicateAnonymousRooms(
+    userId: string,
+    preferredMode?: 'anonymous_1v1' | 'anonymous_group',
+  ): Promise<{ chatId: string; mode: 'anonymous_1v1' | 'anonymous_group' } | null> {
     const chatsRef = collection(db, 'chats');
     const q = query(
       chatsRef,
@@ -274,14 +322,35 @@ class ChatService {
       )
       .sort((a, b) => (b.lastMessageTime ?? 0) - (a.lastMessageTime ?? 0));
 
-    const keep = activeRooms[0];
-    const duplicates = activeRooms.slice(1);
+    // Group by mode and delete same-mode duplicates (keep the most recent of each mode)
+    const byMode = new Map<string, typeof activeRooms>();
+    for (const room of activeRooms) {
+      const arr = byMode.get(room.mode as string) ?? [];
+      arr.push(room);
+      byMode.set(room.mode as string, arr);
+    }
+    const duplicates: typeof activeRooms = [];
+    for (const arr of byMode.values()) {
+      if (arr.length > 1) duplicates.push(...arr.slice(1));
+    }
     await Promise.all(duplicates.map((room) => this.deleteChat(room.id)));
 
+    // Pick which room to return: prefer requested mode, else most recent
+    let keep = activeRooms.find((r) => r.mode === preferredMode) ?? activeRooms[0];
+    // If user wants 1v1 but only has a group active, DON'T redirect — return null
+    // so they can start a fresh 1v1 search.
+    if (preferredMode && keep && keep.mode !== preferredMode) {
+      keep = undefined as never;
+    }
     return keep ? { chatId: keep.id, mode: keep.mode as 'anonymous_1v1' | 'anonymous_group' } : null;
   }
 
-  // Delete all searching/waiting rooms created by this user that are still empty
+  /**
+   * Delete only this user's SOLO waiting rooms (anonymous 1v1 where they are
+   * the only participant). Group rooms with multiple members are NEVER touched
+   * — bug fix: previously this deleted any searching room including active
+   * groups the user had joined.
+   */
   async cleanupUserOrphanRooms(userId: string): Promise<void> {
     const chatsRef = collection(db, 'chats');
     const q = query(
@@ -291,7 +360,14 @@ class ChatService {
       limit(10)
     );
     const snap = await getDocs(q);
-    await Promise.all(snap.docs.map((d) => this.deleteChat(d.id)));
+    const soloRooms = snap.docs.filter((d) => {
+      const data = d.data() as Chat;
+      // Only solo waiting rooms: user is the only participant
+      return (data.participants?.length ?? 0) <= 1
+        && data.participants?.[0] === userId
+        && data.mode === 'anonymous_1v1';
+    });
+    await Promise.all(soloRooms.map((d) => this.deleteChat(d.id)));
   }
 
   // Try to join one of the existing waiting 1v1 rooms. Returns chatId or null.
@@ -340,7 +416,12 @@ class ChatService {
       });
 
       if (joinedId) {
-        await this.appendSystemMessage(joinedId, 'Another anonymous user joined. Chat auto-deletes in 5 minutes.');
+        await this.appendSystemMessage(
+          joinedId,
+          'Another anonymous user joined. Chat auto-deletes in 5 minutes.',
+          userId,
+          this.buildAnonymousAlias(2),
+        );
         return joinedId;
       }
     }
@@ -378,7 +459,12 @@ class ChatService {
       lastMessageTime: Date.now(),
     });
 
-    await this.appendSystemMessage(roomRef.id, 'Anonymous room created. Waiting for another person to join. Auto-deletes in 5 minutes.');
+    await this.appendSystemMessage(
+      roomRef.id,
+      'Anonymous room created. Waiting for another person to join. Auto-deletes in 5 minutes.',
+      userId,
+      this.buildAnonymousAlias(1),
+    );
     return roomRef.id;
   }
 
@@ -411,7 +497,12 @@ class ChatService {
       return chatId;
     });
     if (!joinedId) throw new Error('Room full or expired');
-    await this.appendSystemMessage(chatId, 'A new anonymous member joined the group.');
+    await this.appendSystemMessage(
+      chatId,
+      'A new anonymous member joined the group.',
+      userId,
+      this.buildAnonymousAlias((await getDoc(roomRef)).data()?.participants?.length ?? 2),
+    );
     return chatId;
   }
 
@@ -462,7 +553,14 @@ class ChatService {
       });
 
       if (joinedId) {
-        await this.appendSystemMessage(joinedId, 'A new anonymous member joined the group.');
+        await this.appendSystemMessage(
+          joinedId,
+          'A new anonymous member joined the group.',
+          userId,
+          this.buildAnonymousAlias(
+            ((await getDoc(roomDoc.ref)).data() as Chat | undefined)?.participants?.length ?? 2,
+          ),
+        );
         return joinedId;
       }
     }
@@ -470,6 +568,9 @@ class ChatService {
   }
 
   async startAnonymousGroup(userId: string): Promise<string> {
+    const existingGroup = await this.getUserActiveAnonymousRoom(userId, 'anonymous_group');
+    if (existingGroup) return existingGroup;
+
     const firstAttempt = await this.tryJoinWaitingGroup(userId);
     if (firstAttempt) return firstAttempt;
 
@@ -498,7 +599,12 @@ class ChatService {
       lastMessageTime: Date.now(),
     });
 
-    await this.appendSystemMessage(roomRef.id, 'Anonymous group created. Auto-deletes in 10 minutes.');
+    await this.appendSystemMessage(
+      roomRef.id,
+      'Anonymous group created. Auto-deletes in 10 minutes.',
+      userId,
+      this.buildAnonymousAlias(1),
+    );
     return roomRef.id;
   }
 
@@ -509,7 +615,25 @@ class ChatService {
     text: string,
     type: Message['type'] = 'text'
   ): Promise<void> {
-    const clean = text.trim().replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').replace(/[​-‍⁠﻿]/g, '').substring(0, 1000);
+    const clean = Array.from(text.trim())
+      .filter((char) => {
+        const code = char.charCodeAt(0);
+        const isControl =
+          (code >= 0x00 && code <= 0x08) ||
+          code === 0x0b ||
+          code === 0x0c ||
+          (code >= 0x0e && code <= 0x1f) ||
+          code === 0x7f;
+        const isInvisible =
+          code === 0x200b ||
+          code === 0x200c ||
+          code === 0x200d ||
+          code === 0x2060 ||
+          code === 0xfeff;
+        return !isControl && !isInvisible;
+      })
+      .join('')
+      .substring(0, 1000);
     if (!clean) throw new Error('Message cannot be empty');
     const messagesRef = collection(db, 'chats', chatId, 'messages');
     await addDoc(messagesRef, {
@@ -580,18 +704,31 @@ class ChatService {
     await setDoc(ref, { text: '[deleted]', deletedAt: Date.now() }, { merge: true });
   }
 
-  listenToMessages(chatId: string, callback: (messages: Message[]) => void): () => void {
+  listenToMessages(
+    chatId: string,
+    callback: (messages: Message[]) => void,
+    onError?: (error: Error) => void,
+  ): () => void {
     const q = query(
       collection(db, 'chats', chatId, 'messages'),
       orderBy('timestamp', 'asc')
     );
-    return onSnapshot(q, (snapshot) => {
-      const msgs: Message[] = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as Omit<Message, 'id'>),
-      }));
-      callback(msgs);
-    });
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const msgs: Message[] = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<Message, 'id'>),
+        }));
+        callback(msgs);
+      },
+      (error) => {
+        if (!this.isExpectedPermissionError(error)) {
+          logger.warn('chatService.listenToMessages', error);
+        }
+        onError?.(error);
+      },
+    );
   }
 
   async confirmDeal(chatId: string, userId: string): Promise<boolean> {
@@ -604,10 +741,27 @@ class ChatService {
     return Object.values(confirmed).every(Boolean);
   }
 
-  listenToChat(chatId: string, callback: (chat: Partial<Chat>) => void): () => void {
-    return onSnapshot(doc(db, 'chats', chatId), (snap) => {
-      if (snap.exists()) callback(snap.data() as Partial<Chat>);
-    });
+  listenToChat(
+    chatId: string,
+    callback: (chat: Partial<Chat>) => void,
+    onError?: (error: Error) => void,
+  ): () => void {
+    return onSnapshot(
+      doc(db, 'chats', chatId),
+      (snap) => {
+        if (snap.exists()) {
+          callback(snap.data() as Partial<Chat>);
+          return;
+        }
+        onError?.(new Error('chat-not-found'));
+      },
+      (error) => {
+        if (!this.isExpectedPermissionError(error)) {
+          logger.warn('chatService.listenToChat', error);
+        }
+        onError?.(error);
+      },
+    );
   }
 
   // Legacy aliases — kept for backward compat with existing call sites
@@ -621,3 +775,4 @@ class ChatService {
 }
 
 export default new ChatService();
+

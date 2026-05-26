@@ -48,9 +48,18 @@ Verify in Firebase Console → Functions → list should show all 14:
 firebase deploy --only firestore:rules
 ```
 
+### 4. Realtime Database Rules deploy
+
+Presence and live rider tracking use Firebase Realtime Database. Those writes
+will fail with `permission_denied` until RTDB rules are deployed.
+
+```bash
+firebase deploy --only database
+```
+
 ---
 
-### 4. App Icon + Adaptive Icon PNGs
+### 5. App Icon + Adaptive Icon PNGs
 
 Source SVGs live in `assets/brand/`. The actual PNGs Expo consumes in
 `assets/images/` are still the old empty placeholders until you regenerate.
@@ -71,7 +80,7 @@ Or use https://cloudconvert.com/svg-to-png manually:
 
 ## 🟡 Important — Quality Issues
 
-### 5. Real-device push notification test
+### 6. Real-device push notification test
 
 FCM push notifications don't work in Expo Go. Verify via EAS preview build:
 
@@ -81,14 +90,14 @@ eas build --profile preview --platform android
 # Trigger a ride request — partner should receive FCM push
 ```
 
-### 6. Map API key restrictions
+### 7. Map API key restrictions
 
 In Google Cloud Console, make sure:
 - `GOOGLE_MAPS_API_KEY` is restricted to `com.gosharex.app` package name + SHA-1 cert
 - Other Google API keys (Places, Routes, etc.) have same restrictions
 - Otherwise leaked keys can be abused
 
-### 7. Image-picker dependency removal (optional cleanup)
+### 8. Image-picker dependency removal (optional cleanup)
 
 We removed the photo upload feature but `expo-image-picker` is still in
 package.json. Either:
@@ -99,7 +108,7 @@ package.json. Either:
 
 ## 🟢 Polish — Won't Block Launch
 
-### 8. npm audit
+### 9. npm audit
 
 ```bash
 npm audit
@@ -107,7 +116,7 @@ npm audit
 # `npm audit fix --force` may break things — read each warning first
 ```
 
-### 9. Skip Bangla localization audit
+### 10. Skip Bangla localization audit
 
 `src/i18n/locales/bn.ts` is partial — many strings are still English.
 Mixed-language UX is intentional for Bangladeshi users; complete only

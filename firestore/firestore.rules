@@ -21,6 +21,82 @@ service cloud.firestore {
           && request.auth.uid in resource.data.participants;
     }
 
+    function chatData() {
+      return get(/databases/$(database)/documents/chats/$(chatId)).data;
+    }
+
+    function isMessageParticipant(chatId) {
+      return request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+    }
+
+    function expectedChatSenderName(chatId) {
+      let chat = get(/databases/$(database)/documents/chats/$(chatId)).data;
+      return chat.anonymous == true
+        ? chat.participantAliases[request.auth.uid]
+        : chat.participantNames[request.auth.uid];
+    }
+
+    function isAllowedSystemText() {
+      return request.resource.data.text in [
+        'Chat started. This conversation will auto-delete in 10 minutes.',
+        'Anonymous room created. Waiting for another person to join. Auto-deletes in 5 minutes.',
+        'Another anonymous user joined. Chat auto-deletes in 5 minutes.',
+        'Anonymous group created. Auto-deletes in 10 minutes.',
+        'A new anonymous member joined the group.',
+        'An anonymous member left the group.'
+      ];
+    }
+
+    function isValidChatMessage(chatId) {
+      return request.resource.data.senderId == request.auth.uid
+          && request.resource.data.senderName == expectedChatSenderName(chatId)
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 1000
+          && request.resource.data.timestamp is number
+          && (
+            request.resource.data.type == 'text' ||
+            request.resource.data.type == 'quick_reply' ||
+            request.resource.data.type == 'location' ||
+            (request.resource.data.type == 'system' && isAllowedSystemText())
+          );
+    }
+
+    function allowedParticipantJoin() {
+      return resource.data.searching == true
+        && request.auth.uid in request.resource.data.participants
+        && request.resource.data.participants.size() == resource.data.participants.size() + 1
+        && request.resource.data.participants.hasAll(resource.data.participants)
+        && request.resource.data.lastMessageTime is number
+        && request.resource.data.searching is bool;
+    }
+
+    function allowedParticipantLeave() {
+      return request.auth.uid in resource.data.participants
+        && !(request.auth.uid in request.resource.data.participants)
+        && request.resource.data.participants.size() + 1 == resource.data.participants.size()
+        && resource.data.participants.hasAll(request.resource.data.participants)
+        && request.resource.data.lastMessageTime is number
+        && request.resource.data.searching is bool;
+    }
+
+    function allowedParticipantUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly([
+        'lastMessage',
+        'lastMessageTime',
+        'typing',
+        'lastRead',
+        'dealConfirmed',
+        'expiresAt',
+        'closedAt',
+        'closedBy',
+        'searching'
+      ])
+        && request.auth.uid in resource.data.participants;
+    }
+
     function isValidUpdate() {
       let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
       return !changedKeys.hasAny(['isSuspended', 'strikes', 'totalRides', 'rating', 'badge']);
@@ -53,17 +129,22 @@ service cloud.firestore {
       allow create: if isAuth() && request.auth.uid in request.resource.data.participants;
       // existing participant can update; OR authenticated user can join a searching room
       allow update: if isAuth() && (
-        isChatParticipant() ||
-        (resource.data.searching == true && request.auth.uid in request.resource.data.participants)
+        allowedParticipantUpdate() ||
+        allowedParticipantJoin() ||
+        allowedParticipantLeave()
       );
       allow delete: if isAuth() && isChatParticipant();
 
       match /messages/{msgId} {
-        allow read, create: if isAuth()
-          && request.auth.uid in
-             get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
-        allow update: if false;
-        allow delete: if isAuth();
+        allow read: if isMessageParticipant(chatId);
+        allow create: if isMessageParticipant(chatId) && isValidChatMessage(chatId);
+        allow update: if isMessageParticipant(chatId)
+          && resource.data.senderId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'deletedAt'])
+          && request.resource.data.text == '[deleted]'
+          && request.resource.data.deletedAt is number;
+        allow delete: if isMessageParticipant(chatId)
+          && resource.data.senderId == request.auth.uid;
       }
     }
 

@@ -144,14 +144,23 @@ export default function ChatListScreen() {
     });
   };
 
-  // ── Visible chats (hide expired + solo waiting rooms) ──
+  // ── Visible chats (hide expired + foreign waiting rooms, but show my own waits) ──
   const visibleChats = useMemo(() => {
     const now = Date.now();
     const myUid = user?.uid ?? '';
     return chats.filter((item) => {
       if (item.expiresAt && item.expiresAt <= now) return false;
-      // hide solo waiting rooms that don't belong to this user
-      if (item.searching && (item.participants?.length ?? 0) < 2 && !item.participants?.includes(myUid)) return false;
+      if (item.closedAt && item.closedAt <= now) return false;
+
+      // Hide foreign solo waiting rooms (we shouldn't see other users' 1-person rooms)
+      const isSoloWaiting = item.searching && (item.participants?.length ?? 0) < 2;
+      if (isSoloWaiting && !item.participants?.includes(myUid)) return false;
+
+      // Hide MY own 1v1 search room ONLY if it's a completed solo
+      // (the modal already shows search progress while active). Once participants
+      // grow to 2, it becomes a real chat and we show it. Otherwise show my
+      // waiting room so I can return to it after backing out of the search.
+      // (Currently we keep showing for visibility — better than user losing track.)
       return true;
     });
   }, [chats, user?.uid]);
@@ -191,7 +200,8 @@ export default function ChatListScreen() {
   const handle1v1 = async () => {
     if (!user?.uid || searching1v1) return;
 
-    const existingRoom = await chatService.cleanupDuplicateAnonymousRooms(user.uid);
+    // Pass preferredMode so a user with an active group doesn't get redirected there
+    const existingRoom = await chatService.cleanupDuplicateAnonymousRooms(user.uid, 'anonymous_1v1');
     if (existingRoom) {
       redirectToAnonymousRoom(existingRoom);
       return;
@@ -221,24 +231,31 @@ export default function ChatListScreen() {
       return;
     }
 
-    // Listen for match — but add a small delay before subscribing
-    // so the modal is visible even if match is instant
+    // Subscribe IMMEDIATELY — onSnapshot fires with current state, so we don't
+    // miss an instant match. The 600ms minimum-modal-display is purely visual.
     let matched = false;
-    await new Promise(r => setTimeout(r, 600)); // show modal for at least 600ms
+    const matchAt = Date.now();
+    const MIN_MODAL_MS = 600;
 
-    // If already cancelled while waiting (interval cleared = cancelled)
-    if (!intervalRef.current) return;
+    const handleMatch = () => {
+      if (matched) return;
+      matched = true;
+      const elapsed = Date.now() - matchAt;
+      const delay = Math.max(0, MIN_MODAL_MS - elapsed);
+      setTimeout(() => {
+        stopSearch();
+        navigation.navigate('Chat', {
+          chatId, anonymousMode: 'anonymous_1v1', partnerName: 'Anonymous 1:1',
+        });
+      }, delay);
+    };
 
     unsubRef.current = onSnapshot(doc(db, 'chats', chatId), (snap) => {
       const data = snap.data();
-      if (data && (data.participants?.length ?? 0) >= 2) {
-        matched = true;
-        stopSearch();
-        navigation.navigate('Chat', { chatId, anonymousMode: 'anonymous_1v1', partnerName: 'Anonymous 1:1' });
-      }
+      if (data && (data.participants?.length ?? 0) >= 2) handleMatch();
     });
 
-    // 30s timeout (already ~0.6s elapsed)
+    // 30s timeout (or whatever SEARCH_TIMEOUT_MS is)
     timeoutRef.current = setTimeout(async () => {
       if (unsubRef.current) { unsubRef.current(); unsubRef.current = null; }
       if (!matched) {
@@ -253,39 +270,56 @@ export default function ChatListScreen() {
   const handleGroup = async () => {
     if (!user?.uid) return;
 
-    const existingRoom = await chatService.cleanupDuplicateAnonymousRooms(user.uid);
+    const existingRoom = await chatService.cleanupDuplicateAnonymousRooms(user.uid, 'anonymous_group');
     if (existingRoom) {
       redirectToAnonymousRoom(existingRoom);
       return;
     }
 
     await chatService.cleanupUserOrphanRooms(user.uid);
+    setShowGroupModal(true);
+    // Real-time list refresh is handled by the useEffect below (subscribed
+    // whenever showGroupModal is true), so what user sees is always live.
+  };
 
-    // Load available group rooms (searching, not full, not expired, user not already in)
-    const now = Date.now();
+  // Real-time group room list — fires while modal is open
+  useEffect(() => {
+    if (!showGroupModal || !user?.uid) return;
     const q = query(
       collection(db, 'chats'),
       where('mode', '==', 'anonymous_group'),
       where('searching', '==', true),
-      limit(10)
+      limit(20),
     );
-    const snap = await getDocs(q);
-    const available = snap.docs
-      .map((d) => ({ id: d.id, ...d.data() } as Chat & { id: string }))
-      .filter((r) =>
-        !r.participants?.includes(user.uid) &&
-        (r.expiresAt ?? 0) > now &&
-        (r.participants?.length ?? 0) < 10
-      )
-      .map((r) => ({ id: r.id, participants: r.participants ?? [], expiresAt: r.expiresAt }));
+    const unsub = onSnapshot(q, (snap) => {
+      const now = Date.now();
+      const available = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as Chat & { id: string }))
+        .filter((r) =>
+          !r.participants?.includes(user.uid) &&
+          (r.expiresAt ?? 0) > now &&
+          (r.participants?.length ?? 0) < 10
+        )
+        .map((r) => ({ id: r.id, participants: r.participants ?? [], expiresAt: r.expiresAt }));
+      setGroupRooms(available);
+    });
+    return () => unsub();
+  }, [showGroupModal, user?.uid]);
 
-    setGroupRooms(available);
-    setShowGroupModal(true);
-  };
+  // 10-second watchdog: if join/create promise never settles, dismiss modal
+  // and show an error so user isn't stuck on the loading screen forever.
+  const JOIN_TIMEOUT_MS = 10_000;
+  const withJoinTimeout = <T,>(promise: Promise<T>): Promise<T> =>
+    Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT')), JOIN_TIMEOUT_MS),
+      ),
+    ]);
 
   const joinGroupRoom = async (chatId: string) => {
     if (!user?.uid) return;
-    const existingRoom = await chatService.cleanupDuplicateAnonymousRooms(user.uid);
+    const existingRoom = await chatService.cleanupDuplicateAnonymousRooms(user.uid, 'anonymous_group');
     if (existingRoom && existingRoom.chatId !== chatId) {
       redirectToAnonymousRoom(existingRoom);
       return;
@@ -295,21 +329,27 @@ export default function ChatListScreen() {
     setIsCreatingGroup(false);
     setShowJoiningModal(true);
     try {
-      await chatService.joinGroupById(chatId, user.uid);
+      await withJoinTimeout(chatService.joinGroupById(chatId, user.uid));
       await new Promise(r => setTimeout(r, 800)); // show joining anim for at least 800ms
       setShowJoiningModal(false);
       setJoiningGroup(false);
       navigation.navigate('Chat', { chatId, anonymousMode: 'anonymous_group', partnerName: 'Anonymous Group' });
-    } catch {
+    } catch (err) {
       setShowJoiningModal(false);
       setJoiningGroup(false);
-      Alert.alert('Room unavailable', 'This room is full or expired. Try another.');
+      const isTimeout = err instanceof Error && err.message === 'TIMEOUT';
+      Alert.alert(
+        isTimeout ? 'Slow network' : 'Room unavailable',
+        isTimeout
+          ? 'Could not connect. Check your internet and try again.'
+          : 'This room is full or expired. Try another.',
+      );
     }
   };
 
   const createGroupRoom = async () => {
     if (!user?.uid) return;
-    const existingRoom = await chatService.cleanupDuplicateAnonymousRooms(user.uid);
+    const existingRoom = await chatService.cleanupDuplicateAnonymousRooms(user.uid, 'anonymous_group');
     if (existingRoom) {
       redirectToAnonymousRoom(existingRoom);
       return;
@@ -319,15 +359,21 @@ export default function ChatListScreen() {
     setIsCreatingGroup(true);
     setShowJoiningModal(true);
     try {
-      const chatId = await chatService.startAnonymousGroup(user.uid);
+      const chatId = await withJoinTimeout(chatService.startAnonymousGroup(user.uid));
       await new Promise(r => setTimeout(r, 900));
       setShowJoiningModal(false);
       setJoiningGroup(false);
       navigation.navigate('Chat', { chatId, anonymousMode: 'anonymous_group', partnerName: 'Anonymous Group' });
-    } catch {
+    } catch (err) {
       setShowJoiningModal(false);
       setJoiningGroup(false);
-      Alert.alert('Error', 'Could not create room. Try again.');
+      const isTimeout = err instanceof Error && err.message === 'TIMEOUT';
+      Alert.alert(
+        isTimeout ? 'Slow network' : 'Error',
+        isTimeout
+          ? 'Could not create room. Check your internet and try again.'
+          : 'Could not create room. Try again.',
+      );
     }
   };
 

@@ -34,6 +34,35 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:612454425143:android:95a850aa673ef1487115b2",
+        "android_client_info": {
+          "package_name": "com.gosharex.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "612454425143-d7n1p4th4huua4s2keprs8r0aocakh4a.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCb6OObgC57uJKq8s4u3uP06AhJBoJCMhQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "612454425143-d7n1p4th4huua4s2keprs8r0aocakh4a.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"

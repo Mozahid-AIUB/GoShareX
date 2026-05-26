@@ -34,6 +34,7 @@ export interface ChatItem {
   mode?: 'ride' | 'anonymous_1v1' | 'anonymous_group';
   anonymous?: boolean;
   expiresAt?: number;
+  closedAt?: number;
   searching?: boolean;
   lastMessage: string;
   lastMessageTime: number;

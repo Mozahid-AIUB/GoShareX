@@ -5,8 +5,9 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth } from '@/config/firebase.config';
 
-const DEST_KEY   = 'gosharex_search_history_v1';
+const DEST_KEY = 'gosharex_search_history_v1';
 const PICKUP_KEY = 'gosharex_pickup_history_v1';
 const MAX_ENTRIES = 20;
 
@@ -33,6 +34,11 @@ export interface PickupHistoryEntry {
 
 // ─── Generic helpers ──────────────────────────────────────────────────────────
 
+function getScopedKey(baseKey: string): string {
+  const uid = auth.currentUser?.uid;
+  return uid ? `${baseKey}_${uid}` : baseKey;
+}
+
 async function loadRaw<T>(key: string): Promise<T[]> {
   try {
     const raw = await AsyncStorage.getItem(key);
@@ -48,11 +54,31 @@ async function saveRaw<T>(key: string, entries: T[]): Promise<void> {
   } catch {}
 }
 
+async function migrateLegacyEntries<T>(baseKey: string): Promise<T[]> {
+  const scopedKey = getScopedKey(baseKey);
+  if (scopedKey === baseKey) {
+    return loadRaw<T>(baseKey);
+  }
+
+  const scopedEntries = await loadRaw<T>(scopedKey);
+  if (scopedEntries.length > 0) {
+    return scopedEntries;
+  }
+
+  const legacyEntries = await loadRaw<T>(baseKey);
+  if (legacyEntries.length > 0) {
+    await saveRaw(scopedKey, legacyEntries);
+    await AsyncStorage.removeItem(baseKey);
+  }
+  return legacyEntries;
+}
+
 // ─── Destination history ──────────────────────────────────────────────────────
 
 /** Record a destination search — increments count if exists, inserts if new. */
 export async function recordSearch(entry: Omit<SearchEntry, 'count' | 'lastUsed'>): Promise<void> {
-  const entries = await loadRaw<SearchEntry>(DEST_KEY);
+  const key = getScopedKey(DEST_KEY);
+  const entries = await migrateLegacyEntries<SearchEntry>(DEST_KEY);
   const idx = entries.findIndex(e => e.id === entry.id);
   if (idx >= 0) {
     entries[idx].count += 1;
@@ -62,12 +88,12 @@ export async function recordSearch(entry: Omit<SearchEntry, 'count' | 'lastUsed'
     entries.push({ ...entry, count: 1, lastUsed: Date.now() });
   }
   entries.sort((a, b) => b.count - a.count || b.lastUsed - a.lastUsed);
-  await saveRaw(DEST_KEY, entries.slice(0, MAX_ENTRIES));
+  await saveRaw(key, entries.slice(0, MAX_ENTRIES));
 }
 
 /** Get top N popular destinations, sorted by usage count. */
 export async function getPopularSearches(limit = 6): Promise<SearchEntry[]> {
-  const entries = await loadRaw<SearchEntry>(DEST_KEY);
+  const entries = await migrateLegacyEntries<SearchEntry>(DEST_KEY);
   return entries
     .sort((a, b) => b.count - a.count || b.lastUsed - a.lastUsed)
     .slice(0, limit);
@@ -81,14 +107,15 @@ export async function getMostUsedDestination(): Promise<SearchEntry | null> {
 
 /** Clear destination history. */
 export async function clearSearchHistory(): Promise<void> {
-  await AsyncStorage.removeItem(DEST_KEY);
+  await AsyncStorage.removeItem(getScopedKey(DEST_KEY));
 }
 
 // ─── Pickup history ───────────────────────────────────────────────────────────
 
 /** Record a pickup point selection — increments count if exists, inserts if new. */
 export async function recordPickupUsage(entry: Omit<PickupHistoryEntry, 'count' | 'lastUsed'>): Promise<void> {
-  const entries = await loadRaw<PickupHistoryEntry>(PICKUP_KEY);
+  const key = getScopedKey(PICKUP_KEY);
+  const entries = await migrateLegacyEntries<PickupHistoryEntry>(PICKUP_KEY);
   const idx = entries.findIndex(e => e.id === entry.id);
   if (idx >= 0) {
     entries[idx].count += 1;
@@ -98,12 +125,12 @@ export async function recordPickupUsage(entry: Omit<PickupHistoryEntry, 'count' 
     entries.push({ ...entry, count: 1, lastUsed: Date.now() });
   }
   entries.sort((a, b) => b.count - a.count || b.lastUsed - a.lastUsed);
-  await saveRaw(PICKUP_KEY, entries.slice(0, MAX_ENTRIES));
+  await saveRaw(key, entries.slice(0, MAX_ENTRIES));
 }
 
 /** Get top N frequently used pickup points, sorted by count. GPS entries are excluded. */
 export async function getFrequentPickups(limit = 5): Promise<PickupHistoryEntry[]> {
-  const entries = await loadRaw<PickupHistoryEntry>(PICKUP_KEY);
+  const entries = await migrateLegacyEntries<PickupHistoryEntry>(PICKUP_KEY);
   // Filter out any GPS/current_location entries that may have been saved previously
   const fixed = entries.filter(
     e => e.id !== 'current_location' && !e.name.startsWith('My current location')
@@ -121,5 +148,5 @@ export async function getMostUsedPickup(): Promise<PickupHistoryEntry | null> {
 
 /** Clear pickup history. */
 export async function clearPickupHistory(): Promise<void> {
-  await AsyncStorage.removeItem(PICKUP_KEY);
+  await AsyncStorage.removeItem(getScopedKey(PICKUP_KEY));
 }

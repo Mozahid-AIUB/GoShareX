@@ -1,0 +1,18 @@
+{
+  "rules": {
+    "presence": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['state', 'last_changed']) && (newData.child('state').val() === 'online' || newData.child('state').val() === 'offline') && newData.child('last_changed').isNumber()"
+      }
+    },
+    "active_riders": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.val() === null || (newData.hasChildren(['uid', 'name', 'lat', 'lng', 'destination', 'pickupPoint', 'status', 'rating', 'badge', 'timestamp']) && newData.child('uid').val() === $uid && newData.child('name').isString() && newData.child('lat').isNumber() && newData.child('lat').val() >= -90 && newData.child('lat').val() <= 90 && newData.child('lng').isNumber() && newData.child('lng').val() >= -180 && newData.child('lng').val() <= 180 && newData.child('destination').isString() && newData.child('pickupPoint').isString() && (newData.child('status').val() === 'waiting' || newData.child('status').val() === 'matched' || newData.child('status').val() === 'riding' || newData.child('status').val() === 'in_ride') && newData.child('rating').isNumber() && newData.child('badge').isString() && newData.child('timestamp').isNumber() && (!newData.child('photoURL').exists() || newData.child('photoURL').isString()))"
+      }
+    }
+  }
+}
