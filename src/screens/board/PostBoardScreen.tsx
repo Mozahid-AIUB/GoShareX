@@ -73,8 +73,8 @@ const IconDirectionArrow = () => (
 );
 
 const RT: Record<string, { vehicleType: 'rickshaw' | 'motorcycle'; tone: 'amber' | 'indigo'; label: string; color: string; bg: string }> = {
-  share:      { vehicleType: 'rickshaw',   tone: 'amber',  label: 'Share', color: '#6366F1', bg: 'rgba(99,102,241,0.08)' },
-  bike_owner: { vehicleType: 'motorcycle', tone: 'indigo', label: 'Bike',  color: '#10B981', bg: 'rgba(16,185,129,0.08)' },
+  share: { vehicleType: 'rickshaw', tone: 'amber', label: 'Share', color: '#6366F1', bg: 'rgba(99,102,241,0.08)' },
+  bike_owner: { vehicleType: 'motorcycle', tone: 'indigo', label: 'Bike', color: '#10B981', bg: 'rgba(16,185,129,0.08)' },
 };
 
 function calcExpiry(expiresAt: number) {
@@ -152,7 +152,7 @@ const PostCard = React.memo(({ item, onJoin, onLeave, onCancel, onChat, isBusy, 
         <View style={cd.right}>
           {!!item.meetTime && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <Svg width={10} height={10} viewBox="0 0 24 24" fill="none"><Circle cx="12" cy="12" r="9" stroke={C.textSub} strokeWidth="1.8"/><Path d="M12 7v5l3 3" stroke={C.textSub} strokeWidth="1.8" strokeLinecap="round"/></Svg>
+              <Svg width={10} height={10} viewBox="0 0 24 24" fill="none"><Circle cx="12" cy="12" r="9" stroke={C.textSub} strokeWidth="1.8" /><Path d="M12 7v5l3 3" stroke={C.textSub} strokeWidth="1.8" strokeLinecap="round" /></Svg>
               <Text style={cd.timeT}>{item.meetTime}</Text>
             </View>
           )}
@@ -173,7 +173,7 @@ const PostCard = React.memo(({ item, onJoin, onLeave, onCancel, onChat, isBusy, 
       </View>
 
       {/* note — only if present */}
-      {!!item.note && <Text style={cd.note} numberOfLines={1}>"{item.note}"</Text>}
+      {!!item.note && <Text style={cd.note} numberOfLines={1}>&quot;{item.note}&quot;</Text>}
 
       {/* ── actions ── inline, right-aligned, small ── */}
       <View style={cd.footer}>
@@ -184,7 +184,7 @@ const PostCard = React.memo(({ item, onJoin, onLeave, onCancel, onChat, isBusy, 
         ) : isMatched ? (
           <TouchableOpacity style={cd.btnPrimary} onPress={onChat} activeOpacity={0.85}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-              <Svg width={11} height={11} viewBox="0 0 24 24" fill="none"><Path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></Svg>
+              <Svg width={11} height={11} viewBox="0 0 24 24" fill="none"><Path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></Svg>
               <Text style={cd.btnPrimaryTxt}>Start Chat →</Text>
             </View>
           </TouchableOpacity>
@@ -192,7 +192,7 @@ const PostCard = React.memo(({ item, onJoin, onLeave, onCancel, onChat, isBusy, 
           <>
             <TouchableOpacity style={cd.btnGreen} onPress={onChat} activeOpacity={0.85}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                <Svg width={11} height={11} viewBox="0 0 24 24" fill="none"><Path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={C.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></Svg>
+                <Svg width={11} height={11} viewBox="0 0 24 24" fill="none"><Path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={C.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></Svg>
                 <Text style={cd.btnGreenTxt}>Chat</Text>
               </View>
             </TouchableOpacity>
@@ -205,7 +205,7 @@ const PostCard = React.memo(({ item, onJoin, onLeave, onCancel, onChat, isBusy, 
         ) : (
           <>
             <TouchableOpacity style={cd.btnGhost} onPress={onChat} activeOpacity={0.85}>
-              <Svg width={14} height={14} viewBox="0 0 24 24" fill="none"><Path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={C.textSub} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></Svg>
+              <Svg width={14} height={14} viewBox="0 0 24 24" fill="none"><Path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={C.textSub} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></Svg>
             </TouchableOpacity>
             <TouchableOpacity style={cd.btnPrimary} onPress={onJoin} disabled={isBusy} activeOpacity={0.85}>
               <Text style={cd.btnPrimaryTxt}>{isBusy ? '…' : '+ Join'}</Text>
@@ -216,6 +216,7 @@ const PostCard = React.memo(({ item, onJoin, onLeave, onCancel, onChat, isBusy, 
     </View>
   );
 });
+PostCard.displayName = 'PostCard';
 
 const cd = StyleSheet.create({
   card: {

@@ -191,7 +191,9 @@ export default function RideConfirmedScreen() {
   useEffect(() => {
     if (!rideId) return;
 
-    const unsub = onSnapshot(doc(db, 'rides', rideId), (snap) => {
+    const unsub = onSnapshot(
+      doc(db, 'rides', rideId),
+      (snap) => {
       if (!snap.exists()) return;
       const data = snap.data();
 
@@ -224,7 +226,11 @@ export default function RideConfirmedScreen() {
           routePreview,
         });
       }
-    });
+      },
+      (error) => {
+        logger.warn('RideConfirmedScreen.rideListener', error);
+      },
+    );
 
     return () => unsub();
   }, [rideId]);

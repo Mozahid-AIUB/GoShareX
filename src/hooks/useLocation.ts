@@ -45,7 +45,7 @@ export function useLocation(): UseLocationResult {
 
     fetchLocation();
     return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     lat: latitude ?? null,

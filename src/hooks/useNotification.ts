@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { storage, STORAGE_KEYS } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 import { requestNotificationPermission } from '@/utils/permissions';
@@ -18,7 +19,6 @@ export function useNotification(): UseNotificationResult {
     try {
       // getDevicePushTokenAsync is not available in Expo Go (SDK 53+)
       // The Expo Go app logs an ERROR for this — skip entirely in that environment
-      const Constants = require('expo-constants').default;
       const isExpoGo = Constants.executionEnvironment === 'storeClient';
       if (isExpoGo) return;
 

@@ -57,7 +57,8 @@
       "Bash(awk 'NR >= 346 && NR <= 800' src/screens/chat/ChatListScreen.tsx)",
       "Bash(awk 'NR < 43 || \\(NR >= 345 && NR < 870\\)' src/screens/chat/ChatListScreen.tsx)",
       "Bash(awk 'NR < 45 || NR >= 122' src/screens/chat/ChatScreen.tsx)",
-      "Bash(awk -F: '{print $1}')"
+      "Bash(awk -F: '{print $1}')",
+      "Bash(node_modules/@expo/ngrok-bin-win32-x64/ngrok.exe config *)"
     ],
     "additionalDirectories": [
       "d:\\Way_To_Job\\GoShareX\\docs"

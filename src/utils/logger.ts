@@ -12,29 +12,56 @@ function format(level: LogLevel, tag: string, args: unknown[]): string {
   return `[${timestamp}] [${level}] [${tag}]`;
 }
 
+function maskValue(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  if (value.includes('@')) {
+    const [name, domain] = value.split('@');
+    return `${name.slice(0, 2)}***@${domain}`;
+  }
+  if (value.length > 8) {
+    return `${value.slice(0, 4)}***${value.slice(-4)}`;
+  }
+  return value;
+}
+
+function sanitizeLogArg(arg: unknown): unknown {
+  if (Array.isArray(arg)) return arg.map(sanitizeLogArg);
+  if (!arg || typeof arg !== 'object') return maskValue(arg);
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(arg as Record<string, unknown>)) {
+    const lowered = key.toLowerCase();
+    if (['password', 'token', 'access_token', 'refresh_token', 'secret', 'apiKey', 'apikey'].some((k) => lowered.includes(k.toLowerCase()))) {
+      out[key] = '[REDACTED]';
+    } else {
+      out[key] = sanitizeLogArg(value);
+    }
+  }
+  return out;
+}
+
 const logger = {
   debug(tag: string, ...args: unknown[]): void {
     if (__DEV__) {
-      console.log(format('DEBUG', tag, args), ...args);
+      console.log(format('DEBUG', tag, args), ...args.map(sanitizeLogArg));
     }
   },
 
   info(tag: string, ...args: unknown[]): void {
     if (__DEV__) {
-      console.log(format('INFO', tag, args), ...args);
+      console.log(format('INFO', tag, args), ...args.map(sanitizeLogArg));
     }
   },
 
   warn(tag: string, ...args: unknown[]): void {
     if (__DEV__) {
-      console.warn(format('WARN', tag, args), ...args);
+      console.warn(format('WARN', tag, args), ...args.map(sanitizeLogArg));
     }
   },
 
   error(tag: string, error: unknown, context?: Record<string, unknown>): void {
     // Always log errors — even in production we need the native console
     // (visible in Flipper / Crashlytics in production builds)
-    console.error(format('ERROR', tag, [error]), error, context ?? '');
+    console.error(format('ERROR', tag, [error]), sanitizeLogArg(error), sanitizeLogArg(context ?? ''));
 
     // Placeholder for future crash reporter integration
   },

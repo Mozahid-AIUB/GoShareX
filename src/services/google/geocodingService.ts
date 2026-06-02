@@ -9,11 +9,9 @@
  * - Show "you are at X" using current GPS
  */
 
-import ENV from '@/config/env';
-import { buildQueryString, fetchJson, GoogleApiError } from './base';
 import { logger } from '@/utils/logger';
-
-const GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '@/config/firebase.config';
 
 export type LatLng = { latitude: number; longitude: number };
 
@@ -44,20 +42,12 @@ class GeocodingService {
    * Returns first / best match; null if nothing found.
    */
   async geocode(address: string, region = 'bd'): Promise<GeocodingResult | null> {
-    if (!ENV.googleMapsApiKey) {
-      throw new GoogleApiError('Google Maps API key missing for Geocoding');
-    }
     if (!address.trim()) return null;
 
-    const query = buildQueryString({
-      address: address.trim(),
-      key: ENV.googleMapsApiKey,
-      region,
-      language: 'en',
-    });
-
     try {
-      const data = await fetchJson<GoogleGeocodeResponse>(`${GEOCODE_URL}?${query}`);
+      const proxy = httpsCallable(functions, 'geocode');
+      const result = await proxy({ address: address.trim(), region });
+      const data = result.data as GoogleGeocodeResponse;
       if (data.status === 'ZERO_RESULTS') return null;
       if (data.status !== 'OK') {
         logger.warn('geocodingService.geocode', data.error_message ?? data.status);
@@ -82,16 +72,10 @@ class GeocodingService {
    * Reverse geocoding: coords -> human-readable address.
    */
   async reverseGeocode(point: LatLng): Promise<string | null> {
-    if (!ENV.googleMapsApiKey) return null;
-
-    const query = buildQueryString({
-      latlng: `${point.latitude},${point.longitude}`,
-      key: ENV.googleMapsApiKey,
-      language: 'en',
-    });
-
     try {
-      const data = await fetchJson<GoogleGeocodeResponse>(`${GEOCODE_URL}?${query}`);
+      const proxy = httpsCallable(functions, 'reverseGeocode');
+      const result = await proxy({ lat: point.latitude, lng: point.longitude });
+      const data = result.data as GoogleGeocodeResponse;
       if (data.status !== 'OK') {
         logger.warn('geocodingService.reverse', data.error_message ?? data.status);
         return null;

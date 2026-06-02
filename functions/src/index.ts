@@ -16,3 +16,9 @@ export { cleanupAnonymousChats } from './cleanupAnonymousChats';
 export { scheduledCleanup } from './scheduledCleanup';
 export { processAuditLog } from './auditLog';
 export { rideRatingReminder, scheduledRatingReminder } from './rideRatingReminder';
+
+// SECURITY ENHANCEMENTS
+export { checkRateLimit, cleanupOldRateLimits } from './rateLimiter';
+export { placesAutocomplete, distanceMatrix, snapToRoads, geocode, reverseGeocode } from './googleMapsProxy';
+export { logAuditEvent, cleanupAuditLogs, exportAuditLogs } from './auditLogServer';
+export { exportMyData, deleteMyAccount } from './compliance';

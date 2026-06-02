@@ -140,15 +140,20 @@ export function subscribeDoc<T>(
   collectionPath: string,
   docId: string,
   callback: (data: T | null) => void,
+  onError?: (error: unknown) => void,
 ): Unsubscribe {
   const ref = doc(db, collectionPath, docId);
-  return onSnapshot(ref, (snap) => {
-    if (!snap.exists()) {
-      callback(null);
-    } else {
-      callback({ id: snap.id, ...snap.data() } as T);
-    }
-  });
+  return onSnapshot(
+    ref,
+    (snap) => {
+      if (!snap.exists()) {
+        callback(null);
+      } else {
+        callback({ id: snap.id, ...snap.data() } as T);
+      }
+    },
+    onError,
+  );
 }
 
 /**
@@ -159,6 +164,7 @@ export function subscribeDocs<T>(
   collectionPath: string,
   options: QueryOptions,
   callback: (data: T[]) => void,
+  onError?: (error: unknown) => void,
 ): Unsubscribe {
   const colRef = collection(db, collectionPath) as CollectionReference<DocumentData>;
   const constraints: QueryConstraint[] = [];
@@ -176,9 +182,13 @@ export function subscribeDocs<T>(
   }
 
   const q = query(colRef, ...constraints);
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as T)));
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as T)));
+    },
+    onError,
+  );
 }
 
 /** Convenience re-export so callers can use serverTimestamp without extra imports */

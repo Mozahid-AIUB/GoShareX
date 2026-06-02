@@ -117,6 +117,34 @@ export default function LoginScreen() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      Alert.alert('Enter email first', 'Please type your email address so we can send the reset link.');
+      return;
+    }
+
+    if (!isValidEmail(normalizedEmail)) {
+      setEmailError('Please enter a valid email address');
+      Alert.alert('Invalid email', 'Please enter a valid email address first.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await authService.resetPassword(normalizedEmail);
+      Alert.alert(
+        'Reset link sent',
+        `We sent a password reset email to ${normalizedEmail}. Please check your inbox and spam folder.`
+      );
+    } catch (error: any) {
+      Alert.alert('Reset failed', error?.message ?? 'Could not send password reset email.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGoogleSignIn = async () => {
     setEmailError('');
     setGoogleLoading(true);
@@ -167,9 +195,22 @@ export default function LoginScreen() {
 
             <FormField label="Email" value={email} onChangeText={setEmail}
               icon={<IconEmail />} keyboardType="email-address" error={emailError} />
-            <FormField label="Password" value={password} onChangeText={setPassword}
+            <FormField
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
               icon={<IconLock />} secure={!showPassword}
-              onToggleSecure={() => setShowPassword(v => !v)} />
+              onToggleSecure={() => setShowPassword(v => !v)}
+              rightLabel={(
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('Auth', { screen: 'ForgotPassword', params: { email: email.trim() } })}
+                  disabled={busy}
+                  activeOpacity={0.7}
+                >
+                  <Text style={s.forgotLinkText}>Forgot Password?</Text>
+                </TouchableOpacity>
+              )}
+            />
 
             <Animated.View style={{ transform: [{ scale: btn.scale }] }}>
               <Pressable style={[s.loginBtn, loading && s.btnDisabled]}
@@ -241,6 +282,7 @@ const s = StyleSheet.create({
   },
   cardTitle: { fontSize: 22, fontWeight: '800', color: C.text, marginBottom: 4, letterSpacing: -0.4 },
   cardSub: { fontSize: 13, color: C.textSub, marginBottom: 24 },
+  forgotLinkText: { fontSize: 13, fontWeight: '700', color: C.primary, textDecorationLine: 'underline' },
   loginBtn: {
     height: 54, borderRadius: 18, backgroundColor: C.primary,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 4,

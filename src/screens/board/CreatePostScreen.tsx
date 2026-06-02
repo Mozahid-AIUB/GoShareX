@@ -15,7 +15,7 @@ import {
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import Svg, { Path, Circle, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import PremiumIcon from '@/components/common/PremiumIcon';
 import VehicleIcon from '@/components/common/VehicleIcon';
 import type { RootNavProp } from '@/navigation/types';
@@ -215,7 +215,7 @@ const lf = StyleSheet.create({
   errorText: { fontSize: 11, color: C.error, marginTop: 4, marginLeft: 2 },
 });
 
-const TIME_REGEX       = /^\d{1,2}:\d{2}$/;
+const TIME_REGEX = /^\d{1,2}:\d{2}$/;
 const NON_NUMERIC_REGEX = /[^0-9:]/g;
 
 // ─── Ride Type Selector ───────────────────────────────────────────────────────
@@ -261,11 +261,11 @@ export default function CreatePostScreen() {
     } else {
       navigation.goBack();
     }
-  };;
+  }
 
   const btnScale = useRef(new Animated.Value(1)).current;
-  const onPressIn  = useCallback(() => Animated.spring(btnScale, { toValue: 0.96, useNativeDriver: true, tension: 120 }).start(), [btnScale]);
-  const onPressOut = useCallback(() => Animated.spring(btnScale, { toValue: 1,    useNativeDriver: true, tension: 80  }).start(), [btnScale]);
+  const onPressIn = useCallback(() => Animated.spring(btnScale, { toValue: 0.96, useNativeDriver: true, tension: 120 }).start(), [btnScale]);
+  const onPressOut = useCallback(() => Animated.spring(btnScale, { toValue: 1, useNativeDriver: true, tension: 80 }).start(), [btnScale]);
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};

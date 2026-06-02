@@ -40,6 +40,7 @@ import { useLocationStore } from '@/store';
 import type { RideRequestState } from '@/store/rideStore';
 import { VEHICLE_CONFIG, type VehicleType } from '@/store/rideStore';
 import { sanitizeSpeedKmh } from '@/utils/locationSpeed';
+import { logger } from '@/utils/logger';
 import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, limit } from 'firebase/firestore';
 import { db } from '@/services/firebase/config';
 import PremiumVehicleArt from '@/components/vehicles/PremiumVehicleArt';
@@ -648,7 +649,7 @@ const DestinationModal = ({
             {!showHistory && !isSearching && remoteSuggestions.length === 0 && !error && (
               <View style={{ alignItems: 'center', paddingVertical: 24, gap: 12 }}>
                 <Text style={{ fontSize: 13, color: D.textMuted }}>
-                  No suggestions for "{query}"
+                  No suggestions for &quot;{query}&quot;
                 </Text>
                 <TouchableOpacity
                   style={{
@@ -670,7 +671,7 @@ const DestinationModal = ({
                 >
                   <MaterialCommunityIcons name="map-search" size={16} color={D.primary} />
                   <Text style={{ fontSize: 13, fontWeight: '700', color: D.primary }}>
-                    Use "{query}" as address
+                    Use &quot;{query}&quot; as address
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -693,6 +694,7 @@ export default function HomeScreen() {
     setRequestState, clearRequestState, triggerRouteSearch,
     vehicleType, setVehicleType,
   } = useRideStore();
+  const pickupPointRef = useRef<string | null>(null);
 
   // শুধু completed ride এর পরে destination reset করো — normal navigation এ না
   useFocusEffect(
@@ -712,11 +714,16 @@ export default function HomeScreen() {
   // Smart default: auto-set "My current location" as pickup on first mount
   // if user hasn't picked anything yet — saves a tap on every fresh session.
   useEffect(() => {
+    pickupPointRef.current = pickupPoint;
+  }, [pickupPoint]);
+
+  // Smart default: keep "My current location" as the default pickup for fresh sessions.
+  // Do not let an async "frequent pickup" lookup overwrite a real user choice later.
+  useEffect(() => {
     if (!pickupPoint) {
       setPickupPoint(MY_LOCATION_PICKUP_ID);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pickupPoint]);
 
   const lat = useLocationStore((s) => s.latitude);
   const lng = useLocationStore((s) => s.longitude);
@@ -1072,9 +1079,10 @@ export default function HomeScreen() {
 
   useEffect(() => {
 
-    // Smart FROM default: most-used pickup point (AIUB campus points only, not GPS)
+    // Smart FROM default: most-used pickup point (frequent history only).
+    // Never overwrite a real selection that already landed while this async call was running.
     getMostUsedPickup().then((top) => {
-      if (top && !pickupPoint && top.id !== MY_LOCATION_PICKUP_ID) {
+      if (top && !pickupPointRef.current && top.id !== MY_LOCATION_PICKUP_ID) {
         setPickupPoint(top.id);
         setWaypoints(prev => {
           const copy = [...prev];
@@ -1108,7 +1116,9 @@ export default function HomeScreen() {
       const items = snap.docs.map((d) => ({ id: d.id, type: '', read: false, ...d.data() } as AppNotification));
       setNotifications(items);
       setUnreadCount(items.filter((n) => !n.read).length);
-    }, () => { });
+    }, (error) => {
+      logger.warn('HomeScreen.notifications', error);
+    });
     return unsub;
   }, []);
 

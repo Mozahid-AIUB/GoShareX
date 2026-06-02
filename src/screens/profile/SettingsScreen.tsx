@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Linking,
+  Share,
   ScrollView,
   StyleSheet,
   Switch,
@@ -17,6 +18,8 @@ import type { RootNavProp } from '@/navigation/types';
 import { useAuthStore } from '@/store/authStore';
 import authService from '@/services/firebase/authService';
 import googleAuthService from '@/services/firebase/googleAuthService';
+import { functions } from '@/config/firebase.config';
+import { httpsCallable } from 'firebase/functions';
 import { logger } from '@/utils/logger';
 import PremiumIcon from '@/components/common/PremiumIcon';
 import { biometricService } from '@/services/security/biometricService';
@@ -135,6 +138,7 @@ export default function SettingsScreen() {
   const navigation = useNavigation<RootNavProp>();
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuthStore();
+  const [dataActionBusy, setDataActionBusy] = useState(false);
 
   const [notifRides,      setNotifRides]      = useState(true);
   const [notifChat,       setNotifChat]        = useState(true);
@@ -190,6 +194,64 @@ export default function SettingsScreen() {
   };
 
   const openLink = (url: string) => Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open link.'));
+
+  const handleExportData = async () => {
+    if (!user?.uid) {
+      Alert.alert('Not signed in', 'Please sign in again and try once more.');
+      return;
+    }
+
+    setDataActionBusy(true);
+    try {
+      const exportMyData = httpsCallable(functions, 'exportMyData');
+      const result = await exportMyData({ userId: user.uid });
+      const payload = JSON.stringify(result.data, null, 2);
+
+      await Share.share({
+        title: 'GoShareX Account Data',
+        message: payload,
+      });
+    } catch (error: any) {
+      logger.error('Settings.exportData', error);
+      Alert.alert('Export failed', error?.message ?? 'Could not export your data.');
+    } finally {
+      setDataActionBusy(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user?.uid) {
+      Alert.alert('Not signed in', 'Please sign in again and try once more.');
+      return;
+    }
+
+    Alert.alert(
+      'Delete account',
+      'This will permanently delete your profile, active location, chats, rides, posts, and notification token. Shared audit logs may be retained for security and compliance.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDataActionBusy(true);
+            try {
+              const deleteMyAccount = httpsCallable(functions, 'deleteMyAccount');
+              await deleteMyAccount({ userId: user.uid });
+              await googleAuthService.signOut().catch((e) => logger.warn('Settings.deleteAccount.googleSignOut', e));
+              await authService.logout().catch((e) => logger.warn('Settings.deleteAccount.logout', e));
+            } catch (error: any) {
+              logger.error('Settings.deleteAccount', error);
+              Alert.alert('Delete failed', error?.message ?? 'Could not delete your account.');
+            } finally {
+              logout();
+              setDataActionBusy(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
@@ -330,6 +392,26 @@ export default function SettingsScreen() {
             label="Terms & Privacy Policy"
             sub="How we handle your data + ride rules"
             onPress={() => navigation.navigate('Legal')}
+          />
+        </View>
+
+        {/* Data Requests */}
+        <SectionHeader label="Your Data" />
+        <View style={s.card}>
+          <LinkRow
+            icon={<IconMail />}
+            label={dataActionBusy ? 'Preparing export...' : 'Download My Data'}
+            sub="Receive a JSON export of your account data"
+            onPress={handleExportData}
+            danger={false}
+          />
+          <View style={s.divider} />
+          <LinkRow
+            icon={<IconGavel />}
+            label="Delete My Account"
+            sub="Permanently remove your profile and related personal data"
+            onPress={handleDeleteAccount}
+            danger
           />
         </View>
 

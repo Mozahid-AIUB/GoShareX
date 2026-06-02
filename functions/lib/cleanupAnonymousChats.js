@@ -36,15 +36,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.cleanupAnonymousChats = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
-const app = admin.apps.length ? admin.app() : admin.initializeApp();
-const db = app.firestore();
+const db = admin.firestore();
 exports.cleanupAnonymousChats = functions.pubsub
     .schedule('every 5 minutes')
     .onRun(async () => {
     const now = Date.now();
     const expiredChats = await db
         .collection('chats')
-        .where('anonymous', '==', true)
         .where('expiresAt', '<=', now)
         .get();
     let deletedChats = 0;
@@ -67,7 +65,7 @@ exports.cleanupAnonymousChats = functions.pubsub
         deletedChats += 1;
         await batch.commit();
     }
-    console.log(`Deleted ${deletedChats} expired anonymous chats and ${deletedMessages} messages`);
+    console.log(`Deleted ${deletedChats} expired chats and ${deletedMessages} messages`);
     return null;
 });
 //# sourceMappingURL=cleanupAnonymousChats.js.map

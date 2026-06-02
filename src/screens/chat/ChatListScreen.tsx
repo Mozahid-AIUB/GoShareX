@@ -22,6 +22,7 @@ import { useAuthStore } from '@/store/authStore';
 import { storage, STORAGE_KEYS } from '@/utils/storage';
 import { useNavigation } from '@react-navigation/native';
 import chatService, { type Chat } from '@/services/firebase/chatService';
+import { logger } from '@/utils/logger';
 
 import {
   IconChevron,
@@ -105,9 +106,15 @@ export default function ChatListScreen() {
       where('participants', 'array-contains', user.uid),
       orderBy('lastMessageTime', 'desc')
     );
-    return onSnapshot(q, (snap) => {
-      setChats(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatItem)));
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        setChats(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatItem)));
+      },
+      (error) => {
+        logger.warn('ChatListScreen.liveChats', error);
+      },
+    );
   }, [user?.uid]);
 
   useEffect(() => {
@@ -291,18 +298,24 @@ export default function ChatListScreen() {
       where('searching', '==', true),
       limit(20),
     );
-    const unsub = onSnapshot(q, (snap) => {
-      const now = Date.now();
-      const available = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() } as Chat & { id: string }))
-        .filter((r) =>
-          !r.participants?.includes(user.uid) &&
-          (r.expiresAt ?? 0) > now &&
-          (r.participants?.length ?? 0) < 10
-        )
-        .map((r) => ({ id: r.id, participants: r.participants ?? [], expiresAt: r.expiresAt }));
-      setGroupRooms(available);
-    });
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const now = Date.now();
+        const available = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() } as Chat & { id: string }))
+          .filter((r) =>
+            !r.participants?.includes(user.uid) &&
+            (r.expiresAt ?? 0) > now &&
+            (r.participants?.length ?? 0) < 10
+          )
+          .map((r) => ({ id: r.id, participants: r.participants ?? [], expiresAt: r.expiresAt }));
+        setGroupRooms(available);
+      },
+      (error) => {
+        logger.warn('ChatListScreen.groupRooms', error);
+      },
+    );
     return () => unsub();
   }, [showGroupModal, user?.uid]);
 

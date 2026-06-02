@@ -9,6 +9,7 @@ interface Props {
   value: string;
   onChangeText: (t: string) => void;
   icon: React.ReactNode;
+  rightLabel?: React.ReactNode;
   secure?: boolean;
   onToggleSecure?: () => void;
   keyboardType?: any;
@@ -18,13 +19,16 @@ interface Props {
 }
 
 export default function FormField({
-  label, value, onChangeText, icon, secure, onToggleSecure,
+  label, value, onChangeText, icon, rightLabel, secure, onToggleSecure,
   keyboardType, autoCapitalize, placeholder, error,
 }: Props) {
   const [focused, setFocused] = useState(false);
   return (
     <View style={f.wrap}>
-      <Text style={f.label}>{label}</Text>
+      <View style={f.labelRow}>
+        <Text style={f.label}>{label}</Text>
+        {rightLabel}
+      </View>
       <View style={[f.row, focused && f.rowFocused, !!error && f.rowError]}>
         <View style={f.iconWrap}>{icon}</View>
         <TextInput
@@ -52,7 +56,8 @@ export default function FormField({
 
 const f = StyleSheet.create({
   wrap: { marginBottom: 14 },
-  label: { fontSize: 12, fontWeight: '700', color: C.textSub, letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase' },
+  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  label: { fontSize: 12, fontWeight: '700', color: C.textSub, letterSpacing: 0.5, textTransform: 'uppercase' },
   row: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#F9F7FF', borderRadius: 16,

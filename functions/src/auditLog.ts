@@ -16,7 +16,7 @@ export const processAuditLog = functions.firestore
     .onCreate(async (snap) => {
         try {
             const data = snap.data();
-            const { userId, action, resource, resourceId, changes, status, errorMessage, clientTimestamp } = data;
+            const { userId, action, resource, resourceId, changes } = data;
 
             // Validation
             if (!userId || !action || !resource || !resourceId) {

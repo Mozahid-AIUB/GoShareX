@@ -8,6 +8,7 @@ import {
 } from 'firebase/firestore';
 import { getDatabase, Database } from 'firebase/database';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
+import { getFunctions, Functions } from 'firebase/functions';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
@@ -32,13 +33,13 @@ if (!FIREBASE_API_KEY || !FIREBASE_AUTH_DOMAIN || !FIREBASE_PROJECT_ID) {
 }
 
 const firebaseConfig = {
-  apiKey:            FIREBASE_API_KEY            ?? '',
-  authDomain:        FIREBASE_AUTH_DOMAIN        ?? '',
-  projectId:         FIREBASE_PROJECT_ID         ?? '',
-  storageBucket:     FIREBASE_STORAGE_BUCKET     ?? '',
+  apiKey: FIREBASE_API_KEY ?? '',
+  authDomain: FIREBASE_AUTH_DOMAIN ?? '',
+  projectId: FIREBASE_PROJECT_ID ?? '',
+  storageBucket: FIREBASE_STORAGE_BUCKET ?? '',
   messagingSenderId: FIREBASE_MESSAGING_SENDER_ID ?? '',
-  appId:             FIREBASE_APP_ID             ?? '',
-  databaseURL:       FIREBASE_DATABASE_URL       ?? '',
+  appId: FIREBASE_APP_ID ?? '',
+  databaseURL: FIREBASE_DATABASE_URL ?? '',
 };
 
 const app: FirebaseApp = getApps().length === 0
@@ -90,6 +91,7 @@ const db: Firestore = (() => {
 
 const realtimeDb: Database = getDatabase(app);
 const storage: FirebaseStorage = getStorage(app);
+const functions: Functions = getFunctions(app);
 
-export { app, auth, db, realtimeDb, storage };
+export { app, auth, db, realtimeDb, storage, functions };
 export default app;

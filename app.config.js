@@ -5,6 +5,7 @@ export default {
         name: "GoShareX",
         slug: "gosharex",
         version: "1.0.0",
+        scheme: "gosharex",
         orientation: "portrait",
         privacy: "unlisted",
         icon: "./assets/images/icon.png",
@@ -40,6 +41,7 @@ export default {
         plugins: [
             "expo-location",
             "expo-notifications",
+            "expo-secure-store",
             "@react-native-google-signin/google-signin",
             [
                 "expo-splash-screen",

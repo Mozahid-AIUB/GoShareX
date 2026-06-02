@@ -105,6 +105,29 @@ service cloud.firestore {
     }
 
     // ── Ratings ────────────────────────────────────────────────────────────────
+    match /notifications/{notificationId} {
+      allow read: if isAuth() && (
+        resource.data.toUserId == request.auth.uid ||
+        resource.data.fromUserId == request.auth.uid
+      );
+
+      allow create: if isAuth()
+                    && request.resource.data.fromUserId == request.auth.uid
+                    && request.resource.data.toUserId is string
+                    && request.resource.data.toUserId.size() > 0
+                    && request.resource.data.message is string
+                    && request.resource.data.message.size() > 0
+                    && request.resource.data.message.size() <= 500
+                    && request.resource.data.read == false;
+
+      allow update: if isAuth()
+                    && resource.data.toUserId == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+                    && request.resource.data.read is bool;
+
+      allow delete: if isAuth() && resource.data.toUserId == request.auth.uid;
+    }
+
     match /ratings/{ratingId} {
       allow read:   if isAuth() && request.auth.uid == resource.data.raterId;
       allow create: if isAuth() && isNotSuspended()

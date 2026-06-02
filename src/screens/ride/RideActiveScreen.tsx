@@ -202,21 +202,27 @@ export default function RideActiveScreen() {
   useEffect(() => {
     if (!rideId) return;
     let alreadyNavigated = false;
-    const unsub = onSnapshot(doc(db, 'rides', rideId), (snap) => {
-      if (!snap.exists() || alreadyNavigated) return;
-      const data = snap.data();
-      if (data?.status === 'completed') {
-        alreadyNavigated = true;
-        setStatus('completed');
-        navigation.navigate('RideComplete', {
-          rideId,
-          rider,
-          fare,
-          splitFare,
-          routePreview: currentRoutePreviewRef.current,
-        });
-      }
-    });
+    const unsub = onSnapshot(
+      doc(db, 'rides', rideId),
+      (snap) => {
+        if (!snap.exists() || alreadyNavigated) return;
+        const data = snap.data();
+        if (data?.status === 'completed') {
+          alreadyNavigated = true;
+          setStatus('completed');
+          navigation.navigate('RideComplete', {
+            rideId,
+            rider,
+            fare,
+            splitFare,
+            routePreview: currentRoutePreviewRef.current,
+          });
+        }
+      },
+      (error) => {
+        logger.warn('RideActiveScreen.rideListener', error);
+      },
+    );
     return () => unsub();
   }, [rideId]);
 
