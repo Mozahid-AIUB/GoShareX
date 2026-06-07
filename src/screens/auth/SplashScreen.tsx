@@ -5,7 +5,7 @@ import Svg, { Circle, Defs, LinearGradient, Path, Stop, G, Rect, Ellipse } from 
 
 import { auth } from '@/config/firebase.config';
 import { useAuthStore } from '@/store';
-import authService from '@/services/firebase/authService';
+import authService from '@/services/authService';
 import { checkSuspension } from '@/services/firebase/badgeService';
 
 const { width: W, height: H } = Dimensions.get('window');

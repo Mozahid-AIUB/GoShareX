@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
 import type { RootNavProp } from '@/navigation/types';
-import authService from '@/services/firebase/authService';
+import authService from '@/services/authService';
 import { auth } from '@/config/firebase.config';
 import { isValidName } from '@/utils/validators';
 import { getFCMToken, saveFCMToken } from '@/services/firebase/messaging';

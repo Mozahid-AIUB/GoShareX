@@ -10,6 +10,13 @@ export default {
         privacy: "unlisted",
         icon: "./assets/images/icon.png",
         userInterfaceStyle: "light",
+        updates: {
+            url: "https://u.expo.dev/cfddb17a-f7c5-4700-a526-85456ce48212",
+            fallbackToCacheTimeout: 0
+        },
+        runtimeVersion: {
+            policy: "appVersion"
+        },
         android: {
             adaptiveIcon: {
                 foregroundImage: "./assets/images/adaptive-icon.png",
@@ -42,6 +49,7 @@ export default {
             "expo-location",
             "expo-notifications",
             "expo-secure-store",
+            "expo-updates",
             "@react-native-google-signin/google-signin",
             [
                 "expo-splash-screen",
@@ -71,6 +79,8 @@ export default {
             eas: {
                 projectId: "cfddb17a-f7c5-4700-a526-85456ce48212"
             },
+            SUPABASE_URL: process.env.SUPABASE_URL,
+            SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
             FIREBASE_API_KEY: process.env.FIREBASE_API_KEY,
             FIREBASE_AUTH_DOMAIN: process.env.FIREBASE_AUTH_DOMAIN,
             FIREBASE_DATABASE_URL: process.env.FIREBASE_DATABASE_URL,

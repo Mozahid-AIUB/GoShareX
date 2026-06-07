@@ -6,7 +6,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { RouteProp } from '@react-navigation/native';
 
 import { AuthStackParamList, RootNavProp } from '@/navigation/types';
-import authService from '@/services/firebase/authService';
+import authService from '@/services/authService';
 import { isValidEmail, isValidGmail } from '@/utils/validators';
 import { C } from '@/components/auth/authColors';
 

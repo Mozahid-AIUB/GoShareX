@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
 import { RootNavProp } from '@/navigation/types';
-import authService from '@/services/firebase/authService';
+import authService from '@/services/authService';
 import { isValidEmail, isValidGmail, isValidName } from '@/utils/validators';
 import { useAnimatedPress } from '@/hooks/useAnimatedPress';
 import { C } from '@/components/auth/authColors';

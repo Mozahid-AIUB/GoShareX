@@ -20,7 +20,7 @@ import Svg, { Path } from 'react-native-svg';
 import PremiumIcon from '@/components/common/PremiumIcon';
 
 import badgePenaltyService from '@/services/user/badgePenaltyService';
-import authService from '@/services/firebase/authService';
+import authService from '@/services/authService';
 import { useAuthStore } from '@/store';
 
 // ─── Countdown timer hook ────────────────────────────────────────────────────

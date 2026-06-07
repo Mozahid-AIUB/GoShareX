@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import type { MainTabNavProp } from '@/navigation/types';
 
-import authService from '@/services/firebase/authService';
+import authService from '@/services/authService';
 import { getUser } from '@/services/firebase/userService';
 import { getTrustBreakdown, RATING_CATEGORIES, type TrustBreakdown } from '@/services/firebase/ratingService';
 import { useAuthStore } from '@/store/authStore';
