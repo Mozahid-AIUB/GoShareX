@@ -21,7 +21,7 @@ import { premiumTheme } from '@/design/premium';
 import { useAuthStore } from '@/store/authStore';
 import { storage, STORAGE_KEYS } from '@/utils/storage';
 import { useNavigation } from '@react-navigation/native';
-import chatService, { type Chat } from '@/services/firebase/chatService';
+import chatService, { type Chat } from '@/services/chatService';
 import { logger } from '@/utils/logger';
 
 import {

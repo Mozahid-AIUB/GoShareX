@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuthStore } from '@/store/authStore';
 import { useRideStore } from '@/store/rideStore';
-import chatService, { Chat, Message } from '@/services/firebase/chatService';
+import chatService, { Chat, Message } from '@/services/chatService';
 import { getFare } from '@/constants/fareTable';
 import { sendRideRequest } from '@/services/notifications/fcmService';
 import { storage, STORAGE_KEYS } from '@/utils/storage';
