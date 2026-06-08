@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
   Alert,
+  Linking,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -60,11 +61,27 @@ export default function RegisterScreen() {
       });
       Alert.alert(
         '✅ Account Created!',
-        'A verification email has been sent to your Gmail. Please verify your email before signing in.',
-        [{
-          text: 'Go to Login',
-          onPress: () => navigation.navigate('Auth', { screen: 'Login' }),
-        }]
+        'A verification email has been sent to your Gmail. Please open your email and tap the confirmation link, then sign in.',
+        [
+          {
+            text: 'Open Email',
+            onPress: async () => {
+              // Gmail অ্যাপ খোলার চেষ্টা; না থাকলে ফোনের ডিফল্ট inbox
+              try {
+                const canGmail = await Linking.canOpenURL('googlegmail://');
+                await Linking.openURL(canGmail ? 'googlegmail://' : 'message://');
+              } catch {
+                // কোনো email app খোলা না গেলে — চুপচাপ Login-এ পাঠাই
+              }
+              navigation.navigate('Auth', { screen: 'Login' });
+            },
+          },
+          {
+            text: 'Go to Login',
+            style: 'cancel',
+            onPress: () => navigation.navigate('Auth', { screen: 'Login' }),
+          },
+        ]
       );
     } catch (err: unknown) {
       const msg = getErrorMessage(err);

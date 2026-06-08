@@ -7,6 +7,8 @@ import { auth } from '@/config/firebase.config';
 import { useAuthStore } from '@/store';
 import authService from '@/services/authService';
 import { checkSuspension } from '@/services/firebase/badgeService';
+import { FEATURE_FLAGS } from '@/config/featureFlags';
+import { supabase } from '@/config/supabase.config';
 
 const { width: W, height: H } = Dimensions.get('window');
 const MIN_DISPLAY_MS = 2800;
@@ -237,6 +239,31 @@ const SplashScreen = () => {
       setTimeout(() => setLoading(false), remaining);
     };
 
+    // ---- Supabase auth mode ----
+    // Firebase onAuthStateChanged-এর বদলে Supabase session দেখি।
+    // suspension চেক authService (Supabase login) করে — এখানে আবার
+    // Firebase checkSuspension ডাকি না (permission_denied এড়াতে)।
+    if (FEATURE_FLAGS.USE_SUPABASE_AUTH) {
+      (async () => {
+        if (resolved.current) return;
+        resolved.current = true;
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            const userData = await authService.getCurrentUser();
+            setUser(userData ?? null);
+          } else {
+            setUser(null);
+          }
+        } catch {
+          setUser(null);
+        }
+        finishLoading();
+      })();
+      return;
+    }
+
+    // ---- Firebase auth mode (default) ----
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (resolved.current) return;
       resolved.current = true;

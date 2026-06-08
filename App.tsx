@@ -14,6 +14,7 @@ import { validateEnvironment } from '@/config/env';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import { startPresenceTracking, stopPresenceTracking } from '@/services/firebase/presenceService';
+import { FEATURE_FLAGS } from '@/config/featureFlags';
 
 // Validate required env vars — throws in production if missing, logs in dev
 validateEnvironment();
@@ -45,8 +46,12 @@ export default function App() {
     return () => clearTimeout(t);
   }, []);
 
-  // Track presence when logged in
+  // Track presence when logged in.
+  // Supabase auth mode-এ Firebase presence skip করি — কারণ ইউজার
+  // Firebase-এ login করা নেই, তাই permission_denied warning আসে।
+  // presence পরে Supabase Realtime দিয়ে আনব (ধাপ ৫)।
   useEffect(() => {
+    if (FEATURE_FLAGS.USE_SUPABASE_AUTH) return;
     const unsub = useAuthStore.subscribe((state) => {
       const uid = state.user?.uid;
       if (uid) startPresenceTracking(uid);

@@ -20,6 +20,7 @@ import googleAuthService from '@/services/firebase/googleAuthService';
 import { useAuthStore } from '@/store';
 import { getFCMToken, saveFCMToken } from '@/services/firebase/messaging';
 import { checkSuspension } from '@/services/firebase/badgeService';
+import { FEATURE_FLAGS } from '@/config/featureFlags';
 import { isValidEmail } from '@/utils/validators';
 import { useAnimatedPress } from '@/hooks/useAnimatedPress';
 import { C, ONE_DAY_MS } from '@/components/auth/authColors';
@@ -57,6 +58,12 @@ export default function LoginScreen() {
   };
 
   const afterAuth = async (uid: string, suspendedUntil?: number) => {
+    // Supabase auth mode-এ suspension চেক authService.login()-এই হয়ে যায়
+    // (USER_SUSPENDED throw করে), আর FCM token পরে Supabase-এ আনব (ধাপ ৬)।
+    // তাই এখানে Firebase কল skip করি — নাহলে permission_denied-এ আটকায়।
+    if (FEATURE_FLAGS.USE_SUPABASE_AUTH) {
+      return true;
+    }
     const status = await checkSuspension(uid);
     if (status.suspended) {
       handleSuspended(suspendedUntil ?? Date.now() + ONE_DAY_MS, status.reason);
