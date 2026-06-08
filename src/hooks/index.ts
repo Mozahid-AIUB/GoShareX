@@ -5,6 +5,8 @@ import { useRideStatus as useFirebaseRideStatus } from './useRideStatus';
 import { useSupabaseRideStatus } from './useSupabaseRideStatus';
 import { useChat as useFirebaseChat } from './useChat';
 import { useSupabaseChat } from './useSupabaseChat';
+import { usePostBoard as useFirebasePostBoard } from './usePostBoard';
+import { useSupabasePostBoard } from './useSupabasePostBoard';
 
 export { useLocation } from './useLocation';
 export { useNearbyRiders } from './useNearbyRiders';
@@ -13,10 +15,12 @@ export const useRideStatus = FEATURE_FLAGS.USE_SUPABASE_RIDE
   ? useSupabaseRideStatus
   : useFirebaseRideStatus;
 export const useChat = FEATURE_FLAGS.USE_SUPABASE_CHAT ? useSupabaseChat : useFirebaseChat;
+export const usePostBoard = FEATURE_FLAGS.USE_SUPABASE_POSTS
+  ? useSupabasePostBoard
+  : useFirebasePostBoard;
 export { useGeofence } from './useGeofence';
 export { useNotification } from './useNotification';
 export { useNotifications } from './useNotifications';
-export { usePostBoard } from './usePostBoard';
 export { useDebounce } from './useDebounce';
 export { useInterval } from './useInterval';
 export { useAppState } from './useAppState';

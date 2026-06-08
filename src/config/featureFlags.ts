@@ -21,4 +21,7 @@ export const FEATURE_FLAGS = {
 
   // Live presence (active_riders, nearby map) Supabase Realtime দিয়ে।
   USE_SUPABASE_PRESENCE: true,
+
+  // Post board (ride খোঁজার পোস্ট) Supabase দিয়ে।
+  USE_SUPABASE_POSTS: true,
 } as const;
