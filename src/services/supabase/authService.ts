@@ -243,18 +243,71 @@ class SupabaseAuthService {
     }
   }
 
-  // -------------------- RESET PASSWORD --------------------
+  // -------------------- PASSWORD RESET (OTP-based) --------------------
+  // মোবাইল অ্যাপের জন্য professional flow:
+  //   1) resetPassword()  -> email-এ ৬-digit recovery code পাঠায়
+  //   2) verifyResetCode() -> code যাচাই করে সাময়িক session দেয়
+  //   3) setNewPassword()  -> ওই session দিয়ে নতুন password সেট করে
+  // deep link/web page লাগে না — সব অ্যাপের ভেতরে।
+
+  // ধাপ ১: reset code পাঠানো
   async resetPassword(email: string): Promise<void> {
     const normalizedEmail = this.normalizeEmail(email);
     try {
       if (!isValidEmail(normalizedEmail)) {
         throw new Error('Please enter a valid email address.');
       }
+      // resetPasswordForEmail recovery-type email পাঠায়। Supabase email
+      // template-এ {{ .Token }} থাকলে ৬-digit code যায় (link-এর বদলে)।
       const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail);
       if (error) throw error;
     } catch (error: any) {
+      if (error?.code === 'over_email_send_rate_limit') {
+        throw new Error('Too many attempts. Please wait a few minutes and try again.');
+      }
       logger.error('supabaseAuth.resetPassword', error);
-      throw new Error(error.message || 'Password reset failed');
+      throw new Error(error.message || 'Could not send reset code.');
+    }
+  }
+
+  // ধাপ ২: code যাচাই (সফল হলে সাময়িক session সেট হয়)
+  async verifyResetCode(email: string, code: string): Promise<void> {
+    const normalizedEmail = this.normalizeEmail(email);
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: normalizedEmail,
+        token: code.trim(),
+        type: 'recovery',
+      });
+      if (error) {
+        if (error.message?.toLowerCase().includes('expired')) {
+          throw new Error('This code has expired. Please request a new one.');
+        }
+        if (error.message?.toLowerCase().includes('invalid')) {
+          throw new Error('Incorrect code. Please check and try again.');
+        }
+        throw error;
+      }
+    } catch (error: any) {
+      logger.error('supabaseAuth.verifyResetCode', error);
+      throw new Error(error.message || 'Code verification failed.');
+    }
+  }
+
+  // ধাপ ৩: নতুন password সেট (verifyResetCode-এর পর session থাকতে হবে)
+  async setNewPassword(newPassword: string): Promise<void> {
+    try {
+      if (!newPassword || newPassword.length < 6) {
+        throw new Error('Password must be at least 6 characters.');
+      }
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      // password বদলানোর পর সাময়িক session sign out করি — ইউজার নতুন
+      // password দিয়ে নতুন করে login করবে (পরিষ্কার, নিরাপদ)।
+      await supabase.auth.signOut();
+    } catch (error: any) {
+      logger.error('supabaseAuth.setNewPassword', error);
+      throw new Error(error.message || 'Could not update password.');
     }
   }
 }
