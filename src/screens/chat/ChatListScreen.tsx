@@ -512,7 +512,7 @@ export default function ChatListScreen() {
             <View style={s.matchBtnIcon}><IconGhost /></View>
             <View style={{ flex: 1 }}>
               <Text style={s.matchBtnTitle}>Anonymous 1:1</Text>
-              <Text style={s.matchBtnSub}>Private · 10 min · History auto-deleted</Text>
+              <Text style={s.matchBtnSub}>Private · 5 min · History auto-deleted</Text>
             </View>
             <View style={s.matchBtnBadge}>
               <IconShield />
