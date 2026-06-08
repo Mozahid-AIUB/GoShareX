@@ -137,8 +137,9 @@ export function subscribeToOpenPosts(callback: (posts: Post[]) => void): () => v
   };
   void load();
 
+  // unique channel নাম — একাধিক subscribe (refresh) conflict এড়াতে।
   const channel = supabase
-    .channel('posts_open')
+    .channel(`posts_open_${Math.random().toString(36).slice(2)}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => void load())
     .subscribe();
 
