@@ -1097,8 +1097,14 @@ export default function HomeScreen() {
     // Load frequent pickups for PickupModal suggestion list
     getFrequentPickups(5).then(setFrequentPickups).catch(() => { });
 
-    // GPS runs silently in background — does NOT auto-set FROM
-    void refreshExactCurrentLocation().catch(() => setCurrentLocation(null));
+    // Contextual permission: অ্যাপ খোলার সময় location permission চাইব না।
+    // আগে থেকে permission দেওয়া থাকলেই শুধু silent-ভাবে location নিই;
+    // নাহলে কিছু করি না — ইউজার "current location"-এ ট্যাপ করলে তখন চাইবে।
+    void locationService.hasPermission().then((granted) => {
+      if (granted) {
+        void refreshExactCurrentLocation().catch(() => setCurrentLocation(null));
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshExactCurrentLocation]);
 
