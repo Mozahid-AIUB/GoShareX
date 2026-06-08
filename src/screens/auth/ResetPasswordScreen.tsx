@@ -22,13 +22,14 @@ export default function ResetPasswordScreen() {
   const [resending, setResending] = useState(false);
   const [error, setError] = useState('');
 
-  const codeValid = useMemo(() => /^\d{6}$/.test(code.trim()), [code]);
+  // Supabase OTP সাধারণত ৬, কখনো ৭-৮ digit হতে পারে — তাই নমনীয় (৬-৮)।
+  const codeValid = useMemo(() => /^\d{6,8}$/.test(code.trim()), [code]);
 
   const handleSubmit = async () => {
     setError('');
 
     if (!codeValid) {
-      setError('Enter the 6-digit code from your email.');
+      setError('Enter the code from your email (6–8 digits).');
       return;
     }
     if (password.length < 6) {
@@ -86,12 +87,12 @@ export default function ResetPasswordScreen() {
             <TextInput
               style={[s.input, s.codeInput, !!error && !codeValid && s.inputError]}
               value={code}
-              onChangeText={(t) => setCode(t.replace(/[^0-9]/g, '').slice(0, 6))}
+              onChangeText={(t) => setCode(t.replace(/[^0-9]/g, '').slice(0, 8))}
               keyboardType="number-pad"
               placeholder="••••••"
               placeholderTextColor={C.textMuted}
               editable={!loading}
-              maxLength={6}
+              maxLength={8}
             />
 
             <Text style={s.label}>New Password</Text>
