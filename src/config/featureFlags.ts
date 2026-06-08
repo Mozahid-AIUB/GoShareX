@@ -12,4 +12,7 @@ export const FEATURE_FLAGS = {
   // টেস্ট চলছে — এখন Supabase auth ব্যবহার হচ্ছে।
   // কিছু ভাঙলে এক্ষুনি false করে দিলেই Firebase-এ ফিরবে।
   USE_SUPABASE_AUTH: true,
+
+  // Chat (real-time messages) Supabase Realtime দিয়ে।
+  USE_SUPABASE_CHAT: true,
 } as const;

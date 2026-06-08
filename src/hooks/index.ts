@@ -1,7 +1,12 @@
 export { useLocation } from './useLocation';
 export { useNearbyRiders } from './useNearbyRiders';
 export { useRideStatus } from './useRideStatus';
-export { useChat } from './useChat';
+// useChat: feature flag অনুযায়ী Supabase Realtime বা Firebase।
+// দুটোর interface এক, তাই screen-এর কোড বদলাতে হয় না।
+import { FEATURE_FLAGS } from '@/config/featureFlags';
+import { useChat as useFirebaseChat } from './useChat';
+import { useSupabaseChat } from './useSupabaseChat';
+export const useChat = FEATURE_FLAGS.USE_SUPABASE_CHAT ? useSupabaseChat : useFirebaseChat;
 export { useGeofence } from './useGeofence';
 export { useNotification } from './useNotification';
 export { useNotifications } from './useNotifications';
