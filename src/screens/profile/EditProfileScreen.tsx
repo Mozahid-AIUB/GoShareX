@@ -17,7 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import type { RootNavProp } from '@/navigation/types';
 import { useAuthStore } from '@/store/authStore';
-import { updateUser } from '@/services/firebase/userService';
+import { updateUser } from '@/services/userService';
 import { isValidName } from '@/utils/validators';
 import { Image } from 'react-native';
 

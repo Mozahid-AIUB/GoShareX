@@ -20,8 +20,8 @@ import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg'
 import type { MainTabNavProp } from '@/navigation/types';
 
 import authService from '@/services/authService';
-import { getUser } from '@/services/firebase/userService';
-import { getTrustBreakdown, RATING_CATEGORIES, type TrustBreakdown } from '@/services/firebase/ratingService';
+import { getUser } from '@/services/userService';
+import { getTrustBreakdown, RATING_CATEGORIES, type TrustBreakdown } from '@/services/ratingService';
 import { useAuthStore } from '@/store/authStore';
 import type { User } from '@/types/auth.types';
 import PremiumIcon from '@/components/common/PremiumIcon';

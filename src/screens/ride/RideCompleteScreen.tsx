@@ -7,7 +7,7 @@ import PremiumIcon from '@/components/common/PremiumIcon';
 import { useRideStore } from '@/store/rideStore';
 import { useAuthStore } from '@/store/authStore';
 import rideService from '@/services/firebase/rideService';
-import { submitRating, RATING_CATEGORIES, type CategoryId } from '@/services/firebase/ratingService';
+import { submitRating, RATING_CATEGORIES, type CategoryId } from '@/services/ratingService';
 import type { RideRoutePreview } from '@/types/ride.types';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
