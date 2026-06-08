@@ -271,8 +271,24 @@ export default function CreatePostScreen() {
     const errs: Record<string, string> = {};
     if (!destination.trim()) errs.destination = 'Select your destination';
     if (!meetPoint.trim()) errs.meetPoint = 'Select your meet point';
-    if (!meetTime.trim()) errs.meetTime = 'Enter meet time (e.g. 12:05)';
-    else if (!/^\d{1,2}:\d{2}$/.test(meetTime.trim())) errs.meetTime = 'Format: HH:MM (e.g. 12:05)';
+
+    const t = meetTime.trim();
+    if (!t) {
+      errs.meetTime = 'Enter meet time (e.g. 12:05)';
+    } else {
+      // format HH:MM চেক
+      const m = /^(\d{1,2}):(\d{2})$/.exec(t);
+      if (!m) {
+        errs.meetTime = 'Format: HH:MM (e.g. 12:05)';
+      } else {
+        // আসল মান চেক: ঘণ্টা 0-23, মিনিট 0-59 (25:25 আটকাবে)
+        const hh = Number(m[1]);
+        const mm = Number(m[2]);
+        if (hh > 23 || mm > 59) {
+          errs.meetTime = 'Invalid time. Hours 00–23, minutes 00–59.';
+        }
+      }
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
