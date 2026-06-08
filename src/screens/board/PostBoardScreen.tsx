@@ -12,7 +12,7 @@ import PremiumIcon from '@/components/common/PremiumIcon';
 import VehicleIcon from '@/components/common/VehicleIcon';
 
 import type { RootNavProp } from '@/navigation/types';
-import { cancelPost, joinPost, leavePost, subscribeToOpenPosts } from '@/services/firebase/postService';
+import { cancelPost, joinPost, leavePost, subscribeToOpenPosts } from '@/services/postService';
 import { useAuthStore } from '@/store/authStore';
 import type { Post } from '@/types/post.types';
 import { getErrorMessage } from '@/utils/errorHandler';

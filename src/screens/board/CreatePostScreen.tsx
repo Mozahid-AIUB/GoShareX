@@ -20,7 +20,7 @@ import PremiumIcon from '@/components/common/PremiumIcon';
 import VehicleIcon from '@/components/common/VehicleIcon';
 import type { RootNavProp } from '@/navigation/types';
 import { useAuthStore } from '@/store/authStore';
-import { createPost } from '@/services/firebase/postService';
+import { createPost } from '@/services/postService';
 import placesService, { PlaceSuggestion } from '@/services/google/placesService';
 import { getErrorMessage } from '@/utils/errorHandler';
 import { trackEvent } from '@/services/analytics/analyticsService';
