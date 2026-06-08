@@ -15,4 +15,7 @@ export const FEATURE_FLAGS = {
 
   // Chat (real-time messages) Supabase Realtime দিয়ে।
   USE_SUPABASE_CHAT: true,
+
+  // Ride flow (status, cancel, complete) Supabase দিয়ে।
+  USE_SUPABASE_RIDE: true,
 } as const;
