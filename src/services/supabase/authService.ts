@@ -80,44 +80,60 @@ class SupabaseAuthService {
         throw new Error('Only Gmail accounts (@gmail.com) are allowed.');
       }
 
-      // 1) Supabase Auth-এ অ্যাকাউন্ট তৈরি (email verification মেইল অটো যায়)
+      // Supabase Auth-এ অ্যাকাউন্ট তৈরি।
+      // নাম/studentId ইত্যাদি `options.data`-তে পাঠাই — database-এর
+      // handle_new_user trigger এগুলো দিয়ে অটো users প্রোফাইল বানাবে।
+      // (client নিজে users টেবিলে লেখে না — RLS timing সমস্যা এড়াতে)
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: normalizedEmail,
         password: data.password,
+        options: {
+          data: {
+            name: data.name.trim(),
+            student_id: (data.studentId ?? '').trim(),
+            department: data.department ?? '',
+            phone_number: data.phoneNumber ?? '',
+          },
+        },
       });
       if (signUpError) throw signUpError;
 
       const authUser = authData.user;
       if (!authUser) throw new Error('Account creation failed. Please try again.');
 
-      // 2) users টেবিলে প্রোফাইল row বানাই (Firestore setDoc এর সমতুল্য)
-      const profileRow = {
+      // signUp সফল। Email confirmation চালু থাকলে session আসে না
+      // (authData.session == null) — ইউজার এখনো verify করেনি।
+      // এই অবস্থাটাই fake email আটকায়: verify link-এ click না করলে
+      // account active হয় না।
+      //
+      // দুই ক্ষেত্রেই RegisterScreen একই "verify email পাঠানো হয়েছে"
+      // বার্তা দেখায় + Login-এ পাঠায়, তাই এখানে শুধু একটা User অবজেক্ট
+      // ফেরত দিই (error throw করি না — signUp তো সফল)।
+      try {
+        if (authData.session) {
+          return await this.getUserDocument(authUser.id);
+        }
+      } catch {
+        // প্রোফাইল এখনো পড়া যায়নি — নিচের fallback-এ যাই
+      }
+      return this.rowToUser({
         id: authUser.id,
         email: normalizedEmail,
         name: data.name.trim(),
         student_id: (data.studentId ?? '').trim(),
         department: data.department ?? '',
         phone_number: data.phoneNumber ?? '',
-        rating: 5.0,
-        total_rides: 0,
-        total_saved: 0,
-        completion_rate: 100,
-        badge: 'New Rider',
-        strikes: 0,
-        is_suspended: false,
-      };
-
-      const { error: insertError } = await supabase.from('users').insert(profileRow);
-      if (insertError) {
-        // প্রোফাইল সেভ ব্যর্থ হলে auth অ্যাকাউন্ট orphan থেকে যাবে —
-        // Supabase-এ client থেকে নিজের auth user মোছা যায় না, তাই এটা
-        // পরে একটা Edge Function/trigger দিয়ে সামলাব (ধাপ ৬)।
-        logger.error('supabaseAuth.register.profileSave', insertError);
-        throw new Error('Account could not be completed. Please try again.');
-      }
-
-      return this.rowToUser(profileRow);
+      });
     } catch (error: any) {
+      // Supabase rate limit (অল্প সময়ে অনেকবার চেষ্টা)
+      if (error?.code === 'over_email_send_rate_limit') {
+        throw new Error('Too many attempts. Please wait a few minutes and try again.');
+      }
+      // email ইতিমধ্যে আছে
+      if (error?.code === 'user_already_exists' ||
+          error?.message?.toLowerCase().includes('already registered')) {
+        throw new Error('email-already-in-use');
+      }
       logger.error('supabaseAuth.register', error);
       throw new Error(error.message || 'Registration failed');
     }

@@ -9,7 +9,7 @@
 // ============================================================
 
 export const FEATURE_FLAGS = {
-  // এখন false — অর্থাৎ অ্যাপ এখনো Firebase-ই চালাচ্ছে।
-  // টেস্ট করার সময় true করব।
-  USE_SUPABASE_AUTH: false,
+  // টেস্ট চলছে — এখন Supabase auth ব্যবহার হচ্ছে।
+  // কিছু ভাঙলে এক্ষুনি false করে দিলেই Firebase-এ ফিরবে।
+  USE_SUPABASE_AUTH: true,
 } as const;
