@@ -16,7 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 
 import { RootNavProp } from '@/navigation/types';
 import authService from '@/services/authService';
-import googleAuthService from '@/services/firebase/googleAuthService';
+import googleAuthService from '@/services/googleAuthService';
 import { useAuthStore } from '@/store';
 import { getFCMToken, saveFCMToken } from '@/services/firebase/messaging';
 import { checkSuspension } from '@/services/firebase/badgeService';

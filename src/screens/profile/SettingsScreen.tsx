@@ -17,7 +17,7 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import type { RootNavProp } from '@/navigation/types';
 import { useAuthStore } from '@/store/authStore';
 import authService from '@/services/authService';
-import googleAuthService from '@/services/firebase/googleAuthService';
+import googleAuthService from '@/services/googleAuthService';
 import { functions } from '@/config/firebase.config';
 import { httpsCallable } from 'firebase/functions';
 import { logger } from '@/utils/logger';
