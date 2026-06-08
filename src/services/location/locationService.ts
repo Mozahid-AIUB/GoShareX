@@ -4,6 +4,8 @@ import { rtdb } from '@/services/firebase/config';
 import { RTDB_PATHS } from '@/constants/firebaseKeys';
 import { APP_CONFIG } from '@/constants/config';
 import type { ActiveRider } from '@/types';
+import { FEATURE_FLAGS } from '@/config/featureFlags';
+import { supabasePresenceService } from '@/services/supabase/presenceService';
 
 let watchSubscription: ExpoLocation.LocationSubscription | null = null;
 
@@ -35,7 +37,12 @@ export async function startBroadcastingLocation(
         lng: location.coords.longitude,
         timestamp: Date.now(),
       };
-      await set(ref(rtdb, RTDB_PATHS.USER_LOCATION(riderData.uid)), payload);
+      // Supabase mode-এ active_riders টেবিলে presence লিখি, নাহলে RTDB।
+      if (FEATURE_FLAGS.USE_SUPABASE_PRESENCE) {
+        await supabasePresenceService.writeActiveRider(payload);
+      } else {
+        await set(ref(rtdb, RTDB_PATHS.USER_LOCATION(riderData.uid)), payload);
+      }
     }
   );
 }
@@ -43,5 +50,9 @@ export async function startBroadcastingLocation(
 export async function stopBroadcastingLocation(uid: string): Promise<void> {
   watchSubscription?.remove();
   watchSubscription = null;
-  await remove(ref(rtdb, RTDB_PATHS.USER_LOCATION(uid)));
+  if (FEATURE_FLAGS.USE_SUPABASE_PRESENCE) {
+    await supabasePresenceService.removeActiveRider(uid);
+  } else {
+    await remove(ref(rtdb, RTDB_PATHS.USER_LOCATION(uid)));
+  }
 }

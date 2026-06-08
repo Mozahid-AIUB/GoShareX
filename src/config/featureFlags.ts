@@ -18,4 +18,7 @@ export const FEATURE_FLAGS = {
 
   // Ride flow (status, cancel, complete) Supabase দিয়ে।
   USE_SUPABASE_RIDE: true,
+
+  // Live presence (active_riders, nearby map) Supabase Realtime দিয়ে।
+  USE_SUPABASE_PRESENCE: true,
 } as const;
