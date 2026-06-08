@@ -88,6 +88,9 @@ class SupabaseAuthService {
         email: normalizedEmail,
         password: data.password,
         options: {
+          // verify link-এ click করলে ইউজারকে অ্যাপে ফেরত পাঠাবে
+          // (localhost-এর বদলে)। gosharex:// = app.config.js-এর scheme।
+          emailRedirectTo: 'gosharex://auth-callback',
           data: {
             name: data.name.trim(),
             student_id: (data.studentId ?? '').trim(),

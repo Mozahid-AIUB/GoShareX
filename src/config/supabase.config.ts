@@ -21,12 +21,59 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 // ------------------------------------------------------------
 // Session (login token) নিরাপদে রাখার জন্য SecureStore ব্যবহার।
-// Supabase চায় getItem/setItem/removeItem — তাই ছোট একটা adapter।
+//
+// সমস্যা: Supabase-এর token ২০৪৮ bytes-এর বেশি হতে পারে, কিন্তু
+// SecureStore-এর এক value-র সীমা ২০৪৮। তাই বড় হলে token-কে ছোট
+// টুকরোয় (chunk) ভাগ করে রাখি, পড়ার সময় আবার জোড়া লাগাই।
 // ------------------------------------------------------------
+const CHUNK_SIZE = 2000; // 2048-এর নিচে নিরাপদ মার্জিন
+
 const SecureStoreAdapter = {
-  getItem: (key: string) => SecureStore.getItemAsync(key),
-  setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
-  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
+  getItem: async (key: string): Promise<string | null> => {
+    // আগে দেখি কয় টুকরোয় রাখা আছে
+    const meta = await SecureStore.getItemAsync(`${key}__chunks`);
+    if (meta) {
+      const count = parseInt(meta, 10);
+      let value = '';
+      for (let i = 0; i < count; i++) {
+        const part = await SecureStore.getItemAsync(`${key}__${i}`);
+        if (part == null) return null; // কোনো টুকরো হারালে — অকেজো
+        value += part;
+      }
+      return value;
+    }
+    // টুকরো না থাকলে — সাধারণ value
+    return SecureStore.getItemAsync(key);
+  },
+
+  setItem: async (key: string, value: string): Promise<void> => {
+    // পুরনো যা ছিল আগে মুছি (পরিষ্কার শুরু)
+    await SecureStoreAdapter.removeItem(key);
+
+    if (value.length <= CHUNK_SIZE) {
+      await SecureStore.setItemAsync(key, value);
+      return;
+    }
+    // বড় হলে টুকরো করে রাখি
+    const count = Math.ceil(value.length / CHUNK_SIZE);
+    for (let i = 0; i < count; i++) {
+      const part = value.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+      await SecureStore.setItemAsync(`${key}__${i}`, part);
+    }
+    await SecureStore.setItemAsync(`${key}__chunks`, String(count));
+  },
+
+  removeItem: async (key: string): Promise<void> => {
+    const meta = await SecureStore.getItemAsync(`${key}__chunks`);
+    if (meta) {
+      const count = parseInt(meta, 10);
+      for (let i = 0; i < count; i++) {
+        await SecureStore.deleteItemAsync(`${key}__${i}`);
+      }
+      await SecureStore.deleteItemAsync(`${key}__chunks`);
+    }
+    await SecureStore.deleteItemAsync(key);
+  },
 };
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
