@@ -422,6 +422,8 @@ export default function LiveMapScreen() {
               tracksViewChanges={false}
             >
               <View style={userDot.wrap}>
+                {/* radar wave — অ্যাপ আশেপাশে "খুঁজছে" এই অনুভূতি দেয় */}
+                <PulseRing color={C.primary} size={90} />
                 <View style={userDot.ring} />
                 <View style={userDot.core} />
               </View>
