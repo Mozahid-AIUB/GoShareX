@@ -27,7 +27,7 @@ import routesService from '@/services/google/routesService';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { useRideStore, VEHICLE_CONFIG, VehicleType } from '@/store/rideStore';
-import locationService from '@/services/firebase/locationService';
+import locationService from '@/services/locationService';
 import matchingService, { RiderMatch, getSearchRadius } from '@/services/firebase/matchingService';
 import { calculateDistance } from '@/utils/haversine';
 import { sanitizeSpeedKmh } from '@/utils/locationSpeed';
