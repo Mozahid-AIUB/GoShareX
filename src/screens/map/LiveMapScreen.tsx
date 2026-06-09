@@ -197,9 +197,12 @@ export default function LiveMapScreen() {
   const routeRiders = useMemo(() => nearbyRiders.filter((r) => {
     const sp = matchesPickup(r.pickupPoint, pickupPoint, routeOrigin?.label);
     const nr = routeCoordinates.length > 1 && distanceToRoute({ latitude: r.lat, longitude: r.lng }, routeCoordinates) <= 120;
-    const sd = !destination || r.destination === destination || r.destination === destinationDetails?.name;
+    // same-destination = geo-match (r.isMatch, matchingService-এ coordinate
+    // দিয়ে হিসাব করা)। আগে text compare ছিল — তাই "Merul Badda Bridge" vs
+    // "Merul Badda" stats-এ 0 Match দেখাত যদিও কার্ডে MATCH ছিল।
+    const sd = !destination || r.isMatch;
     return sp && (nr || sd);
-  }), [destination, destinationDetails?.name, nearbyRiders, pickupPoint, routeCoordinates, routeOrigin?.label]);
+  }), [destination, nearbyRiders, pickupPoint, routeCoordinates, routeOrigin?.label]);
 
   const sortedRiders = useMemo(() => [...nearbyRiders].sort((a, b) => {
     if (a.isMatch !== b.isMatch) return a.isMatch ? -1 : 1;
