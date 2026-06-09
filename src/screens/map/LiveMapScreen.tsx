@@ -506,7 +506,13 @@ export default function LiveMapScreen() {
           <IconBack />
         </TouchableOpacity>
 
-        <View style={s.routeBar}>
+        {/* ট্যাপ করলে Home-এ ফিরে যায় — সেখানে destination সেট করা যায়
+            (Map screen-এ সরাসরি সেট করার ইনপুট নেই)। */}
+        <TouchableOpacity
+          style={s.routeBar}
+          activeOpacity={0.85}
+          onPress={() => navigation.goBack()}
+        >
           <View style={s.routeInfo}>
             {destinationDetails ? (
               <View style={s.routeBlock}>
@@ -525,7 +531,7 @@ export default function LiveMapScreen() {
             )}
           </View>
           <LiveBadge />
-        </View>
+        </TouchableOpacity>
 
         <TouchableOpacity style={s.iconBtn} onPress={centerMap} activeOpacity={0.8}>
           <IconCenter />
