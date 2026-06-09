@@ -36,6 +36,7 @@ import { IconBack, IconCenter } from './components/MapIcons';
 import { Speedometer } from './components/Speedometer';
 import { LiveBadge } from './components/LiveBadge';
 import { RiderCard } from './components/RiderCard';
+import PulseRing from './components/PulseRing';
 import { SelectedSheet } from './components/SelectedSheet';
 import { NoRidersSheet } from './components/NoRidersSheet';
 import {
@@ -437,6 +438,9 @@ export default function LiveMapScreen() {
           return (
             <Marker key={rider.userId} coordinate={{ latitude: rider.lat, longitude: rider.lng }} onPress={() => setSelectedRider(rider)}>
               <View style={m.wrap}>
+                {/* match-করা rider-এর পিছনে live pulse — জীবন্ত দেখায়।
+                    শুধু match হলে, যাতে সব marker pulse করে map ভারী না হয়। */}
+                {isMatch && <PulseRing color={C.matchGreen} size={60} />}
                 <View style={[m.bubble, { backgroundColor: bg }]}>
                   <VehicleIcon
                     type={((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'bike' ? 'motorcycle' : ((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'cng' ? 'cng' : 'rickshaw'}
