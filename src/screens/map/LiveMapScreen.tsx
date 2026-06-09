@@ -326,9 +326,40 @@ export default function LiveMapScreen() {
     return () => { cancelled = true; };
   }, [destinationDetails, routeOrigin, routeSearchNonce]);
 
-  const centerMap = useCallback(() => {
-    mapRef.current?.animateToRegion({ latitude: mapCenter.latitude, longitude: mapCenter.longitude, latitudeDelta: 0.002, longitudeDelta: 0.002 }, 500);
-  }, [mapCenter.latitude, mapCenter.longitude]);
+  const centerMap = useCallback(async () => {
+    // location আগে থেকে থাকলে — সরাসরি সেখানে যাই।
+    if (hasLoc) {
+      mapRef.current?.animateToRegion(
+        { latitude: latitude!, longitude: longitude!, latitudeDelta: 0.002, longitudeDelta: 0.002 },
+        500,
+      );
+      return;
+    }
+    // নাহলে — এখানেই (ইউজার ট্যাপ করায়) permission চাই + GPS নিই
+    // (contextual permission — অ্যাপ খোলার সময় নয়, এই ট্যাপে)।
+    try {
+      const ok = await locationService.requestPermissions();
+      if (!ok) {
+        Alert.alert(
+          'Location needed',
+          'Allow location access so we can show your position and find nearby riders.',
+        );
+        return;
+      }
+      const cur = await locationService.getCurrentLocation();
+      if (cur) {
+        setLocation(cur.latitude, cur.longitude, cur.accuracy ?? undefined);
+        mapRef.current?.animateToRegion(
+          { latitude: cur.latitude, longitude: cur.longitude, latitudeDelta: 0.002, longitudeDelta: 0.002 },
+          600,
+        );
+      } else {
+        Alert.alert('Location unavailable', 'Please turn on GPS and try again.');
+      }
+    } catch {
+      Alert.alert('Location error', 'Could not get your location. Please try again.');
+    }
+  }, [hasLoc, latitude, longitude, setLocation]);
 
 
   const openChat = useCallback((rider: RiderMatch) => {
