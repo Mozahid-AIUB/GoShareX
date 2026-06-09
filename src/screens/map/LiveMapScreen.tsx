@@ -37,6 +37,7 @@ import { Speedometer } from './components/Speedometer';
 import { LiveBadge } from './components/LiveBadge';
 import { RiderCard } from './components/RiderCard';
 import PulseRing from './components/PulseRing';
+import MatchGlow from './components/MatchGlow';
 import { SelectedSheet } from './components/SelectedSheet';
 import { NoRidersSheet } from './components/NoRidersSheet';
 import {
@@ -443,16 +444,25 @@ export default function LiveMapScreen() {
                 {/* match-করা rider-এর পিছনে live pulse — জীবন্ত দেখায়।
                     শুধু match হলে, যাতে সব marker pulse করে map ভারী না হয়। */}
                 {isMatch && <PulseRing color={C.matchGreen} size={60} />}
-                <View style={[m.bubble, { backgroundColor: bg }]}>
-                  <VehicleIcon
-                    type={((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'bike' ? 'motorcycle' : ((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'cng' ? 'cng' : 'rickshaw'}
-                    tone={((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'bike' ? 'indigo' : ((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'cng' ? 'teal' : 'amber'}
-                    size={24}
-                  />
-                  <RNText style={m.name} numberOfLines={1}>{rider.name}</RNText>
-                  <RNText style={m.dist}>{distLabel}</RNText>
-                </View>
-                <View style={[m.tail, { borderTopColor: bg }]} />
+                {/* match হলে bubble-টা "পেয়েছি!" bounce+glow সহ আসে;
+                    নাহলে সাধারণ bubble (extra animation নেই, হালকা)। */}
+                {(() => {
+                  const bubble = (
+                    <>
+                      <View style={[m.bubble, { backgroundColor: bg }]}>
+                        <VehicleIcon
+                          type={((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'bike' ? 'motorcycle' : ((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'cng' ? 'cng' : 'rickshaw'}
+                          tone={((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'bike' ? 'indigo' : ((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'cng' ? 'teal' : 'amber'}
+                          size={24}
+                        />
+                        <RNText style={m.name} numberOfLines={1}>{rider.name}</RNText>
+                        <RNText style={m.dist}>{distLabel}</RNText>
+                      </View>
+                      <View style={[m.tail, { borderTopColor: bg }]} />
+                    </>
+                  );
+                  return isMatch ? <MatchGlow glowColor={C.matchGreen}>{bubble}</MatchGlow> : bubble;
+                })()}
               </View>
             </Marker>
           );
