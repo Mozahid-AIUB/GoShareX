@@ -35,14 +35,19 @@ function rowToRider(row: any): ActiveRider {
 }
 
 class SupabasePresenceService {
-  /** presence on/update — নিজের location active_riders-এ লেখে (upsert)। */
-  async writeActiveRider(rider: ActiveRider): Promise<void> {
+  /** presence on/update — নিজের location active_riders-এ লেখে (upsert)।
+   *  destLat/destLng (গন্তব্যের coordinate) geo-matching-এর জন্য। */
+  async writeActiveRider(
+    rider: ActiveRider & { destLat?: number; destLng?: number },
+  ): Promise<void> {
     const { error } = await supabase.from('active_riders').upsert({
       user_id: rider.uid,
       name: rider.name,
       lat: rider.lat,
       lng: rider.lng,
       destination: rider.destination,
+      dest_lat: rider.destLat ?? null,
+      dest_lng: rider.destLng ?? null,
       pickup_point: rider.pickupPoint,
       status: rider.status ?? 'waiting',
       rating: rider.rating,
@@ -150,6 +155,8 @@ class SupabasePresenceService {
     userBadge = 'New Rider',
     vehicleType = 'rickshaw',
     userName = 'Active Rider',
+    destLat?: number,   // গন্তব্যের lat (geo-matching)
+    destLng?: number,
   ): Promise<void> {
     this.watchUserId = userId;
     this.watchSub = await ExpoLocation.watchPositionAsync(
@@ -157,13 +164,15 @@ class SupabasePresenceService {
       (location) => {
         const lat = location.coords.latitude;
         const lng = location.coords.longitude;
-        // নিজের presence Supabase-এ লিখি (upsert)
+        // নিজের presence Supabase-এ লিখি (upsert) — dest lat/lng সহ
         void this.writeActiveRider({
           uid: userId,
           name: userName,
           lat,
           lng,
           destination,
+          destLat,
+          destLng,
           pickupPoint,
           status: 'waiting',
           rating: userRating,
@@ -205,6 +214,8 @@ class SupabasePresenceService {
         lat: Number(r.lat),
         lng: Number(r.lng),
         destination: r.destination ?? '',
+        destLat: r.dest_lat != null ? Number(r.dest_lat) : undefined,
+        destLng: r.dest_lng != null ? Number(r.dest_lng) : undefined,
         pickupPoint: r.pickup_point ?? '',
         status: r.status ?? 'waiting',
         rating: Number(r.rating ?? 5),

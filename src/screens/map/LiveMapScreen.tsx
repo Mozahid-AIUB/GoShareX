@@ -232,23 +232,37 @@ export default function LiveMapScreen() {
             sanitizeSpeedKmh(cur.speedMps, cur.accuracy)
           );
         }
-        await locationService.startWatching(user.uid, routeDestinationKey, pickupPoint ?? 'Main Gate', (loc) => {
-          if (mounted) {
-            setLocation(
-              loc.latitude,
-              loc.longitude,
-              loc.accuracy,
-              sanitizeSpeedKmh(loc.speedMps, loc.accuracy)
-            );
-          }
-        });
+        // গন্তব্যের lat/lng — geo-matching-এর জন্য (presence + find দুটোতেই)
+        const destLat = destinationDetails?.lat;
+        const destLng = destinationDetails?.lng;
+        await locationService.startWatching(
+          user.uid, routeDestinationKey, pickupPoint ?? 'Main Gate',
+          (loc) => {
+            if (mounted) {
+              setLocation(
+                loc.latitude,
+                loc.longitude,
+                loc.accuracy,
+                sanitizeSpeedKmh(loc.speedMps, loc.accuracy)
+              );
+            }
+          },
+          user.rating ?? 5, user.badge ?? 'New Rider', 'rickshaw',
+          user.name ?? 'Active Rider',
+          destLat, destLng,
+        );
         if (!mounted) return;
         setTracking(true);
         stopWatching = locationService.watchNearbyRiders((all) => {
           if (!mounted) return;
           const filtered = all.filter((r: any) => r.id !== user.uid);
           const s = useLocationStore.getState();
-          setNearbyRiders(matchingService.findNearbyRiders(s.latitude ?? routeOrigin?.lat ?? 23.7749, s.longitude ?? routeOrigin?.lng ?? 90.3990, routeDestinationKey, filtered, s.accuracy ?? undefined));
+          setNearbyRiders(matchingService.findNearbyRiders(
+            s.latitude ?? routeOrigin?.lat ?? 23.7749,
+            s.longitude ?? routeOrigin?.lng ?? 90.3990,
+            routeDestinationKey, filtered, s.accuracy ?? undefined,
+            destLat, destLng,   // নিজের গন্তব্যের coordinate — geo-match
+          ));
         });
       } catch {
         if (!mounted) return;

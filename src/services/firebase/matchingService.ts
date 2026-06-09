@@ -53,6 +53,8 @@ export interface ActiveRiderRaw {
   lat: number;
   lng: number;
   destination: string;
+  destLat?: number;   // গন্তব্যের lat (geo-matching-এর জন্য)
+  destLng?: number;   // গন্তব্যের lng
   pickupPoint: string;
   rating?: number;
   badge?: string;
@@ -60,6 +62,10 @@ export interface ActiveRiderRaw {
   status?: string;
   timestamp?: number;
 }
+
+// দুই গন্তব্য এই দূরত্বের (মিটার) মধ্যে হলে = একই গন্তব্য = match।
+// Kuril vs Kuril Bishwa Road (~কয়েকশ মিটার) ধরবে; Banani vs Gulshan (~1.5km) না।
+export const SAME_DESTINATION_RADIUS_M = 700;
 
 /**
  * Matching Service
@@ -74,7 +80,9 @@ class MatchingService {
     currentLng: number,
     currentDestination: string,
     allRiders: ActiveRiderRaw[],
-    accuracyMeters?: number
+    accuracyMeters?: number,
+    currentDestLat?: number,   // নিজের গন্তব্যের lat (geo-matching)
+    currentDestLng?: number,   // নিজের গন্তব্যের lng
   ): RiderMatch[] {
     const matches: RiderMatch[] = [];
     const tier = getSearchRadius(accuracyMeters);
@@ -93,9 +101,24 @@ class MatchingService {
 
       if (distance > visibleRadius) continue;
 
-      const isMatch =
-        rider.destination === currentDestination &&
-        distance <= matchRadius;
+      // ─── GEO-MATCH: text না, গন্তব্যের COORDINATE মেলাই ───
+      // দুজনের গন্তব্য ~৭০০ মিটারের মধ্যে = একই গন্তব্য = match।
+      // ("Kuril" vs "Kuril Bishwa Road" — ভিন্ন text, কাছাকাছি জায়গা → match)
+      // lat/lng না থাকলে (পুরনো rider) — fallback: text মেলাই।
+      let isMatch: boolean;
+      const haveBothDestCoords =
+        currentDestLat != null && currentDestLng != null &&
+        rider.destLat != null && rider.destLng != null;
+
+      if (haveBothDestCoords) {
+        const destGap = calculateDistance(
+          currentDestLat!, currentDestLng!, rider.destLat!, rider.destLng!,
+        );
+        isMatch = destGap <= SAME_DESTINATION_RADIUS_M && distance <= visibleRadius;
+      } else {
+        // fallback (lat/lng নেই) — পুরনো text compare
+        isMatch = rider.destination === currentDestination && distance <= matchRadius;
+      }
 
       matches.push({
         userId: rider.id,
