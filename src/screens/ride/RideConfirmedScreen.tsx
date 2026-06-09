@@ -17,7 +17,7 @@ import { db } from '@/config/firebase.config';
 
 import { useAuthStore } from '@/store/authStore';
 import { useRideStore } from '@/store/rideStore';
-import rideService from '@/services/firebase/rideService';
+import rideService from '@/services/rideService';
 import { sendRideConfirmed } from '@/services/notifications/fcmService';
 import { buildRideRoutePreview } from '@/services/ride/routePreviewService';
 import type { RideRoutePreview } from '@/types/ride.types';

@@ -6,7 +6,7 @@ import Svg, { Circle, Defs, Path, Stop, LinearGradient as SvgLinearGradient } fr
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '@/config/firebase.config';
 import { useRideStore } from '@/store/rideStore';
-import rideService from '@/services/firebase/rideService';
+import rideService from '@/services/rideService';
 import { startGeofencingForDestination, stopGeofencing, registerGeofenceTask } from '@/services/location/geofenceService';
 import { startMovementDetection } from '@/services/location/movementDetector';
 import type { RideRoutePreview } from '@/types/ride.types';

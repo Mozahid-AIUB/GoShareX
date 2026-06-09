@@ -23,7 +23,7 @@ import Svg, {
 
 import { useRideStore, VEHICLE_CONFIG, VehicleType } from '@/store/rideStore';
 import { useAuthStore } from '@/store/authStore';
-import rideService from '@/services/firebase/rideService';
+import rideService from '@/services/rideService';
 import { getFare } from '@/constants/fareTable';
 import PremiumVehicleArt from '@/components/vehicles/PremiumVehicleArt';
 
