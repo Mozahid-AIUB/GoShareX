@@ -40,9 +40,7 @@ import { useLocationStore } from '@/store';
 import type { RideRequestState } from '@/store/rideStore';
 import { VEHICLE_CONFIG, type VehicleType } from '@/store/rideStore';
 import { sanitizeSpeedKmh } from '@/utils/locationSpeed';
-import { logger } from '@/utils/logger';
-import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, limit } from 'firebase/firestore';
-import { db } from '@/services/firebase/config';
+import { subscribeToNotifications, markAllNotificationsRead } from '@/services/notificationFeedService';
 import PremiumVehicleArt from '@/components/vehicles/PremiumVehicleArt';
 import {
   recordSearch,
@@ -1127,25 +1125,16 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshExactCurrentLocation]);
 
-  // Real-time notifications subscription
+  // Real-time notifications subscription (router → Supabase/Firebase by flag)
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
+    const uid = storeUser?.uid;
     if (!uid) return;
-    const q = query(
-      collection(db, 'notifications'),
-      where('toUserId', '==', uid),
-      orderBy('createdAt', 'desc'),
-      limit(50),
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const items = snap.docs.map((d) => ({ id: d.id, type: '', read: false, ...d.data() } as AppNotification));
+    const unsub = subscribeToNotifications(uid, (items) => {
       setNotifications(items);
       setUnreadCount(items.filter((n) => !n.read).length);
-    }, (error) => {
-      logger.warn('HomeScreen.notifications', error);
     });
     return unsub;
-  }, []);
+  }, [storeUser?.uid]);
 
   // Handlers
   const handleSwap = () => {
@@ -1382,9 +1371,7 @@ export default function HomeScreen() {
               activeOpacity={0.8}
               onPress={() => {
                 setShowNotifModal(true);
-                notifications.filter((n) => !n.read).forEach((n) => {
-                  updateDoc(doc(db, 'notifications', n.id), { read: true }).catch(() => { });
-                });
+                if (storeUser?.uid) void markAllNotificationsRead(storeUser.uid, notifications);
                 setUnreadCount(0);
               }}
             >
@@ -1773,7 +1760,7 @@ export default function HomeScreen() {
               <Text style={{ fontSize: 20, fontWeight: '900', color: '#EEF2FF', letterSpacing: -0.3 }}>Notifications</Text>
               {notifications.length > 0 && (
                 <TouchableOpacity onPress={() => {
-                  notifications.forEach((n) => updateDoc(doc(db, 'notifications', n.id), { read: true }).catch(() => { }));
+                  if (storeUser?.uid) void markAllNotificationsRead(storeUser.uid, notifications);
                 }} activeOpacity={0.7}>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: '#C084FC' }}>Mark all read</Text>
                 </TouchableOpacity>

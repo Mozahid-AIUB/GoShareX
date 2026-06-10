@@ -92,15 +92,47 @@ export async function getPosts(destination?: string): Promise<Post[]> {
   return (data ?? []).map(rowToPost);
 }
 
-export async function joinPost(postId: string, userId: string): Promise<void> {
-  const { data } = await supabase.from('posts').select('interested').eq('id', postId).single();
-  const current: string[] = data?.interested ?? [];
+export async function joinPost(postId: string, userId: string, joinerName?: string): Promise<void> {
+  // post-এর তথ্য আনি (author, capacity, destination — notification-এর জন্য)
+  const { data: post, error: readErr } = await supabase
+    .from('posts')
+    .select('author_id, destination, max_riders, interested, status')
+    .eq('id', postId)
+    .single();
+  if (readErr) throw readErr;
+  if (!post) throw new Error('Post not found');
+  if (post.status !== 'open') throw new Error('Post is no longer open');
+
+  const current: string[] = post.interested ?? [];
   if (current.includes(userId)) return;
+
+  // capacity পূর্ণ হলে post matched (Firebase-এর মতো: interested >= max-1)
+  const isMatched = current.length >= (post.max_riders ?? 2) - 1;
   const { error } = await supabase
     .from('posts')
-    .update({ interested: [...current, userId] })
+    .update({
+      interested: [...current, userId],
+      ...(isMatched ? { status: 'matched' as PostStatus } : {}),
+    })
     .eq('id', postId);
   if (error) throw error;
+
+  // post owner-কে in-app notification (Firebase joinPost এর সমতুল্য)।
+  // নিজের post-এ join করলে notify করি না।
+  if (post.author_id && post.author_id !== userId) {
+    const { error: notifErr } = await supabase.from('notifications').insert({
+      to_user_id: post.author_id,
+      from_user_id: userId,
+      type: isMatched ? 'post_matched' : 'post_joined',
+      message: isMatched
+        ? `🎉 ${joinerName ?? 'Someone'} joined your ride to ${post.destination} — you're matched!`
+        : `👋 ${joinerName ?? 'Someone'} wants to join your ride to ${post.destination}`,
+      data: { postId, destination: post.destination },
+      read: false,
+    });
+    // notification fail করলে join আটকাই না (best-effort) — শুধু log।
+    if (notifErr) logger.warn('post.joinPost.notify', notifErr.message);
+  }
 }
 
 export async function leavePost(postId: string, userId: string): Promise<void> {
