@@ -15,6 +15,10 @@ import { supabase } from '@/config/supabase.config';
 import type { ActiveRider, NearbyRider } from '@/types';
 import { logger } from '@/utils/logger';
 
+// প্রতিটা subscription-এর জন্য unique channel নাম — দ্রুত remount-এ একই নামের
+// channel আবার subscribe করলে "callbacks after subscribe()" crash এড়ায়।
+const uniq = (base: string) => `${base}:${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
 // দুই গন্তব্য এই দূরত্বের (মিটার) মধ্যে = একই গন্তব্য = match।
 // matchingService.SAME_DESTINATION_RADIUS_M এর সমান রাখা — দুই path এক rule।
 // (distance/match হিসাব এখন server-side PostGIS RPC nearby_riders-এ হয়।)
@@ -118,7 +122,7 @@ class SupabasePresenceService {
 
     // real-time: active_riders-এ যেকোনো পরিবর্তন হলে RPC আবার চালাই।
     const channel = supabase
-      .channel('active_riders_presence')
+      .channel(uniq('active_riders_presence'))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'active_riders' },
@@ -247,7 +251,7 @@ class SupabasePresenceService {
     void load();
 
     const channel = supabase
-      .channel('active_riders_watch')
+      .channel(uniq('active_riders_watch'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'active_riders' }, () => void load())
       .subscribe();
 

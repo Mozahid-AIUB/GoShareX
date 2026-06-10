@@ -45,6 +45,16 @@ class SupabaseChatService {
     cb: (c: ChatRoom) => void,
     onErr?: (e: Error) => void,
   ) => chatRealtime.listenToChat(chatId, cb, onErr);
+  listenToUserChats = (
+    userId: string,
+    cb: (c: ChatRoom[]) => void,
+    onErr?: (e: Error) => void,
+  ) => chatRealtime.listenToUserChats(userId, cb, onErr);
+  listenToOpenGroupRooms = (
+    userId: string,
+    cb: (r: ChatRoom[]) => void,
+    onErr?: (e: Error) => void,
+  ) => chatRealtime.listenToOpenGroupRooms(userId, cb, onErr);
   markRead = (chatId: string, userId: string) => chatRealtime.markRead(chatId, userId);
   setTyping = (chatId: string, userId: string, alias: string) =>
     chatRealtime.setTyping(chatId, userId, alias);

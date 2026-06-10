@@ -9,6 +9,11 @@ import { chatRepository, rowToChat, rowToMessage } from './chatRepository';
 import { ChatMessage, ChatRoom } from './types';
 import { logger } from '@/utils/logger';
 
+// প্রতিটা subscription-এর জন্য unique channel নাম — দ্রুত unmount→remount-এ
+// একই নামের channel আবার subscribe করলে Supabase "callbacks after subscribe()"
+// crash দেয়; unique suffix সেটা এড়ায়।
+const uniq = (base: string) => `${base}:${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
 class ChatRealtime {
   /**
    * একটা chat-এর সব message live শোনে। প্রথমে initial load, তারপর
@@ -30,7 +35,7 @@ class ChatRealtime {
       .catch((e) => onError?.(e as Error));
 
     const channel = supabase
-      .channel(`msgs:${chatId}`)
+      .channel(uniq(`msgs:${chatId}`))
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
@@ -75,12 +80,81 @@ class ChatRealtime {
       .catch((e) => onError?.(e as Error));
 
     const channel = supabase
-      .channel(`chat:${chatId}`)
+      .channel(uniq(`chat:${chatId}`))
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'chats', filter: `id=eq.${chatId}` },
         (payload) => callback(rowToChat(payload.new)),
       )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }
+
+  /**
+   * ইউজারের সব chat তালিকা live শোনে (ChatListScreen-এর liveChats এর সমতুল্য)।
+   * Firestore where('participants','array-contains',uid) → Supabase
+   * .contains('participants',[uid])। chats টেবিলে যেকোনো পরিবর্তনে আবার লোড
+   * করি (chat সংখ্যা কম, তাই সহজ ও নির্ভরযোগ্য)।
+   */
+  listenToUserChats(
+    userId: string,
+    callback: (chats: ChatRoom[]) => void,
+    onError?: (error: Error) => void,
+  ): () => void {
+    const load = async () => {
+      try {
+        callback(await chatRepository.getUserChats(userId));
+      } catch (e) {
+        onError?.(e as Error);
+      }
+    };
+    void load();
+
+    const channel = supabase
+      .channel(uniq(`user_chats:${userId}`))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chats' }, () => void load())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }
+
+  /**
+   * join করার মতো খোলা anonymous_group room live শোনে (ChatListScreen-এর
+   * groupRooms এর সমতুল্য)। searching=true, expired না, পূর্ণ না, নিজে নেই।
+   */
+  listenToOpenGroupRooms(
+    userId: string,
+    callback: (rooms: ChatRoom[]) => void,
+    onError?: (error: Error) => void,
+  ): () => void {
+    const load = async () => {
+      const { data, error } = await supabase
+        .from('chats')
+        .select('*')
+        .eq('mode', 'anonymous_group')
+        .eq('searching', true)
+        .limit(20);
+      if (error) { onError?.(new Error(error.message)); return; }
+      const now = Date.now();
+      const rooms = (data ?? [])
+        .map(rowToChat)
+        .filter((r) =>
+          !r.participants?.includes(userId) &&
+          (r.expiresAt ?? 0) > now &&
+          (r.participants?.length ?? 0) < (r.maxParticipants ?? 10),
+        );
+      callback(rooms);
+    };
+    void load();
+
+    const channel = supabase
+      .channel(uniq(`open_group_rooms:${userId}`))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chats' }, () => void load())
       .subscribe();
 
     return () => {

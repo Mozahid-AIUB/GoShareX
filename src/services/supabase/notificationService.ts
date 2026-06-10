@@ -52,8 +52,11 @@ class SupabaseNotificationService {
     void load();
 
     // real-time: এই ইউজারের notification-এ পরিবর্তন হলে আবার লোড করি।
+    // channel নামে unique suffix — দ্রুত unmount→remount-এ একই নামের channel
+    // আবার subscribe করলে "callbacks after subscribe()" crash হয়; unique
+    // নাম সেটা এড়ায় (প্রতিটা subscription নিজের channel)।
     const channel = supabase
-      .channel(`notifications_${uid}`)
+      .channel(`notifications_${uid}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'notifications', filter: `to_user_id=eq.${uid}` },

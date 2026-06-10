@@ -2,12 +2,16 @@
 // Supabase Chat Presence Service (online/offline)
 //
 // Firebase RTDB presence (onDisconnect) এর সমতুল্য — Supabase Realtime
-// Presence channel দিয়ে। একটা global channel ('online_users')-এ প্রত্যেকে
-// নিজের uid track করে; connection dropped হলে Supabase auto leave পাঠায়
-// (RTDB onDisconnect-এর মতো, server-side)। অন্যরা channel-এর presence
-// state দেখে কে online বোঝে।
+// Presence channel দিয়ে। একটাই global channel ('online_users') সবাই
+// শেয়ার করে; নিজের uid track করি, connection dropped হলে Supabase auto
+// leave পাঠায় (RTDB onDisconnect-এর মতো, server-side)।
 //
-// Firebase presenceService এর সমতুল্য API:
+// গুরুত্বপূর্ণ: একই client-এ একই channel নাম দুবার subscribe করা যায় না
+// (".on() after subscribe()" crash)। তাই একটাই channel instance রাখি —
+// self-track ও observer-listener দুটোই এর উপর। presence callback অবশ্যই
+// subscribe()-এর আগে register করতে হয়।
+//
+// API (Firebase presenceService এর সমতুল্য):
 //   startPresenceTracking(uid) — online হই (login-এর পর)
 //   stopPresenceTracking(uid)  — offline হই (logout)
 //   listenToPresence(uid, cb)  — অন্য একজন online কিনা শুনি
@@ -19,45 +23,57 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 const CHANNEL = 'online_users';
 const TIMEOUT_THRESHOLD_MS = 2 * 60 * 1000; // 2 min offline = "Last seen Xm ago"
 
-// নিজের presence track করার channel (login-এ একবার join)।
-let selfChannel: RealtimeChannel | null = null;
-let selfUid: string | null = null;
+// একটাই shared channel — পুরো অ্যাপে এক instance।
+let channel: RealtimeChannel | null = null;
+let myUid: string | null = null;
+// presence state বদলালে যাদের জানাতে হবে (listenToPresence subscribers)।
+const listeners = new Set<() => void>();
+
+/** shared channel তৈরি (একবার) — presence callback subscribe-এর আগে register। */
+function ensureChannel(): RealtimeChannel {
+  if (channel) return channel;
+  const ch = supabase.channel(CHANNEL, {
+    config: { presence: { key: myUid ?? 'anon' } },
+  });
+  // state বদলালে সব listener-কে জানাই।
+  const notify = () => listeners.forEach((fn) => fn());
+  ch.on('presence', { event: 'sync' }, notify)
+    .on('presence', { event: 'join' }, notify)
+    .on('presence', { event: 'leave' }, notify)
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        if (myUid) void ch.track({ uid: myUid, online_at: Date.now() });
+        notify();
+      }
+    });
+  channel = ch;
+  return ch;
+}
 
 /**
- * নিজেকে online মার্ক করি — global presence channel-এ join করে track করি।
- * connection dropped হলে Supabase auto leave (offline) করে। login-এর পর
- * একবার কল করো। idempotent।
+ * নিজেকে online মার্ক করি — shared channel-এ track করি। connection dropped
+ * হলে Supabase auto leave (offline)। login-এর পর একবার কল করো। idempotent।
  */
 export function startPresenceTracking(uid: string): void {
-  if (selfUid === uid && selfChannel) return;
-  // আগের channel থাকলে ছাড়ি (uid বদলালে)
-  if (selfChannel) {
-    void supabase.removeChannel(selfChannel);
-    selfChannel = null;
-  }
-  selfUid = uid;
-  const channel = supabase.channel(CHANNEL, {
-    config: { presence: { key: uid } },
-  });
-  channel.subscribe((status) => {
-    if (status === 'SUBSCRIBED') {
-      void channel.track({ uid, online_at: Date.now() });
-    }
-  });
-  selfChannel = channel;
+  myUid = uid;
+  const ch = ensureChannel();
+  // channel ইতিমধ্যে subscribed হলে এখনই track; নাহলে subscribe callback করবে।
+  void ch.track({ uid, online_at: Date.now() }).catch((err) =>
+    logger.warn('chatPresence.track', String(err)),
+  );
 }
 
 /** নিজেকে offline মার্ক করি (logout) — channel ছেড়ে দিই (auto leave)। */
 export async function stopPresenceTracking(_uid: string): Promise<void> {
-  selfUid = null;
-  if (selfChannel) {
+  myUid = null;
+  if (channel) {
     try {
-      await selfChannel.untrack();
-      await supabase.removeChannel(selfChannel);
+      await channel.untrack();
+      await supabase.removeChannel(channel);
     } catch (err) {
       logger.warn('chatPresence.stop', String(err));
     }
-    selfChannel = null;
+    channel = null;
   }
 }
 
@@ -65,21 +81,18 @@ export async function stopPresenceTracking(_uid: string): Promise<void> {
  * অন্য একজন (uid) online কিনা শোনে। Firebase listenToPresence এর সমতুল্য —
  * callback { online, lastSeen, label }। unsubscribe ফেরত।
  *
- * একটা observer channel খুলে presence sync/join/leave শুনি; target uid
- * presence state-এ থাকলে online।
+ * নতুন channel খুলি না (crash এড়াতে) — shared channel-এর state পড়ি ও
+ * listeners-এ register করি। ChatScreen খোলা থাকলে presence track চালু
+ * থাকে (login-এ startPresenceTracking হয়েছে), তাই channel আছে।
  */
 export function listenToPresence(
   uid: string,
   callback: (info: { online: boolean; lastSeen: number; label: string }) => void,
 ): () => void {
-  // observer-কেও presence-সক্ষম channel লাগে state পড়তে; আলাদা নাম দিই
-  // যাতে নিজের track channel-এর সাথে সংঘর্ষ না হয়।
-  const channel = supabase.channel(CHANNEL, {
-    config: { presence: { key: `observer_${uid}_${Math.random().toString(36).slice(2)}` } },
-  });
+  const ch = ensureChannel();
 
   const emit = () => {
-    const state = channel.presenceState() as Record<string, Array<{ online_at?: number }>>;
+    const state = ch.presenceState() as Record<string, Array<{ online_at?: number }>>;
     const entries = state[uid];
     const online = Array.isArray(entries) && entries.length > 0;
     const lastSeen = online ? (entries[0]?.online_at ?? Date.now()) : 0;
@@ -91,16 +104,11 @@ export function listenToPresence(
     });
   };
 
-  channel
-    .on('presence', { event: 'sync' }, emit)
-    .on('presence', { event: 'join' }, emit)
-    .on('presence', { event: 'leave' }, emit)
-    .subscribe((status) => {
-      if (status === 'SUBSCRIBED') emit();
-    });
+  listeners.add(emit);
+  emit(); // current state এখনই দিই
 
   return () => {
-    void supabase.removeChannel(channel);
+    listeners.delete(emit);
   };
 }
 
