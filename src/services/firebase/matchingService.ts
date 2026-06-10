@@ -64,8 +64,26 @@ export interface ActiveRiderRaw {
 }
 
 // দুই গন্তব্য এই দূরত্বের (মিটার) মধ্যে হলে = একই গন্তব্য = match।
-// Kuril vs Kuril Bishwa Road (~কয়েকশ মিটার) ধরবে; Banani vs Gulshan (~1.5km) না।
-export const SAME_DESTINATION_RADIUS_M = 700;
+// Kuril vs Kuril Chowrasta (~৫০০m) ধরবে; Kuril vs Banani (~৩km) না।
+// ৫০০m = কড়া সীমা — শুধু সত্যিকারের কাছের গন্তব্যকে "একই জায়গা" ধরে।
+// নোট: এটা meet distance (zone 150/250/350m) থেকে আলাদা — এটা গন্তব্য↔গন্তব্য,
+// zone হলো তুমি↔rider। দুটো আলাদা, যোগ হয় না।
+export const SAME_DESTINATION_RADIUS_M = 500;
+
+/**
+ * একটা lat/lng জোড়া valid কিনা — accurate match-এর জন্য জরুরি guard।
+ * GPS fail হলে প্রায়ই 0,0 (Gulf of Guinea) বা NaN আসে — সেগুলো বাদ দিই,
+ * নাহলে ভুল match হয় (দুজনের 0,0 মিলে গিয়ে "match" দেখাবে)।
+ */
+function isValidLatLng(lat?: number | null, lng?: number | null): boolean {
+  return (
+    typeof lat === 'number' && typeof lng === 'number' &&
+    Number.isFinite(lat) && Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0) &&        // 0,0 = GPS fail
+    lat >= -90 && lat <= 90 &&
+    lng >= -180 && lng <= 180
+  );
+}
 
 /**
  * Matching Service
@@ -83,13 +101,16 @@ class MatchingService {
     accuracyMeters?: number,
     currentDestLat?: number,   // নিজের গন্তব্যের lat (geo-matching)
     currentDestLng?: number,   // নিজের গন্তব্যের lng
+    overrideVisibleRadius?: number,  // ইউজার zone bar দিয়ে নিজে radius ঠিক করলে
   ): RiderMatch[] {
     const matches: RiderMatch[] = [];
     const tier = getSearchRadius(accuracyMeters);
     const matchRadius = tier.searchRadius;
-    // Always show riders within 1km on map regardless of GPS tier —
-    // so the map never looks empty in dense BD urban areas.
-    const visibleRadius = Math.max(matchRadius, 1000);
+    // ইউজার zone bar দিয়ে radius দিলে সেটাই মানি (নিজের নিয়ন্ত্রণ);
+    // নাহলে ঘন BD শহরে map যেন খালি না দেখায় — কমপক্ষে 1km।
+    const visibleRadius = overrideVisibleRadius != null
+      ? overrideVisibleRadius
+      : Math.max(matchRadius, 1000);
 
     for (const rider of allRiders) {
       const distance = calculateDistance(
@@ -104,20 +125,22 @@ class MatchingService {
       // ─── GEO-MATCH: text না, গন্তব্যের COORDINATE মেলাই ───
       // দুজনের গন্তব্য ~৭০০ মিটারের মধ্যে = একই গন্তব্য = match।
       // ("Kuril" vs "Kuril Bishwa Road" — ভিন্ন text, কাছাকাছি জায়গা → match)
-      // lat/lng না থাকলে (পুরনো rider) — fallback: text মেলাই।
+      // এখানে আসা মানেই rider ইতিমধ্যে visibleRadius-এর ভিতরে (লাইন উপরে guard),
+      // তাই isMatch-এ আর distance চেক করার দরকার নেই — শুধু গন্তব্য মেলে কিনা দেখি।
       let isMatch: boolean;
       const haveBothDestCoords =
-        currentDestLat != null && currentDestLng != null &&
-        rider.destLat != null && rider.destLng != null;
+        isValidLatLng(currentDestLat, currentDestLng) &&
+        isValidLatLng(rider.destLat, rider.destLng);
 
       if (haveBothDestCoords) {
         const destGap = calculateDistance(
           currentDestLat!, currentDestLng!, rider.destLat!, rider.destLng!,
         );
-        isMatch = destGap <= SAME_DESTINATION_RADIUS_M && distance <= visibleRadius;
+        isMatch = destGap <= SAME_DESTINATION_RADIUS_M;
       } else {
-        // fallback (lat/lng নেই) — পুরনো text compare
-        isMatch = rider.destination === currentDestination && distance <= matchRadius;
+        // fallback (valid lat/lng নেই) — পুরনো text compare।
+        // GPS fail হলে এখানে আসবে; অন্তত text মিললে match দেখাই।
+        isMatch = rider.destination === currentDestination;
       }
 
       matches.push({

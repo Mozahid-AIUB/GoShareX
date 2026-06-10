@@ -12,27 +12,16 @@
 // ============================================================
 import * as ExpoLocation from 'expo-location';
 import { supabase } from '@/config/supabase.config';
-import { haversineDistance } from '@/utils/haversine';
-import { PROXIMITY_ZONES } from '@/constants/locations';
 import type { ActiveRider, NearbyRider } from '@/types';
 import { logger } from '@/utils/logger';
 
-// active_riders row -> ActiveRider-এর মতো object (subscribe-এ ব্যবহার)
-function rowToRider(row: any): ActiveRider {
-  return {
-    uid: row.user_id,
-    name: row.name,
-    lat: Number(row.lat),
-    lng: Number(row.lng),
-    destination: row.destination ?? '',
-    pickupPoint: row.pickup_point ?? '',
-    status: row.status ?? 'waiting',
-    rating: Number(row.rating ?? 5),
-    badge: row.badge ?? '',
-    photoURL: row.photo_url ?? undefined,
-    timestamp: row.updated_at ? new Date(row.updated_at).getTime() : Date.now(),
-  } as ActiveRider;
-}
+// দুই গন্তব্য এই দূরত্বের (মিটার) মধ্যে = একই গন্তব্য = match।
+// matchingService.SAME_DESTINATION_RADIUS_M এর সমান রাখা — দুই path এক rule।
+// (distance/match হিসাব এখন server-side PostGIS RPC nearby_riders-এ হয়।)
+const SAME_DESTINATION_RADIUS_M = 500;
+
+// nearby rider কত দূর পর্যন্ত দেখাব (মিটার) — Map ও Home একই।
+const HOME_VISIBLE_RADIUS_M = 1000;
 
 class SupabasePresenceService {
   /** presence on/update — নিজের location active_riders-এ লেখে (upsert)।
@@ -78,52 +67,56 @@ class SupabasePresenceService {
    * unsubscribe function ফেরত।
    */
   subscribeToNearbyRiders(
-    currentUser: { uid: string; lat: number; lng: number; destination: string },
+    currentUser: {
+      uid: string; lat: number; lng: number; destination: string;
+      destLat?: number; destLng?: number;   // নিজের গন্তব্যের coordinate (geo-match)
+      // প্রতি RPC call-এ সর্বশেষ GPS — দিলে closure-এর পুরনো lat/lng-এর বদলে
+      // এটা ব্যবহার হয় (Map-এর সাথে একই fresh GPS → distance হুবহু এক)।
+      getLatest?: () => { lat: number; lng: number; destLat?: number; destLng?: number } | null;
+    },
     onUpdate: (riders: NearbyRider[]) => void,
   ): () => void {
-    const compute = (rows: any[]) => {
-      const nearby: NearbyRider[] = [];
-      for (const row of rows) {
-        const rider = rowToRider(row);
-        if (rider.uid === currentUser.uid) continue;
-        if (rider.status === 'riding') continue;
-
-        const distance = haversineDistance(
-          currentUser.lat, currentUser.lng, rider.lat, rider.lng,
-        );
-        if (distance <= PROXIMITY_ZONES.VISIBLE_ONLY) {
-          nearby.push({
-            uid: rider.uid,
-            name: rider.name,
-            distance: Math.round(distance),
-            destination: rider.destination,
-            pickupPoint: rider.pickupPoint,
-            rating: rider.rating,
-            badge: rider.badge,
-            photoURL: rider.photoURL,
-            lat: rider.lat,
-            lng: rider.lng,
-            isMatch: rider.destination === currentUser.destination,
-          } as NearbyRider);
-        }
-      }
-      nearby.sort((a, b) => a.distance - b.distance);
-      onUpdate(nearby);
-    };
-
-    // initial load
+    // server-side PostGIS query (nearby_riders RPC) — পুরো টেবিল client-এ
+    // টানে না, শুধু radius-এর ভিতরের rider + distance + is_match দেয়।
+    // distance server একবার হিসাব + 5m round করে → Map ও Home একই সংখ্যা।
     const load = async () => {
-      const { data, error } = await supabase.from('active_riders').select('*');
+      const live = currentUser.getLatest?.() ?? null;
+      const lat = live?.lat ?? currentUser.lat;
+      const lng = live?.lng ?? currentUser.lng;
+      const dLat = live?.destLat ?? currentUser.destLat;
+      const dLng = live?.destLng ?? currentUser.destLng;
+      const { data, error } = await supabase.rpc('nearby_riders', {
+        p_lat: lat,
+        p_lng: lng,
+        p_dest_lat: dLat ?? null,
+        p_dest_lng: dLng ?? null,
+        p_radius_m: HOME_VISIBLE_RADIUS_M,
+        p_same_dest_m: SAME_DESTINATION_RADIUS_M,
+      });
       if (error) {
-        logger.warn('presence.subscribe.load', error.message);
+        logger.warn('presence.subscribe.rpc', error.message);
         return;
       }
-      compute(data ?? []);
+      const nearby: NearbyRider[] = (data ?? [])
+        .filter((row: any) => row.user_id !== currentUser.uid)   // নিজেকে বাদ
+        .map((row: any) => ({
+          uid: row.user_id,
+          name: row.name,
+          distance: Math.round(Number(row.distance_m ?? 0)),
+          destination: row.destination ?? '',
+          pickupPoint: row.pickup_point ?? '',
+          rating: Number(row.rating ?? 5),
+          badge: row.badge ?? '',
+          photoURL: row.photo_url ?? undefined,
+          lat: Number(row.lat),
+          lng: Number(row.lng),
+          isMatch: !!row.is_match,
+        } as NearbyRider));
+      onUpdate(nearby);
     };
     void load();
 
-    // real-time: active_riders-এ যেকোনো পরিবর্তন (insert/update/delete) হলে
-    // পুরো তালিকা আবার লোড করি (rider সংখ্যা সাধারণত কম, তাই সহজ ও নির্ভরযোগ্য)।
+    // real-time: active_riders-এ যেকোনো পরিবর্তন হলে RPC আবার চালাই।
     const channel = supabase
       .channel('active_riders_presence')
       .on(
@@ -200,13 +193,36 @@ class SupabasePresenceService {
   }
 
   /**
-   * সব active rider real-time শোনে — raw তালিকা callback-এ দেয়
-   * (Firebase watchNearbyRiders এর সমতুল্য; distance filter caller করে)।
+   * Map screen-এর জন্য — server-side PostGIS (nearby_riders RPC) দিয়ে কাছের
+   * rider + distance + is_match real-time দেয়। আগে পুরো টেবিল client-এ টেনে
+   * findNearbyRiders করত; এখন server একবার distance হিসাব করে → Map ও Home
+   * একই সংখ্যা (125m vs 135m অসঙ্গতি শেষ)। distanceM/isMatch RPC থেকে আসে।
+   *
+   * getLocation() — প্রতি load-এ caller-এর সর্বশেষ অবস্থান+গন্তব্য দেয় (GPS
+   * নড়লে পরের load নতুন অবস্থান দিয়ে query করে)।
    */
-  watchNearbyRiders(callback: (riders: any[]) => void): () => void {
+  watchNearbyRiders(
+    getLocation: () => { lat: number; lng: number; destLat?: number; destLng?: number } | null,
+    callback: (riders: any[]) => void,
+    radiusM = 1000,
+    sameDestM = 500,
+  ): () => void {
     const load = async () => {
-      const { data } = await supabase.from('active_riders').select('*');
-      // Firebase ActiveRiderRaw format-এ ম্যাপ করি (id + camelCase)
+      const loc = getLocation();
+      if (!loc) return;
+      const { data, error } = await supabase.rpc('nearby_riders', {
+        p_lat: loc.lat,
+        p_lng: loc.lng,
+        p_dest_lat: loc.destLat ?? null,
+        p_dest_lng: loc.destLng ?? null,
+        p_radius_m: radiusM,
+        p_same_dest_m: sameDestM,
+      });
+      if (error) {
+        logger.warn('presence.watch.rpc', error.message);
+        return;
+      }
+      // ActiveRiderRaw-এর মতো format (id + camelCase) + server distance/isMatch
       const riders = (data ?? []).map((r: any) => ({
         id: r.user_id,
         uid: r.user_id,
@@ -222,7 +238,9 @@ class SupabasePresenceService {
         badge: r.badge ?? '',
         photoURL: r.photo_url ?? undefined,
         vehicleType: r.vehicle_type ?? 'rickshaw',
-        timestamp: r.updated_at ? new Date(r.updated_at).getTime() : Date.now(),
+        distanceM: Math.round(Number(r.distance_m ?? 0)),  // server distance
+        isMatchDest: !!r.is_match,                          // server: গন্তব্য মেলে
+        timestamp: Date.now(),
       }));
       callback(riders);
     };

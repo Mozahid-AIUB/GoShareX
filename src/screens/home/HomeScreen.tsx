@@ -97,6 +97,9 @@ import {
 } from './utils/homeHelpers';
 import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
 
+// জোন স্তর (মিটার) — segmented pill-এ দেখায়, কতদূরের rider "match"।
+// LiveMapScreen-এর ZONE_LEVELS এর সমান রাখা — দুই screen consistent।
+const ZONE_LEVELS = [150, 250, 350] as const;
 
 // ─── Design Tokens — light theme matching the S StyleSheet ───────────────────
 const D = {
@@ -811,7 +814,17 @@ export default function HomeScreen() {
   }, []);
   const timeCtx = useMemo(() => getTimeContext(currentHour), [currentHour]);
   const greeting = useMemo(() => getGreeting(currentHour), [currentHour]);
-  useNearbyRiders(destination, LIVE_PARTNER_FEED_ENABLED && !!destination);
+  // জোন radius — Map ও Home শেয়ার করা store state (এক জায়গায় বদলালে
+  // দুই জায়গায় বদলায়)। MATCH = একই গন্তব্য AND এই radius-এর ভিতরে।
+  const zoneRadius = useRideStore(s => s.zoneRadius);
+  const setZoneRadius = useRideStore(s => s.setZoneRadius);
+
+  useNearbyRiders(
+    destination,
+    LIVE_PARTNER_FEED_ENABLED && !!destination,
+    selectedDestDetails?.lat,   // geo-match: নিজের গন্তব্যের coordinate
+    selectedDestDetails?.lng,
+  );
   const { nearbyRiders } = useRideStore();
 
   // Sync route card FROM label — only when user has explicitly chosen a pickup
@@ -983,12 +996,11 @@ export default function HomeScreen() {
     if (!destination) return [];
     const base = nearbyRiders.length > 0 ? nearbyRiders : [];
     return base
-      .filter(r =>
-        // isMatch already guarantees: same destination + within radius
-        // r.destination === destination alone is NOT enough — pickup point must also match
-        // otherwise riders from different pickup points appear as valid partners
-        r.isMatch || r.destination === destination
-      )
+      // MATCH = একই গন্তব্য (isMatch, geo ≤700m) AND জোন radius-এর ভিতরে।
+      // "Kuril" vs "Kuril Bishwa Road" আলাদা নাম হলেও geo-match ধরে; আর
+      // zoneRadius দিয়ে শুধু কাছের (segmented pill-এ বেছে নেওয়া) লোক দেখাই —
+      // তাই 662m দূরের কেউ একই গন্তব্য হলেও জোন 350m হলে list-এ আসবে না।
+      .filter(r => r.isMatch && (r.distance ?? 0) <= zoneRadius)
       .map((r): VisiblePartner => {
         const api = partnerDistances[r.uid];
         return {
@@ -1000,16 +1012,23 @@ export default function HomeScreen() {
           destinationName: DESTINATIONS.find(d => d.id === r.destination)?.name ?? r.destination,
           pickupPoint: r.pickupPoint,
           splitFare: Math.ceil(getFare(selectedPickup, r.destination) / 2),
-          distanceMeters: api?.distanceMeters ?? r.distance ?? 0,
+          // straight-line distance (filter-এর সাথে একই) — যাতে "267m কিন্তু
+          // 150m জোনে কেন?" অসঙ্গতি না হয়। Map-ও straight-line দেখায়, তাই দুই
+          // screen এক সংখ্যা। (Google road-distance display করতাম, সরালাম।)
+          distanceMeters: r.distance ?? 0,
           etaMinutes: api?.durationInTrafficSeconds
             ? Math.max(1, Math.round(api.durationInTrafficSeconds / 60))
             : api?.durationSeconds
               ? Math.max(1, Math.round(api.durationSeconds / 60))
               : 2,
+          // আসল match quality — কাছের rider বেশি %, দূরের কম। সবাই 100 না।
+          //  • meet distance (তুমি↔rider): 0m=60pt, zoneRadius-এ=10pt (যত কাছে তত ভালো)
+          //  • rating bonus: 5★=20pt, 3★=0pt
+          //  • একই pickup হলে +10 (হেঁটে মেলা সহজ)
+          // match হয়েছে মানেই গন্তব্য ≤500m, তাই dest gap আলাদা করে গুনি না।
           matchScore: Math.min(100, Math.max(0, Math.round(
-            70 +
-            (r.rating - 3) * 10 +
-            (r.isMatch ? 20 : 0) +
+            25 + (1 - Math.min(1, (r.distance ?? 0) / Math.max(1, zoneRadius))) * 55 +
+            Math.max(0, (r.rating - 3)) * 10 +
             (r.pickupPoint === selectedPickupLabel ? 10 : 0)
           ))),
           lat: r.lat,
@@ -1018,7 +1037,7 @@ export default function HomeScreen() {
         };
       })
       .sort((a, b) => a.distanceMeters - b.distanceMeters);
-  }, [destination, nearbyRiders, partnerDistances, selectedPickup, selectedPickupLabel]);
+  }, [destination, nearbyRiders, partnerDistances, selectedPickup, selectedPickupLabel, zoneRadius]);
 
   const refreshExactCurrentLocation = useCallback(async () => {
     setIsResolvingCurrentLocation(true);
@@ -1552,12 +1571,28 @@ export default function HomeScreen() {
         {LIVE_PARTNER_FEED_ENABLED && selectedDestDetails ? (
           <View style={S.section}>
             <View style={S.sectionHeader}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={S.sectionTitle}>People on this route</Text>
                 <Text style={S.sectionSub}>
                   From {selectedPickupLabel} to {selectedDestDetails.name}
                 </Text>
               </View>
+              {/* জোন chip — Map-এর মতো। tap করলে 150→250→350→150 cycle।
+                  কতদূরের (একই গন্তব্যের) rider "match" দেখাব; সাথে সাথে list filter।
+                  Map ও Home শেয়ার করা store — এক জায়গায় বদলালে দুই জায়গায়। */}
+              <TouchableOpacity
+                style={S.zoneChip}
+                onPress={() => {
+                  const idx = ZONE_LEVELS.indexOf(zoneRadius as typeof ZONE_LEVELS[number]);
+                  const next = ZONE_LEVELS[(idx + 1) % ZONE_LEVELS.length];
+                  setZoneRadius(next);
+                }}
+                activeOpacity={0.8}
+              >
+                <MaterialCommunityIcons name="map-marker-radius" size={14} color="#6366F1" />
+                <Text style={S.zoneChipText}>{zoneRadius}m</Text>
+                <MaterialCommunityIcons name="chevron-up" size={14} color="#6366F1" />
+              </TouchableOpacity>
               <View style={S.liveCountBadge}>
                 <LiveDot />
                 <Text style={S.liveCountText}>{visiblePartners.length} live</Text>
@@ -2053,13 +2088,22 @@ const S = StyleSheet.create({
   section: { marginBottom: 22 },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1A1A2E', marginBottom: 6, letterSpacing: -0.2 },
   sectionSub: { fontSize: 13, color: '#9896A8', fontWeight: '600', letterSpacing: 0.1 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   liveCountBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: 'rgba(20,184,166,0.1)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
     borderWidth: 1, borderColor: 'rgba(20,184,166,0.25)',
   },
   liveCountText: { fontSize: 12, fontWeight: '800', color: '#0D9488', letterSpacing: 0.3 },
+
+  // ── Zone radius chip (Map-এর মতো, "live"-এর পাশে) ──
+  zoneChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: 'rgba(99,102,241,0.08)', borderRadius: 20,
+    paddingHorizontal: 10, paddingVertical: 6, marginRight: 8,
+    borderWidth: 1, borderColor: 'rgba(99,102,241,0.25)',
+  },
+  zoneChipText: { fontSize: 12, fontWeight: '800', color: '#6366F1', letterSpacing: 0.2 },
 
   // ── Destination chips ──
   destChipRow: { paddingTop: 10, paddingBottom: 6, gap: 10, flexDirection: 'row', paddingHorizontal: 0 },

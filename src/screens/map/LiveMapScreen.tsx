@@ -28,7 +28,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { useRideStore, VEHICLE_CONFIG, VehicleType } from '@/store/rideStore';
 import locationService from '@/services/locationService';
-import matchingService, { RiderMatch, getSearchRadius } from '@/services/firebase/matchingService';
+import { RiderMatch, getSearchRadius, SAME_DESTINATION_RADIUS_M } from '@/services/firebase/matchingService';
 import { calculateDistance } from '@/utils/haversine';
 import { sanitizeSpeedKmh } from '@/utils/locationSpeed';
 
@@ -101,7 +101,10 @@ export default function LiveMapScreen() {
   const destination = routeParams?.destination ?? storeDestination;
   const pickupPoint = routeParams?.pickup ?? storePickupPoint;
 
-  const [nearbyRiders, setNearbyRiders] = useState<RiderMatch[]>([]);
+  // raw = Supabase থেকে আসা filter-না-করা rider তালিকা।
+  // nearbyRiders (filter করা) এর থেকে useMemo দিয়ে বের হয় — তাই zone radius
+  // বা গন্তব্য বদলালে subscription আবার না করেই list real-time re-filter হয়।
+  const [rawRiders, setRawRiders] = useState<any[]>([]);
   const [selectedRider, setSelectedRider] = useState<RiderMatch | null>(null);
   const lastOfferTimeRef = useRef<Record<string, number>>({});
 
@@ -110,7 +113,9 @@ export default function LiveMapScreen() {
   const [scanSecs, setScanSecs] = useState(0);
   const [zoneIdx, setZoneIdx] = useState(0);
   const [showNoRidersSheet, setShowNoRidersSheet] = useState(false);
-  const [manualZoneRadius, setManualZoneRadius] = useState<number | null>(null);
+  // জোন radius — Home ও Map শেয়ার করা store state।
+  const zoneRadius = useRideStore(s => s.zoneRadius);
+  const setZoneRadius = useRideStore(s => s.setZoneRadius);
   const [dismissed, setDismissed] = useState(false);
   const waitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([]);
@@ -148,29 +153,11 @@ export default function LiveMapScreen() {
     prevDestRef.current = destination;
     setScanSecs(0);
     setZoneIdx(0);
-    setManualZoneRadius(ZONE_LEVELS[0]);
+    // zoneRadius reset করি না — ইউজারের পছন্দ (Home-এর সাথে শেয়ার) রাখি।
     setShowNoRidersSheet(false);
     setDismissed(false);
   }, [destination]);
 
-  useEffect(() => {
-    if (dismissed || nearbyRiders.length > 0 || !destination || scanSecs === 0) return;
-    // Auto-expand zone every 3s — only while not at max
-    if (scanSecs % 3 === 0) {
-      setZoneIdx(prev => {
-        if (prev >= ZONE_LEVELS.length - 1) return prev;
-        const next = prev + 1;
-        setManualZoneRadius(ZONE_LEVELS[next]);
-        return next;
-      });
-    }
-    // Show sheet after 15s
-    if (scanSecs >= 15) setShowNoRidersSheet(true);
-  }, [scanSecs, nearbyRiders.length, destination, dismissed]);
-
-  useEffect(() => {
-    if (nearbyRiders.length > 0) setShowNoRidersSheet(false);
-  }, [nearbyRiders.length]);
 
   const hasLoc = latitude != null && longitude != null;
   const pickupDetails = pickupPoint ? getPickupPointById(pickupPoint) : null;
@@ -191,8 +178,62 @@ export default function LiveMapScreen() {
     longitude: longitude ?? routeOrigin?.lng ?? 90.3990,
   }), [latitude, longitude, routeOrigin?.lat, routeOrigin?.lng]);
   const gpsTier = useMemo(() => getSearchRadius(accuracy), [accuracy]);
-  const userAccuracyRadius = manualZoneRadius ?? gpsTier.searchRadius;
+  // জোন radius = ইউজার-নির্বাচিত (store, Home-এর সাথে শেয়ার)।
+  const userAccuracyRadius = zoneRadius;
   const routeDestinationKey = customDestination?.name ?? destination ?? '';
+
+  // rawRiders এখন server (PostGIS RPC) থেকে আসে — distanceM (server-হিসাবকৃত)
+  // + isMatchDest (গন্তব্য ≤500m) সহ। এখানে শুধু RiderMatch shape-এ map করি
+  // আর জোন চেক যোগ করি: MATCH (সবুজ) = একই গন্তব্য AND জোনের ভিতরে — দুটোই।
+  // server distance ব্যবহার → Map ও Home একই সংখ্যা (125m/135m অসঙ্গতি শেষ)।
+  // rawRiders/জোন বদলালে এটা আবার চলে → list real-time।
+  const nearbyRiders = useMemo<RiderMatch[]>(() => {
+    return rawRiders.map((r: any) => ({
+      userId: r.id,
+      name: r.name || 'Unknown',
+      distance: r.distanceM ?? 0,
+      destination: r.destination ?? '',
+      pickupPoint: r.pickupPoint ?? '',
+      rating: r.rating ?? 5,
+      badge: r.badge ?? 'New Rider',
+      vehicleType: r.vehicleType ?? 'rickshaw',
+      lat: r.lat,
+      lng: r.lng,
+      // সবুজ MATCH = গন্তব্য মেলে (server) AND জোনের ভিতরে।
+      isMatch: !!r.isMatchDest && (r.distanceM ?? 0) <= userAccuracyRadius,
+    }))
+    .sort((a, b) => {
+      if (a.isMatch !== b.isMatch) return a.isMatch ? -1 : 1;
+      return a.distance - b.distance;
+    });
+  }, [rawRiders, userAccuracyRadius]);
+
+  // scan টাইমার চলাকালে rider না পেলে প্রতি 3s-এ zone বাড়াই, 15s-এ sheet দেখাই।
+  useEffect(() => {
+    if (dismissed || nearbyRiders.length > 0 || !destination || scanSecs === 0) return;
+    if (scanSecs % 3 === 0 && zoneIdx < ZONE_LEVELS.length - 1) {
+      // setZoneRadius (store) updater-এর বাইরে ডাকি — React state updater
+      // function-এর ভিতরে অন্য store update করা "Cannot update component while
+      // rendering" warning দেয়। তাই zoneIdx আর store দুটো আলাদা set করি।
+      const next = zoneIdx + 1;
+      setZoneIdx(next);
+      setZoneRadius(ZONE_LEVELS[next]);
+    }
+    if (scanSecs >= 15) setShowNoRidersSheet(true);
+  }, [scanSecs, nearbyRiders.length, destination, dismissed, zoneIdx, setZoneRadius]);
+
+  // rider পাওয়া গেলে "no riders" sheet লুকাই।
+  useEffect(() => {
+    if (nearbyRiders.length > 0) setShowNoRidersSheet(false);
+  }, [nearbyRiders.length]);
+
+  // selected rider যদি আর match না করে (জোন কমালে বাইরে চলে গেছে, বা গন্তব্য
+  // বদলেছে), তাহলে কার্ড বন্ধ করি — নাহলে জোনের বাইরের rider-এর কার্ড আটকে থাকে।
+  useEffect(() => {
+    if (!selectedRider) return;
+    const fresh = nearbyRiders.find((r) => r.userId === selectedRider.userId);
+    if (!fresh || !fresh.isMatch) setSelectedRider(null);
+  }, [nearbyRiders, selectedRider]);
 
   const routeRiders = useMemo(() => nearbyRiders.filter((r) => {
     const sp = matchesPickup(r.pickupPoint, pickupPoint, routeOrigin?.label);
@@ -209,7 +250,11 @@ export default function LiveMapScreen() {
     return a.distance - b.distance;
   }), [nearbyRiders]);
 
-  const matchCount = useMemo(() => routeRiders.filter((r) => r.isMatch).length, [routeRiders]);
+  // Match = একই গন্তব্য (geo-match, ≤700m) + nearby radius-এর ভিতরে।
+  // pickup point মেলার দরকার নেই — দুজন তো ইতিমধ্যে কাছাকাছি, হেঁটে মিলে
+  // একসাথে যেতে পারে। তাই পুরো nearbyRiders-এর isMatch গুনি (routeRiders না,
+  // কারণ routeRiders-এ pickup filter আছে → আগে count 0 দেখাত যদিও badge ছিল)।
+  const matchCount = useMemo(() => nearbyRiders.filter((r) => r.isMatch).length, [nearbyRiders]);
 
   const prioritizedRiders = useMemo(() => {
     const ids = new Set(routeRiders.map((r) => r.userId));
@@ -256,17 +301,24 @@ export default function LiveMapScreen() {
         );
         if (!mounted) return;
         setTracking(true);
-        stopWatching = locationService.watchNearbyRiders((all) => {
-          if (!mounted) return;
-          const filtered = all.filter((r: any) => r.id !== user.uid);
-          const s = useLocationStore.getState();
-          setNearbyRiders(matchingService.findNearbyRiders(
-            s.latitude ?? routeOrigin?.lat ?? 23.7749,
-            s.longitude ?? routeOrigin?.lng ?? 90.3990,
-            routeDestinationKey, filtered, s.accuracy ?? undefined,
-            destLat, destLng,   // নিজের গন্তব্যের coordinate — geo-match
-          ));
-        });
+        stopWatching = locationService.watchNearbyRiders(
+          // getLocation — প্রতি load-এ সর্বশেষ GPS+গন্তব্য দেয় (নড়লে নতুন query)।
+          () => {
+            const s = useLocationStore.getState();
+            const lat = s.latitude ?? routeOrigin?.lat;
+            const lng = s.longitude ?? routeOrigin?.lng;
+            if (lat == null || lng == null) return null;
+            return { lat, lng, destLat, destLng };
+          },
+          (all) => {
+            if (!mounted) return;
+            // server (RPC) থেকে distance+isMatchDest সহ আসে; নিজেকে বাদ দিই।
+            // জোন চেক + map useMemo-তে হয় → radius বদলালে real-time।
+            setRawRiders(all.filter((r: any) => r.id !== user.uid));
+          },
+          1000,                          // visible radius (map খালি না)
+          SAME_DESTINATION_RADIUS_M,     // একই গন্তব্য সীমা (500m)
+        );
       } catch {
         if (!mounted) return;
         setTracking(false);
@@ -281,7 +333,7 @@ export default function LiveMapScreen() {
       stopWatching?.();
       if (waitTimerRef.current) { clearTimeout(waitTimerRef.current); waitTimerRef.current = null; }
     };
-  }, [destination, pickupPoint, routeDestinationKey, routeOrigin?.lat, routeOrigin?.lng, routeSearchNonce, setLocation, setTracking, user?.uid]);
+  }, [destination, pickupPoint, routeDestinationKey, routeOrigin?.lat, routeOrigin?.lng, destinationDetails?.lat, destinationDetails?.lng, routeSearchNonce, setLocation, setTracking, user?.uid]);
 
   // Meetup route for selected rider
   useEffect(() => {
@@ -383,11 +435,22 @@ export default function LiveMapScreen() {
     navigation.navigate('Chat', { rider, partnerName: rider.name });
   }, [navigation]);
 
+  // Map একটা tab হতে পারে (back করার আগের screen নেই) — তখন goBack()
+  // "GO_BACK was not handled" error দেয়। তাই canGoBack চেক করি, না পারলে
+  // Home tab-এ navigate করি।
+  const goBackSafe = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('Home' as never);
+    }
+  }, [navigation]);
+
   const handleExpandZone = useCallback(() => {
     // At max zone — cycle back to 150m and restart scan
     if (zoneIdx >= ZONE_LEVELS.length - 1) {
       setZoneIdx(0);
-      setManualZoneRadius(ZONE_LEVELS[0]);
+      setZoneRadius(ZONE_LEVELS[0]);
       setScanSecs(0);
       setShowNoRidersSheet(false);
       setDismissed(false);
@@ -395,9 +458,9 @@ export default function LiveMapScreen() {
     }
     const nextIdx = zoneIdx + 1;
     setZoneIdx(nextIdx);
-    setManualZoneRadius(ZONE_LEVELS[nextIdx]);
+    setZoneRadius(ZONE_LEVELS[nextIdx]);
     setShowNoRidersSheet(false);
-  }, [zoneIdx]);
+  }, [zoneIdx, setZoneRadius]);
 
   const handlePostForLater = useCallback(() => {
     setShowNoRidersSheet(false);
@@ -481,13 +544,19 @@ export default function LiveMapScreen() {
         )}
         {prioritizedRiders.map((rider) => {
           const isMatch = rider.isMatch;
-          const isInsideZone = rider.distance <= userAccuracyRadius;
-          const bg = isInsideZone ? C.matchGreen : C.nearbyOrange;
+          // সবুজ = MATCH (জোনের ভিতরে + একই গন্তব্য, উপরে useMemo-তে হিসাব)।
+          // কমলা = বাকি সবাই (জোনের বাইরে, অথবা ভিন্ন গন্তব্য) — কাছে আছে
+          // কিন্তু এখনই ride-share করার মতো না।
+          const bg = isMatch ? C.matchGreen : C.nearbyOrange;
+          // শুধু MATCH (সবুজ = জোনের ভিতরে + একই গন্তব্য) rider tap করা যাবে →
+          // কার্ড আসবে, contact করা যাবে। কমলা (দূরে বা ভিন্ন গন্তব্য) marker
+          // দেখাবে আশেপাশে কে আছে বোঝাতে, কিন্তু tap-এ কার্ড আসবে না।
+          const canSelect = isMatch;
           const distLabel = rider.distance < 1000
             ? `${rider.distance}m`
             : `${(rider.distance / 1000).toFixed(1)}km`;
           return (
-            <Marker key={rider.userId} coordinate={{ latitude: rider.lat, longitude: rider.lng }} onPress={() => setSelectedRider(rider)}>
+            <Marker key={rider.userId} coordinate={{ latitude: rider.lat, longitude: rider.lng }} onPress={() => { if (canSelect) setSelectedRider(rider); }}>
               <View style={m.wrap}>
                 {/* match-করা rider-এর পিছনে live pulse — জীবন্ত দেখায়।
                     শুধু match হলে, যাতে সব marker pulse করে map ভারী না হয়। */}
@@ -519,7 +588,7 @@ export default function LiveMapScreen() {
 
       {/* ── Top bar — single row: back | destination+meta | live | center ── */}
       <View style={[s.topBar, { top: insets.top + 8 }]}>
-        <TouchableOpacity style={s.iconBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+        <TouchableOpacity style={s.iconBtn} onPress={goBackSafe} activeOpacity={0.8}>
           <IconBack />
         </TouchableOpacity>
 
@@ -528,7 +597,7 @@ export default function LiveMapScreen() {
         <TouchableOpacity
           style={s.routeBar}
           activeOpacity={0.85}
-          onPress={() => navigation.goBack()}
+          onPress={goBackSafe}
         >
           <View style={s.routeInfo}>
             {destinationDetails ? (
