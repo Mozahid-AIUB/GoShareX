@@ -437,12 +437,18 @@ export default function LiveMapScreen() {
 
   // Map একটা tab হতে পারে (back করার আগের screen নেই) — তখন goBack()
   // "GO_BACK was not handled" error দেয়। তাই canGoBack চেক করি, না পারলে
-  // Home tab-এ navigate করি।
+  // Home-এ navigate করি। LiveMapScreen দুই জায়গায় চলে: Tab "Map" (Home একই
+  // tab navigator-এ) ও Stack "LiveMap" (Home nested MainApp-এর ভিতরে)। তাই
+  // আগে সরাসরি 'Home' চেষ্টা করি, ব্যর্থ হলে nested MainApp→Home target দিই।
   const goBackSafe = useCallback(() => {
     if (navigation.canGoBack()) {
       navigation.goBack();
-    } else {
+      return;
+    }
+    try {
       navigation.navigate('Home' as never);
+    } catch {
+      navigation.navigate('MainApp' as never, { screen: 'Home' } as never);
     }
   }, [navigation]);
 
