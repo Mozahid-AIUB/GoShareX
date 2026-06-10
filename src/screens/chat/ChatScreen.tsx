@@ -24,7 +24,7 @@ import { getFare } from '@/constants/fareTable';
 import { sendRideRequest } from '@/services/notifications/fcmService';
 import { storage, STORAGE_KEYS } from '@/utils/storage';
 import { logger } from '@/utils/logger';
-import { listenToPresence } from '@/services/firebase/presenceService';
+import { listenToPresence } from '@/services/presenceService';
 import { usePrivacyStore } from '@/store/privacyStore';
 
 import {

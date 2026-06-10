@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { RootStackParamList } from './types';
 import { useAuthStore } from '@/store/authStore';
+import { startPresenceTracking, stopPresenceTracking } from '@/services/presenceService';
 
 import AuthNavigator from './AuthNavigator';
 import BottomTabNavigator from './BottomTabNavigator';
@@ -42,7 +43,16 @@ const DARK_HEADER_TITLE = {
 const Stack = createStackNavigator<RootStackParamList>();
 
 const AppNavigator = () => {
-  const { isAuthenticated, isLoading, suspension } = useAuthStore();
+  const { isAuthenticated, isLoading, suspension, user } = useAuthStore();
+
+  // online/offline presence — login থাকলে নিজেকে online মার্ক করি, logout-এ
+  // offline। (আগে কেউ presence লিখত না, তাই chat-এ সবাই Offline দেখাত।)
+  useEffect(() => {
+    if (isAuthenticated && user?.uid) {
+      startPresenceTracking(user.uid);
+      return () => { void stopPresenceTracking(user.uid); };
+    }
+  }, [isAuthenticated, user?.uid]);
 
   return (
     <NavigationContainer>
