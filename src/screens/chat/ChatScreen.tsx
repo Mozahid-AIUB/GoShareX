@@ -98,6 +98,34 @@ export default function ChatScreen() {
   const typingActiveRef = useRef(false);
   const accessLossAlertShownRef = useRef(false);
 
+  // ─── Optimistic send (WhatsApp-এর মতো instant অনুভূতি) ───
+  // send চাপার সাথে সাথেই message bubble দেখাই (pending, হালকা); server থেকে
+  // realtime-এ আসল message এলে echo টা সরে যায়। network ধীর হলেও chat
+  // কখনো "আটকে আছে" মনে হয় না — এটাই smooth experience-এর মূল।
+  const [pendingEchoes, setPendingEchoes] = useState<Array<Message & { pending?: boolean }>>([]);
+
+  // server message এসে গেলে matching echo সরাই (sender+text মিল, সাম্প্রতিক)
+  useEffect(() => {
+    if (pendingEchoes.length === 0) return;
+    setPendingEchoes((prev) =>
+      prev.filter(
+        (e) =>
+          !messages.some(
+            (m) =>
+              m.senderId === e.senderId &&
+              m.text === e.text &&
+              (m.timestamp ?? 0) >= e.timestamp - 60_000,
+          ),
+      ),
+    );
+  }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // তালিকা = server message + এখনো-pending echo
+  const displayMessages = useMemo(
+    () => [...messages, ...pendingEchoes],
+    [messages, pendingEchoes],
+  );
+
   const fare = getFare(pickupPoint ?? 'main_gate', destination ?? 'kuril');
   const splitFare = Math.ceil(fare / 2);
   const isAnonymousRoom = !!chatMeta?.anonymous || !!requestedAnonymousMode;
@@ -318,10 +346,29 @@ export default function ChatScreen() {
     const senderName = isAnonymousRoom
       ? chatMeta?.participantAliases?.[user.uid] ?? 'Anonymous'
       : user.name ?? 'You';
+
+    // optimistic echo — server-এর অপেক্ষা না করে এখনই bubble দেখাই
+    const echoId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    setPendingEchoes((prev) => [
+      ...prev,
+      {
+        id: echoId,
+        senderId: user.uid,
+        senderName,
+        text: content,
+        type: 'text',
+        timestamp: Date.now(),
+        read: false,
+        pending: true,
+      } as Message & { pending?: boolean },
+    ]);
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
+
     try {
       await chatService.sendMessage(chatId, user.uid, senderName, content);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
+      // fail হলে echo সরিয়ে text ফেরত দিই — user আবার চেষ্টা করতে পারে
+      setPendingEchoes((prev) => prev.filter((m) => m.id !== echoId));
       setText(content);
       Alert.alert('Send failed', 'Message could not be sent. Please try again.');
       logger.warn('ChatScreen.sendMsg', e);
@@ -363,9 +410,9 @@ export default function ChatScreen() {
     const bothConfirmed = await chatService.confirmDeal(chatId, user.uid);
     if (bothConfirmed) {
       navigation.navigate('RideConfirmed', { rider, chatId, fare, splitFare });
-    } else {
-      Alert.alert('Pending', `Waiting for ${rider?.name ?? 'the other rider'} to confirm.`);
     }
+    // not-both-confirmed: কোনো popup না — deal button নিজেই "Waiting for
+    // partner confirmation..." দেখায় (inline status > বিরক্তিকর Alert)।
   };
 
   const handleCopy = useCallback((msgId: string, txt: string) => {
@@ -570,7 +617,13 @@ export default function ChatScreen() {
       ) : (
         <View style={s.fareBanner}>
           <Text style={s.fareBannerLabel}>Fare split</Text>
-          <Text style={s.fareBannerFare}>BDT {fare} / 2 = <Text style={s.fareBannerSplit}>BDT {splitFare} each</Text></Text>
+          {fare > 0 ? (
+            <Text style={s.fareBannerFare}>BDT {fare} / 2 = <Text style={s.fareBannerSplit}>BDT {splitFare} each</Text></Text>
+          ) : (
+            // fare অজানা (custom destination) — "BDT 0" ভাঙা দেখায়, trust নষ্ট
+            // করে। বরং দুজনকে চ্যাটে ঠিক করতে বলি।
+            <Text style={s.fareBannerSplit}>Decide together in chat 🤝</Text>
+          )}
         </View>
       )}
 
@@ -608,9 +661,14 @@ export default function ChatScreen() {
       >
         <FlatList
           ref={listRef}
-          data={messages}
+          data={displayMessages}
           keyExtractor={(m) => m.id}
-          renderItem={renderMessage}
+          renderItem={({ item }) => (
+            // pending echo হালকা দেখাই — server confirm হলে পূর্ণ উজ্জ্বল
+            <View style={(item as any).pending ? { opacity: 0.55 } : undefined}>
+              {renderMessage({ item } as any)}
+            </View>
+          )}
           contentContainerStyle={{
             flexGrow: 1,
             paddingHorizontal: screenWidth < 400 ? 10 : 16,
@@ -632,7 +690,20 @@ export default function ChatScreen() {
               </View>
             ) : (
               <View style={s.emptyMsgs}>
-                <Text style={s.emptyMsgsText}>No messages yet. Say hello!</Text>
+                {/* matched-context empty state — মরা "No messages yet" এর বদলে
+                    উষ্ণ শুরু: কী হয়েছে + এরপর কী করবে, পরিষ্কার পথ। */}
+                <View style={s.emptyIconWrap}>
+                  <IconHandshake />
+                </View>
+                <Text style={s.emptyTitle}>
+                  {isAnonymousRoom ? 'You are connected!' : `You matched with ${title}`}
+                </Text>
+                <Text style={s.emptyMsgsText}>
+                  {isAnonymousRoom
+                    ? 'Say hello — identities stay hidden.'
+                    : 'Same destination 🎯 Say salam, agree on a meet point, and split the fare.'}
+                </Text>
+                <Text style={s.emptyHint}>Tap a quick reply below to start ↓</Text>
               </View>
             )
           }
@@ -764,7 +835,9 @@ export default function ChatScreen() {
           >
             <IconHandshake />
             <Text style={s.dealBtnText}>
-              {myDealPressed ? 'Waiting for partner confirmation...' : 'Confirm Deal | BDT ' + splitFare + ' each'}
+              {myDealPressed
+                ? 'Waiting for partner confirmation...'
+                : fare > 0 ? `Confirm Deal | BDT ${splitFare} each` : 'Confirm Deal'}
             </Text>
           </TouchableOpacity>
         )}
@@ -884,8 +957,15 @@ const s = StyleSheet.create({
     letterSpacing: 0.2,
   },
 
-  emptyMsgs: { alignItems: 'center', marginTop: 60 },
+  emptyMsgs: { alignItems: 'center', marginTop: 48, paddingHorizontal: 32, gap: 8 },
   emptyMsgsText: { fontSize: 13, color: C.textSub, textAlign: 'center', lineHeight: 20 },
+  emptyIconWrap: {
+    width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(99,102,241,0.12)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)',
+    marginBottom: 4,
+  },
+  emptyTitle: { fontSize: 16, fontWeight: '800', color: C.text, textAlign: 'center', letterSpacing: -0.2 },
+  emptyHint: { fontSize: 11, fontWeight: '700', color: C.primary, marginTop: 6, letterSpacing: 0.2 },
   waitingStage: {
     flex: 1,
     alignItems: 'center',
