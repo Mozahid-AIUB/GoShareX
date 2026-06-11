@@ -31,7 +31,7 @@ class SupabasePresenceService {
   /** presence on/update — নিজের location active_riders-এ লেখে (upsert)।
    *  destLat/destLng (গন্তব্যের coordinate) geo-matching-এর জন্য। */
   async writeActiveRider(
-    rider: ActiveRider & { destLat?: number; destLng?: number },
+    rider: ActiveRider & { destLat?: number; destLng?: number; vehicleType?: string },
   ): Promise<void> {
     const { error } = await supabase.from('active_riders').upsert({
       user_id: rider.uid,
@@ -46,6 +46,7 @@ class SupabasePresenceService {
       rating: rider.rating,
       badge: rider.badge,
       photo_url: rider.photoURL ?? null,
+      vehicle_type: rider.vehicleType ?? 'rickshaw',
       updated_at: new Date().toISOString(),
     });
     if (error) logger.warn('presence.writeActiveRider', error.message);
@@ -114,6 +115,7 @@ class SupabasePresenceService {
           photoURL: row.photo_url ?? undefined,
           lat: Number(row.lat),
           lng: Number(row.lng),
+          vehicleType: row.vehicle_type ?? 'rickshaw',
           isMatch: !!row.is_match,
         } as NearbyRider));
       onUpdate(nearby);
@@ -174,6 +176,7 @@ class SupabasePresenceService {
           status: 'waiting',
           rating: userRating,
           badge: userBadge,
+          vehicleType,
           timestamp: location.timestamp,
         } as any);
         onUpdate?.({

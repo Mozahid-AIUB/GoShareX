@@ -77,6 +77,7 @@ import {
   IconRouteLine,
 } from './components/HomeIcons';
 import { IconRickshaw, IconBikeVehicle, IconCNG } from './components/VehicleIcons';
+import VehicleIcon from '@/components/common/VehicleIcon';
 import { LiveDot, TrustChip, MatchRing } from './components/StatusChips';
 import {
   LIVE_PARTNER_FEED_ENABLED,
@@ -268,7 +269,13 @@ const PartnerCard = ({
         {/* Header */}
         <View style={S.partnerHeader}>
           <View style={S.partnerAvatar}>
-            <Text style={S.partnerAvatarText}>{partner.name.charAt(0)}</Text>
+            {/* rider-এর আসল বাহন icon (Map-এর সাথে একই VehicleIcon) —
+                আগে নামের প্রথম অক্ষর ("R") দেখাত। */}
+            <VehicleIcon
+              type={partner.vehicleType === 'bike' ? 'motorcycle' : partner.vehicleType === 'cng' ? 'cng' : 'rickshaw'}
+              tone={partner.vehicleType === 'bike' ? 'indigo' : partner.vehicleType === 'cng' ? 'teal' : 'amber'}
+              size={28}
+            />
           </View>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1032,6 +1039,7 @@ export default function HomeScreen() {
           lat: r.lat,
           lng: r.lng,
           isMatch: r.isMatch,
+          vehicleType: r.vehicleType ?? 'rickshaw',
         };
       })
       .sort((a, b) => a.distanceMeters - b.distanceMeters);

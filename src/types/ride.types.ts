@@ -55,4 +55,5 @@ export interface NearbyRider {
   lng: number;
   isMatch: boolean;
   department?: string;
+  vehicleType?: 'rickshaw' | 'cng' | 'bike';
 }

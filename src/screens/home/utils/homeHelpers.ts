@@ -85,6 +85,7 @@ export type VisiblePartner = {
   lat: number;
   lng: number;
   isMatch: boolean;
+  vehicleType?: 'rickshaw' | 'cng' | 'bike';
 };
 
 export type AppNotification = {

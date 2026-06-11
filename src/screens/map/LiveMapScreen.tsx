@@ -96,7 +96,7 @@ export default function LiveMapScreen() {
   const longitude = snapped?.longitude ?? rawLongitude;
   const setLocation = useLocationStore((s) => s.setLocation);
   const setTracking = useLocationStore((s) => s.setTracking);
-  const { destination: storeDestination, customDestination, pickupPoint: storePickupPoint, routeSearchNonce, requestStates, setPartner, setStatus, setRequestState } = useRideStore();
+  const { destination: storeDestination, customDestination, pickupPoint: storePickupPoint, routeSearchNonce, requestStates, vehicleType, setPartner, setStatus, setRequestState } = useRideStore();
 
   const destination = routeParams?.destination ?? storeDestination;
   const pickupPoint = routeParams?.pickup ?? storePickupPoint;
@@ -295,7 +295,7 @@ export default function LiveMapScreen() {
               );
             }
           },
-          user.rating ?? 5, user.badge ?? 'New Rider', 'rickshaw',
+          user.rating ?? 5, user.badge ?? 'New Rider', vehicleType ?? 'rickshaw',
           user.name ?? 'Active Rider',
           destLat, destLng,
         );
@@ -333,7 +333,7 @@ export default function LiveMapScreen() {
       stopWatching?.();
       if (waitTimerRef.current) { clearTimeout(waitTimerRef.current); waitTimerRef.current = null; }
     };
-  }, [destination, pickupPoint, routeDestinationKey, routeOrigin?.lat, routeOrigin?.lng, destinationDetails?.lat, destinationDetails?.lng, routeSearchNonce, setLocation, setTracking, user?.uid]);
+  }, [destination, pickupPoint, routeDestinationKey, routeOrigin?.lat, routeOrigin?.lng, destinationDetails?.lat, destinationDetails?.lng, routeSearchNonce, vehicleType, setLocation, setTracking, user?.uid]);
 
   // Meetup route for selected rider
   useEffect(() => {

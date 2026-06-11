@@ -43,7 +43,7 @@ export interface RiderMatch {
   lat: number;
   lng: number;
   isMatch: boolean;
-  vehicleType?: string;
+  vehicleType?: 'rickshaw' | 'cng' | 'bike';
 }
 
 /** Shape of raw RTDB active_rider entries before mapping to RiderMatch */
@@ -151,7 +151,7 @@ class MatchingService {
         pickupPoint: rider.pickupPoint,
         rating: rider.rating || 5.0,
         badge: rider.badge || 'New Rider',
-        vehicleType: rider.vehicleType ?? 'rickshaw',
+        vehicleType: (rider.vehicleType as RiderMatch['vehicleType']) ?? 'rickshaw',
         lat: rider.lat,
         lng: rider.lng,
         isMatch,
