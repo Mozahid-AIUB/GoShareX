@@ -141,12 +141,19 @@ export default function ChatScreen() {
     if (route.params?.chatId) { setChatId(route.params.chatId); return; }
     if (!rider || !riderUid) return;
     const init = async () => {
-      const id = await chatService.getOrCreateChat(
-        user.uid, user.name ?? 'You',
-        riderUid, rider.name,
-        destination ?? rider.destination, fare
-      );
-      setChatId(id);
+      try {
+        const id = await chatService.getOrCreateChat(
+          user.uid, user.name ?? 'You',
+          riderUid, rider.name,
+          destination ?? rider.destination, fare
+        );
+        setChatId(id);
+      } catch (e) {
+        // chat তৈরি না হলে chatId null থাকত → send silent fail হতো; এখন
+        // ব্যবহারকারীকে জানাই (silent fail-এর বদলে)।
+        logger.warn('ChatScreen.getOrCreateChat', e);
+        Alert.alert('Chat unavailable', 'Could not open this chat. Please try again.');
+      }
     };
     void init();
   }, [destination, fare, rider, riderUid, route.params?.chatId, user]);
