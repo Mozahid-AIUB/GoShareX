@@ -262,6 +262,13 @@ export default function LiveMapScreen() {
   }, [routeRiders, sortedRiders]);
 
   // Location + RTDB watching
+  // routeOrigin ref — getLocation fallback-এ fresh মান পড়তে। dependency-তে
+  // routeOrigin?.lat/lng রাখা যাবে না: ওটা live GPS থেকে আসে, প্রতি GPS tick-এ
+  // বদলায় → effect restart → GPS watch বন্ধ-চালু loop (location icon on/off
+  // ঝিকঝিক করত)। ref রাখলে effect স্থির থাকে, মান তাজা থাকে।
+  const routeOriginRef = useRef(routeOrigin);
+  useEffect(() => { routeOriginRef.current = routeOrigin; }, [routeOrigin]);
+
   useEffect(() => {
     if (!user?.uid || !destination) return;
     let stopWatching: (() => void) | null = null;
@@ -305,8 +312,8 @@ export default function LiveMapScreen() {
           // getLocation — প্রতি load-এ সর্বশেষ GPS+গন্তব্য দেয় (নড়লে নতুন query)।
           () => {
             const s = useLocationStore.getState();
-            const lat = s.latitude ?? routeOrigin?.lat;
-            const lng = s.longitude ?? routeOrigin?.lng;
+            const lat = s.latitude ?? routeOriginRef.current?.lat;
+            const lng = s.longitude ?? routeOriginRef.current?.lng;
             if (lat == null || lng == null) return null;
             return { lat, lng, destLat, destLng };
           },
@@ -333,7 +340,7 @@ export default function LiveMapScreen() {
       stopWatching?.();
       if (waitTimerRef.current) { clearTimeout(waitTimerRef.current); waitTimerRef.current = null; }
     };
-  }, [destination, pickupPoint, routeDestinationKey, routeOrigin?.lat, routeOrigin?.lng, destinationDetails?.lat, destinationDetails?.lng, routeSearchNonce, vehicleType, setLocation, setTracking, user?.uid]);
+  }, [destination, pickupPoint, routeDestinationKey, destinationDetails?.lat, destinationDetails?.lng, routeSearchNonce, vehicleType, setLocation, setTracking, user?.uid]);
 
   // Meetup route for selected rider
   useEffect(() => {

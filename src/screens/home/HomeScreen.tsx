@@ -1329,7 +1329,9 @@ export default function HomeScreen() {
   const handleChat = (partner: VisiblePartner) => {
     setPartner(buildRiderPayload(partner));
     setStatus('matched');
-    setRequestState(partner.id, 'confirmed');
+    // chat খোলা = শুধু কথা বলা, আসল deal না। তাই 'confirmed' সেট করি না —
+    // আসল "Confirmed" হয় Chat-এর Confirm Deal-এ (server deal, একটাই active)।
+    // (আগে এখানে 'confirmed' সেট হতো → Home-এ একাধিক "Confirmed" দেখাত ভুলভাবে।)
     setPendingPartner(null);
     navigation.navigate('Chat', { rider: buildRiderPayload(partner), partnerName: partner.name });
   };

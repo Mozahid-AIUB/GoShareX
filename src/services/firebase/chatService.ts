@@ -764,6 +764,30 @@ class ChatService {
     );
   }
 
+  /** এই user-এর অন্য কোনো active confirmed ride-deal আছে কিনা (business rule)। */
+  async findOtherActiveConfirmedDeal(
+    userId: string,
+    exceptChatId: string,
+  ): Promise<{ chatId: string; partnerName: string } | null> {
+    const snap = await getDocs(
+      query(collection(db, 'chats'), where('participants', 'array-contains', userId)),
+    );
+    const now = Date.now();
+    for (const d of snap.docs) {
+      if (d.id === exceptChatId) continue;
+      const c = d.data() as any;
+      if (c.mode !== 'ride') continue;
+      const iConfirmed = c.dealConfirmed?.[userId] === true;
+      const active = (c.expiresAt ?? 0) > now && !(c.closedAt && c.closedAt <= now);
+      if (iConfirmed && active) {
+        const other = (c.participants as string[])?.find((p) => p !== userId);
+        const partnerName = (other && c.participantNames?.[other]) || 'another rider';
+        return { chatId: d.id, partnerName };
+      }
+    }
+    return null;
+  }
+
   /** ইউজারের সব chat live (ChatListScreen liveChats এর সমতুল্য)। */
   listenToUserChats(
     userId: string,

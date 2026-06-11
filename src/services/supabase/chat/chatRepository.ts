@@ -7,6 +7,7 @@
 // ============================================================
 import { supabase } from '@/config/supabase.config';
 import { ChatRoom, ChatMessage, MessageType } from './types';
+import { logger } from '@/utils/logger';
 
 // epoch ms <-> timestamptz helpers
 const toMs = (ts: string | null | undefined): number | undefined =>
@@ -91,6 +92,31 @@ class ChatRepository {
     return data.map(rowToChat);
   }
 
+  /**
+   * এই user-এর কি অন্য কোনো ride chat-এ deal confirm করা আছে (এই chat ছাড়া),
+   * যেটা এখনও active (expired/closed না)? business rule: একসময়ে একটাই active
+   * ride-deal। থাকলে সেই chat-এর partner নাম ফেরত (alert-এ দেখাতে), নাহলে null।
+   */
+  async findOtherActiveConfirmedDeal(
+    userId: string,
+    exceptChatId: string,
+  ): Promise<{ chatId: string; partnerName: string } | null> {
+    const now = Date.now();
+    const chats = await this.getUserChats(userId);
+    for (const c of chats) {
+      if (c.id === exceptChatId) continue;
+      if (c.mode !== 'ride') continue;
+      const iConfirmed = c.dealConfirmed?.[userId] === true;
+      const active = (c.expiresAt ?? 0) > now && !(c.closedAt && c.closedAt <= now);
+      if (iConfirmed && active) {
+        const other = c.participants.find((p) => p !== userId);
+        const partnerName = (other && c.participantNames?.[other]) || 'another rider';
+        return { chatId: c.id, partnerName };
+      }
+    }
+    return null;
+  }
+
   // -------- messages --------
   async getMessages(chatId: string): Promise<ChatMessage[]> {
     const { data, error } = await supabase
@@ -120,9 +146,21 @@ class ChatRepository {
     if (error) throw error;
   }
 
-  // system message — sender_id null
+  /**
+   * system message — RPC দিয়ে (security definer)। সরাসরি insert করা যায় না
+   * কারণ messages RLS চায় sender_id = auth.uid(), আর system message-এর
+   * sender_id null (42501 হতো — এটাই "chat unavailable" এর root cause ছিল)।
+   *
+   * NON-FATAL: system message cosmetic — fail করলেও chat খোলা/deal confirm
+   * ভাঙা চলবে না। তাই throw না করে শুধু warn।
+   */
   async insertSystemMessage(chatId: string, text: string, alias: string): Promise<void> {
-    await this.insertMessage(chatId, null, alias, text, 'system');
+    const { error } = await supabase.rpc('insert_system_message', {
+      p_chat_id: chatId,
+      p_text: text,
+      p_alias: alias,
+    });
+    if (error) logger.warn('chatRepo.systemMessage', error.message);
   }
 }
 

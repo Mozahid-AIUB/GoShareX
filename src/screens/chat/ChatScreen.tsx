@@ -1,4 +1,5 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Clipboard,
@@ -149,10 +150,10 @@ export default function ChatScreen() {
         );
         setChatId(id);
       } catch (e) {
-        // chat তৈরি না হলে chatId null থাকত → send silent fail হতো; এখন
-        // ব্যবহারকারীকে জানাই (silent fail-এর বদলে)।
+        // chat তৈরি fail হলে chatId null থাকত → send silent fail হতো;
+        // ব্যবহারকারীকে ভদ্রভাবে জানাই। (আসল 42501 root cause 0018 RPC-তে fixed।)
         logger.warn('ChatScreen.getOrCreateChat', e);
-        Alert.alert('Chat unavailable', 'Could not open this chat. Please try again.');
+        Alert.alert('Chat unavailable', 'Could not open this chat. Please check your connection and try again.');
       }
     };
     void init();
@@ -329,6 +330,23 @@ export default function ChatScreen() {
 
   const handleDealConfirm = async () => {
     if (!chatId || !user || isAnonymousRoom || chatAccessLost) return;
+
+    // business rule: একসময়ে একটাই active ride-deal। অন্য কোনো chat-এ deal
+    // confirm করা থাকলে এখানে confirm আটকাই (একজন একসাথে একটাই ride-এ যাবে)।
+    try {
+      const other = await chatService.findOtherActiveConfirmedDeal(user.uid, chatId);
+      if (other) {
+        Alert.alert(
+          'You already have an active ride',
+          `You've confirmed a ride with ${other.partnerName}. Finish or cancel it before confirming another.`,
+        );
+        return;
+      }
+    } catch (e) {
+      logger.warn('ChatScreen.checkActiveDeal', e);
+      // চেক fail করলে confirm আটকাই না (best-effort) — নাহলে ইউজার stuck।
+    }
+
     setMyDealPressed(true);
 
     // Notify the other rider via Expo Push API (fcm_tokens read is now allowed for auth users)

@@ -5,7 +5,14 @@ import {
   Firestore,
   initializeFirestore,
   CACHE_SIZE_UNLIMITED,
+  setLogLevel as setFirestoreLogLevel,
 } from 'firebase/firestore';
+
+// অ্যাপ এখন মূলত Supabase-এ; Firebase Firestore-এর internal connectivity
+// error ("Could not reach Cloud Firestore backend" ইত্যাদি) console.error
+// দিয়ে আসে → dev-এ পুরো screen লাল LogBox — user-unfriendly আর অপ্রয়োজনীয়।
+// SDK-র নিজের logging বন্ধ করি; আমাদের নিজস্ব try/catch + logger যথেষ্ট।
+setFirestoreLogLevel('silent');
 import { getDatabase, Database } from 'firebase/database';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { getFunctions, Functions } from 'firebase/functions';

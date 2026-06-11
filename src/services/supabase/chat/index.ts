@@ -16,6 +16,9 @@ import { ChatMessage, ChatRoom, MessageType } from './types';
 class SupabaseChatService {
   // ---- ride chat ----
   getOrCreateChat = rideChatService.getOrCreateChat.bind(rideChatService);
+  // business rule: একসময়ে একটাই active ride-deal — confirm-এর আগে চেক।
+  findOtherActiveConfirmedDeal = (userId: string, exceptChatId: string) =>
+    chatRepository.findOtherActiveConfirmedDeal(userId, exceptChatId);
   confirmDeal = async (chatId: string, userId: string): Promise<boolean> => {
     const chat = await chatRepository.getChat(chatId);
     const name = chat?.participantNames?.[userId] ?? 'User';
