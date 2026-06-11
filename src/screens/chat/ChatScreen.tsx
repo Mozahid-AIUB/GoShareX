@@ -464,7 +464,7 @@ export default function ChatScreen() {
     Alert.alert('Message options', undefined, options);
   }, [user, chatId, chatMeta, isAnonymousGroup, handleCopy]);
 
-  const renderMessage = useCallback(({ item }: { item: Message }) => {
+  const renderMessage = useCallback(({ item, index }: { item: Message; index?: number }) => {
     if (item.type === 'system') {
       return (
         <View style={m.systemRow}>
@@ -482,13 +482,24 @@ export default function ChatScreen() {
     // Hide blocked users' messages
     if (!isMe && blockedAliases.has(label ?? '')) return null;
 
+    // ── WhatsApp-style grouping ──
+    // পরপর একই sender-এর message এক "stack" — শুধু stack-এর শেষ bubble-এ time
+    // ও tail/avatar দেখাই, মাঝেরগুলো শক্ত করে বসে। পরিচ্ছন্ন, কম জায়গা নেয়।
+    const list = displayMessages;
+    const idx = index ?? list.findIndex((x) => x.id === item.id);
+    const prev = idx > 0 ? list[idx - 1] : null;
+    const next = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
+    const sameAsPrev = prev && prev.type !== 'system' && prev.senderId === item.senderId;
+    const sameAsNext = next && next.type !== 'system' && next.senderId === item.senderId;
+    const isGroupStart = !sameAsPrev;   // stack-এর প্রথম
+    const isGroupEnd = !sameAsNext;     // stack-এর শেষ (এখানে time + tail + avatar)
+
     const timeStr = item.timestamp
       ? new Date(item.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
       : '';
     const copied = copiedMsgId === item.id;
     const isDeleted = item.text === '[deleted]';
 
-    // Read receipt: only for ride chat, only on my own messages, only if partner has read past this ts
     const partnerReadAt = !isAnonymousRoom && chatMeta?.lastRead
       ? Math.max(...Object.entries(chatMeta.lastRead)
         .filter(([uid]) => uid !== user?.uid)
@@ -496,68 +507,74 @@ export default function ChatScreen() {
       : 0;
     const isRead = isMe && !isAnonymousRoom && partnerReadAt > 0 && partnerReadAt >= (item.timestamp ?? 0);
 
-    const maxBubbleWidth = screenWidth < 400 ? 0.85 : 0.75;
+    const maxBubbleWidth = screenWidth < 400 ? 0.82 : 0.72;
 
     return (
-      <View style={[m.row, isMe && m.rowMe]}>
-        {!isMe && <MiniAvatar label={label ?? 'A'} gradient={isAnonymousRoom} />}
+      <View style={[m.row, isMe && m.rowMe, { marginTop: isGroupStart ? 8 : 2 }]}>
+        {/* avatar শুধু partner-এর stack-এর শেষে; নাহলে ফাঁকা spacer (alignment) */}
+        {!isMe && (
+          isGroupEnd
+            ? <MiniAvatar label={label ?? 'A'} gradient={isAnonymousRoom} />
+            : <View style={m.avatarSpacer} />
+        )}
         <TouchableWithoutFeedback onLongPress={() => handleMessageLongPress(item)}>
           <View
             style={[
               m.bubble,
               { maxWidth: `${maxBubbleWidth * 100}%` },
               isMe ? m.bubbleMe : m.bubbleThem,
+              // tail শুধু stack-এর শেষ bubble-এ; নাহলে দুপাশ সমান-গোল (grouped look)
+              isMe
+                ? (isGroupEnd ? m.tailMe : m.noTailMe)
+                : (isGroupEnd ? m.tailThem : m.noTailThem),
               copied && m.bubbleCopied,
             ]}
           >
             {copied && <View style={m.copiedOverlay} />}
-            {!isMe && <Text style={m.senderLabel}>{label}</Text>}
+            {/* sender নাম শুধু partner stack-এর শুরুতে (anonymous group-এ কাজে লাগে) */}
+            {!isMe && isGroupStart && isAnonymousRoom && <Text style={m.senderLabel}>{label}</Text>}
             <Text style={[m.bubbleText, isMe && m.bubbleTextMe, isDeleted && m.bubbleTextDeleted]}>
               {isDeleted ? 'message deleted' : item.text}
             </Text>
-            <View style={m.bubbleFooter}>
-              <Text style={[m.msgTime, isMe && m.msgTimeMe]}>
-                {copied ? '✓' : timeStr}
-              </Text>
-              {isMe && !isAnonymousRoom && !isDeleted && (
-                <Text style={[m.readMark, isRead && m.readMarkSeen]}>
-                  {isRead ? '✓✓' : '✓'}
-                </Text>
-              )}
-            </View>
-            {copied && (
-              <View style={m.copiedLabel}>
-                <Text style={m.copiedLabelText}>Copied!</Text>
+            {/* time + tick শুধু stack-এর শেষ bubble-এ (WhatsApp pattern) */}
+            {isGroupEnd && (
+              <View style={m.bubbleFooter}>
+                <Text style={[m.msgTime, isMe && m.msgTimeMe]}>{copied ? '✓ copied' : timeStr}</Text>
+                {isMe && !isAnonymousRoom && !isDeleted && (
+                  <Text style={[m.readMark, isRead && m.readMarkSeen]}>{isRead ? '✓✓' : '✓'}</Text>
+                )}
               </View>
             )}
           </View>
         </TouchableWithoutFeedback>
       </View>
     );
-  }, [user?.uid, chatMeta, isAnonymousRoom, copiedMsgId, handleMessageLongPress, blockedAliases]);
+  }, [user?.uid, chatMeta, isAnonymousRoom, copiedMsgId, handleMessageLongPress, blockedAliases, displayMessages, screenWidth]);
 
   return (
     <View style={s.root}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
-      {/* Header */}
+      {/* Header — WhatsApp-style: back | avatar | name+status (left) | action */}
       <View style={[s.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity style={s.headerBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <IconBack />
         </TouchableOpacity>
+        {/* avatar — ride chat-এ partner-এর initial, anonymous-এ live dot */}
+        {!isAnonymousRoom && <MiniAvatar label={title?.charAt(0) ?? 'R'} />}
         <View style={s.headerCenter}>
           <View style={s.headerTitleRow}>
-            {isAnonymousRoom
-              ? <LiveDot color={roomExpired ? C.red : C.green} />
-              : <View style={[s.onlineDot, { backgroundColor: partnerOnline ? C.green : C.textMuted }]} />
-            }
+            {isAnonymousRoom && <LiveDot color={roomExpired ? C.red : C.green} />}
             <Text style={s.headerTitle} numberOfLines={1}>{title}</Text>
           </View>
           {!isAnonymousRoom && (
-            <Text style={s.headerSub} numberOfLines={1}>
-              {roomExpired
-                ? 'Session ended'
-                : presenceLabel ?? destination ?? rider?.destination ?? 'Ride Chat'}
-            </Text>
+            <View style={s.headerStatusRow}>
+              <View style={[s.onlineDot, { backgroundColor: partnerOnline ? C.green : C.textMuted }]} />
+              <Text style={s.headerSub} numberOfLines={1}>
+                {roomExpired
+                  ? 'Session ended'
+                  : presenceLabel ?? (partnerOnline ? 'Online' : 'Offline')}
+              </Text>
+            </View>
           )}
         </View>
         {isAnonymousRoom ? (
@@ -663,10 +680,10 @@ export default function ChatScreen() {
           ref={listRef}
           data={displayMessages}
           keyExtractor={(m) => m.id}
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             // pending echo হালকা দেখাই — server confirm হলে পূর্ণ উজ্জ্বল
             <View style={(item as any).pending ? { opacity: 0.55 } : undefined}>
-              {renderMessage({ item } as any)}
+              {renderMessage({ item, index })}
             </View>
           )}
           contentContainerStyle={{
@@ -876,11 +893,12 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(244,63,94,0.25)',
   },
   leaveBtnText: { fontSize: 11, fontWeight: '800', color: '#F43F5E', letterSpacing: 0.2 },
-  headerCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
+  headerCenter: { flex: 1, alignItems: 'flex-start', justifyContent: 'center', paddingHorizontal: 10 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  headerTitle: { fontSize: 14, fontWeight: '800', color: C.text },
-  headerSub: { fontSize: 9, color: C.textSub, marginTop: 0 },
-  onlineDot: { width: 8, height: 8, borderRadius: 4 },
+  headerTitle: { fontSize: 15.5, fontWeight: '800', color: C.text, letterSpacing: -0.2 },
+  headerStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 1 },
+  headerSub: { fontSize: 11, color: C.textSub },
+  onlineDot: { width: 7, height: 7, borderRadius: 3.5 },
 
   anonBanner: {
     backgroundColor: 'rgba(245,158,11,0.08)',
@@ -957,7 +975,7 @@ const s = StyleSheet.create({
     letterSpacing: 0.2,
   },
 
-  emptyMsgs: { alignItems: 'center', marginTop: 48, paddingHorizontal: 32, gap: 8 },
+  emptyMsgs: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 8, minHeight: 320 },
   emptyMsgsText: { fontSize: 13, color: C.textSub, textAlign: 'center', lineHeight: 20 },
   emptyIconWrap: {
     width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center',
@@ -1158,20 +1176,26 @@ const m = StyleSheet.create({
   },
   systemText: { fontSize: 11, color: C.textSub, fontWeight: '600', textAlign: 'center' },
   bubble: {
-    padding: 10,
-    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
     position: 'relative',
   },
   bubbleThem: {
-    backgroundColor: C.surface,
-    borderBottomLeftRadius: 3,
+    backgroundColor: C.surfaceStrong,
     borderWidth: 1,
     borderColor: C.border,
   },
   bubbleMe: {
     backgroundColor: C.primary,
-    borderBottomRightRadius: 3,
   },
+  // tail = stack-এর শেষ bubble-এর কোণা চাপা (WhatsApp pluck); grouped মাঝের
+  // bubble দুপাশ সমান-গোল যাতে একটা stack মনে হয়।
+  tailMe: { borderBottomRightRadius: 5 },
+  noTailMe: { borderBottomRightRadius: 18, borderTopRightRadius: 7 },
+  tailThem: { borderBottomLeftRadius: 5 },
+  noTailThem: { borderBottomLeftRadius: 18, borderTopLeftRadius: 7 },
+  avatarSpacer: { width: 30 },
   bubbleCopied: {
     opacity: 0.85,
   },
@@ -1212,9 +1236,9 @@ const m = StyleSheet.create({
     marginBottom: 2,
   },
   bubbleText: {
-    fontSize: 13,
+    fontSize: 14.5,
     color: C.text,
-    lineHeight: 19,
+    lineHeight: 20,
   },
   bubbleTextMe: { color: C.white },
   msgTime: {
