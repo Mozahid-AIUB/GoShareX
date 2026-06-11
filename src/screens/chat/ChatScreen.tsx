@@ -667,13 +667,38 @@ export default function ChatScreen() {
         </View>
       ) : (
         <View style={s.fareBanner}>
-          <Text style={s.fareBannerLabel}>Fare split</Text>
-          {fare > 0 ? (
-            <Text style={s.fareBannerFare}>BDT {fare} / 2 = <Text style={s.fareBannerSplit}>BDT {splitFare} each</Text></Text>
+          {/* বামে fare তথ্য */}
+          <View style={{ flex: 1 }}>
+            <Text style={s.fareBannerLabel}>Fare split</Text>
+            {fare > 0 ? (
+              <Text style={s.fareBannerFare}>BDT {fare} / 2 = <Text style={s.fareBannerSplit}>BDT {splitFare} each</Text></Text>
+            ) : (
+              <Text style={s.fareBannerSplit}>Decide together in chat 🤝</Text>
+            )}
+          </View>
+          {/* ডানে compact deal chip — নিচের বিশাল bar এখান থেকে এল। deal
+              সবসময় দৃশ্যমান কিন্তু message-এর জায়গা দখল করে না। */}
+          {!dealConfirmed ? (
+            <TouchableOpacity
+              style={[s.dealChip, myDealPressed && s.dealChipPending]}
+              onPress={handleDealConfirm}
+              disabled={myDealPressed}
+              activeOpacity={0.85}
+            >
+              {myDealPressed ? (
+                <Text style={s.dealChipText}>Waiting…</Text>
+              ) : (
+                <>
+                  <IconCheck />
+                  <Text style={s.dealChipText}>Confirm</Text>
+                </>
+              )}
+            </TouchableOpacity>
           ) : (
-            // fare অজানা (custom destination) — "BDT 0" ভাঙা দেখায়, trust নষ্ট
-            // করে। বরং দুজনকে চ্যাটে ঠিক করতে বলি।
-            <Text style={s.fareBannerSplit}>Decide together in chat 🤝</Text>
+            <View style={s.dealChipDone}>
+              <IconCheck />
+              <Text style={s.dealChipDoneText}>Confirmed</Text>
+            </View>
           )}
         </View>
       )}
@@ -882,26 +907,12 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Deal confirm (ride chats only) */}
-        {!isAnonymousRoom && !dealConfirmed && (
-          <TouchableOpacity
-            style={[s.dealBtn, myDealPressed && s.dealBtnPending]}
-            onPress={handleDealConfirm}
-            disabled={myDealPressed}
-            activeOpacity={0.85}
-          >
-            <IconHandshake />
-            <Text style={s.dealBtnText}>
-              {myDealPressed
-                ? 'Waiting for partner confirmation...'
-                : fare > 0 ? `Confirm Deal | BDT ${splitFare} each` : 'Confirm Deal'}
-            </Text>
-          </TouchableOpacity>
-        )}
-        {!isAnonymousRoom && dealConfirmed && (
-          <View style={s.dealConfirmedRow}>
-            <IconCheck />
-            <Text style={s.dealConfirmedText}>Deal confirmed | proceeding to ride</Text>
+        {/* Deal confirm — header fare-bar-এর chip-এ সরানো হয়েছে (compact,
+            message-এর জায়গা মুক্ত)। myDealPressed হলে এখানে একটা subtle inline
+            banner দেখাই যাতে partner-এর অপেক্ষা পরিষ্কার বোঝা যায়। */}
+        {!isAnonymousRoom && myDealPressed && !dealConfirmed && (
+          <View style={s.dealWaitRow}>
+            <Text style={s.dealWaitText}>⏳ Waiting for partner to confirm…</Text>
           </View>
         )}
 
@@ -988,6 +999,23 @@ const s = StyleSheet.create({
   fareBannerLabel: { fontSize: 12, color: C.textSub, fontWeight: '600' },
   fareBannerFare: { fontSize: 13, color: C.text, fontWeight: '600' },
   fareBannerSplit: { color: C.teal, fontWeight: '800' },
+  // header-এর compact deal chip (নিচের বিশাল bar থেকে এল)
+  dealChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: C.teal, borderRadius: 11,
+    paddingHorizontal: 14, paddingVertical: 8, marginLeft: 10,
+  },
+  dealChipPending: { backgroundColor: C.amber, paddingHorizontal: 12 },
+  dealChipText: { color: C.white, fontSize: 13, fontWeight: '800', letterSpacing: 0.2 },
+  dealChipDone: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(16,185,129,0.15)', borderRadius: 11,
+    paddingHorizontal: 12, paddingVertical: 7, marginLeft: 10,
+    borderWidth: 1, borderColor: 'rgba(16,185,129,0.3)',
+  },
+  dealChipDoneText: { color: C.green, fontSize: 12, fontWeight: '800' },
+  dealWaitRow: { alignItems: 'center', paddingVertical: 6 },
+  dealWaitText: { fontSize: 12, color: C.amber, fontWeight: '700' },
 
   mapPreviewWrap: {
     position: 'relative',
@@ -1150,23 +1178,6 @@ const s = StyleSheet.create({
     opacity: 0.35,
     shadowOpacity: 0,
   },
-
-  dealBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    marginHorizontal: 10, marginTop: 4, marginBottom: 8,
-    paddingVertical: 11, borderRadius: 13,
-    backgroundColor: C.teal,
-  },
-  dealBtnPending: { backgroundColor: C.amber },
-  dealBtnText: { color: C.white, fontSize: 14, fontWeight: '800', letterSpacing: 0.2 },
-  dealConfirmedRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    marginHorizontal: 12, marginBottom: 10,
-    backgroundColor: 'rgba(16,185,129,0.1)',
-    borderRadius: 14, padding: 10,
-    borderWidth: 1, borderColor: 'rgba(16,185,129,0.25)',
-  },
-  dealConfirmedText: { fontSize: 13, color: C.green, fontWeight: '700' },
 
   expiredBanner: {
     margin: 12,
