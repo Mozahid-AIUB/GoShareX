@@ -7,6 +7,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StatusBar,
   StyleSheet,
   TextInput,
@@ -66,6 +67,18 @@ const CHAT_DURATION_MS = {
   anonymous_1v1: 5 * 60 * 1000,
   anonymous_group: 10 * 60 * 1000,
 } as const;
+
+// date separator label (WhatsApp-এর মতো Today / Yesterday / তারিখ)
+const dayKey = (ts: number) => new Date(ts).toDateString();
+const dateSeparatorLabel = (ts: number): string => {
+  const today = new Date();
+  const d = new Date(ts);
+  const todayKey = today.toDateString();
+  const yest = new Date(today); yest.setDate(today.getDate() - 1);
+  if (d.toDateString() === todayKey) return 'Today';
+  if (d.toDateString() === yest.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+};
 
 export default function ChatScreen() {
   useScreenTracking('Chat');
@@ -465,11 +478,29 @@ export default function ChatScreen() {
   }, [user, chatId, chatMeta, isAnonymousGroup, handleCopy]);
 
   const renderMessage = useCallback(({ item, index }: { item: Message; index?: number }) => {
+    // date separator — আগের message-এর দিন ভিন্ন হলে (বা প্রথম) উপরে দেখাই।
+    const dlist = displayMessages;
+    const dIdx = index ?? dlist.findIndex((x) => x.id === item.id);
+    const dPrev = dIdx > 0 ? dlist[dIdx - 1] : null;
+    const showDateSep =
+      item.timestamp != null &&
+      (!dPrev || dPrev.timestamp == null || dayKey(dPrev.timestamp) !== dayKey(item.timestamp));
+    const DateSep = showDateSep && item.timestamp != null ? (
+      <View style={m.dateSepRow}>
+        <View style={m.dateSepPill}>
+          <Text style={m.dateSepText}>{dateSeparatorLabel(item.timestamp)}</Text>
+        </View>
+      </View>
+    ) : null;
+
     if (item.type === 'system') {
       return (
-        <View style={m.systemRow}>
-          <View style={m.systemPill}>
-            <Text style={m.systemText}>{item.text}</Text>
+        <View>
+          {DateSep}
+          <View style={m.systemRow}>
+            <View style={m.systemPill}>
+              <Text style={m.systemText}>{item.text}</Text>
+            </View>
           </View>
         </View>
       );
@@ -510,6 +541,8 @@ export default function ChatScreen() {
     const maxBubbleWidth = screenWidth < 400 ? 0.82 : 0.72;
 
     return (
+      <View>
+      {DateSep}
       <View style={[m.row, isMe && m.rowMe, { marginTop: isGroupStart ? 8 : 2 }]}>
         {/* avatar শুধু partner-এর stack-এর শেষে; নাহলে ফাঁকা spacer (alignment) */}
         {!isMe && (
@@ -547,6 +580,7 @@ export default function ChatScreen() {
             )}
           </View>
         </TouchableWithoutFeedback>
+      </View>
       </View>
     );
   }, [user?.uid, chatMeta, isAnonymousRoom, copiedMsgId, handleMessageLongPress, blockedAliases, displayMessages, screenWidth]);
@@ -726,21 +760,27 @@ export default function ChatScreen() {
           }
         />
 
-        {/* Quick replies */}
-        {!isWaiting && (
-          <View style={[s.quickRow, { paddingHorizontal: screenWidth < 360 ? 8 : 10 }]}>
+        {/* Quick replies — শুধু input খালি থাকলে (WhatsApp-এ permanent না),
+            একটা horizontal scroll row (একাধিক line নিয়ে জায়গা নষ্ট করে না)। */}
+        {!isWaiting && !roomExpired && text.trim().length === 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={s.quickScroll}
+            contentContainerStyle={s.quickRow}
+            keyboardShouldPersistTaps="handled"
+          >
             {QUICK_REPLIES.map((qr) => (
               <TouchableOpacity
                 key={qr.id}
-                style={[s.qrBtn, roomExpired && s.qrBtnDisabled]}
+                style={s.qrBtn}
                 onPress={() => { void sendMsg(qr.text); }}
-                disabled={roomExpired}
-                activeOpacity={0.75}
+                activeOpacity={0.7}
               >
-                <Text style={[s.qrText, { fontSize: screenWidth < 360 ? 10 : 11 }]}>{qr.text}</Text>
+                <Text style={s.qrText}>{qr.text}</Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
         )}
 
         {/* Typing indicator (someone else typing) */}
@@ -1023,27 +1063,24 @@ const s = StyleSheet.create({
     maxWidth: 260,
   },
 
+  // single-line horizontal scroll (flexWrap সরানো → একাধিক line নেয় না)
+  quickScroll: { maxHeight: 44, backgroundColor: C.bg },
   quickRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 5,
+    gap: 7,
     paddingHorizontal: 10,
-    paddingTop: 6,
-    paddingBottom: 4,
-    backgroundColor: C.bg,
-    borderTopWidth: 1,
-    borderTopColor: C.border,
+    paddingVertical: 7,
+    alignItems: 'center',
   },
   qrBtn: {
-    backgroundColor: C.surface,
-    borderRadius: 14,
-    paddingHorizontal: 11,
-    paddingVertical: 5,
+    backgroundColor: 'rgba(99,102,241,0.1)',
+    borderRadius: 16,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.24)',
+    borderColor: 'rgba(99,102,241,0.22)',
   },
-  qrBtnDisabled: { opacity: 0.35 },
-  qrText: { fontSize: 11, color: '#C7D2FE', fontWeight: '700' },
+  qrText: { fontSize: 12, color: '#C7D2FE', fontWeight: '600' },
 
   inputRow: {
     flexDirection: 'row',
@@ -1115,12 +1152,13 @@ const s = StyleSheet.create({
   },
 
   dealBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    margin: 12, padding: 15, borderRadius: 18,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    marginHorizontal: 10, marginTop: 4, marginBottom: 8,
+    paddingVertical: 11, borderRadius: 13,
     backgroundColor: C.teal,
   },
   dealBtnPending: { backgroundColor: C.amber },
-  dealBtnText: { color: C.white, fontSize: 15, fontWeight: '800' },
+  dealBtnText: { color: C.white, fontSize: 14, fontWeight: '800', letterSpacing: 0.2 },
   dealConfirmedRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     marginHorizontal: 12, marginBottom: 10,
@@ -1175,6 +1213,12 @@ const m = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 6, maxWidth: '80%',
   },
   systemText: { fontSize: 11, color: C.textSub, fontWeight: '600', textAlign: 'center' },
+  dateSepRow: { alignItems: 'center', marginVertical: 10 },
+  dateSepPill: {
+    backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 4,
+  },
+  dateSepText: { fontSize: 11, color: C.textSub, fontWeight: '700', letterSpacing: 0.3 },
   bubble: {
     paddingHorizontal: 12,
     paddingVertical: 8,
