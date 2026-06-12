@@ -27,6 +27,8 @@ import { PICKUP_POINTS, getPickupPointById } from '@/constants/pickupPoints';
 import { COLORS } from '@/constants/theme';
 import { premiumTheme } from '@/design/premium';
 import type { MainTabNavProp } from '@/navigation/types';
+import { rideRequestService, type RideRequest } from '@/services/supabase/rideRequestService';
+import { logger } from '@/utils/logger';
 import distanceMatrixService from '@/services/google/distanceMatrixService';
 import directionsService from '@/services/google/directionsService';
 import routesService from '@/services/google/routesService';
@@ -824,6 +826,51 @@ export default function HomeScreen() {
   const zoneRadius = useRideStore(s => s.zoneRadius);
   const setZoneRadius = useRideStore(s => s.setZoneRadius);
 
+  // ── Ride request handshake ──
+  const [incomingRequests, setIncomingRequests] = useState<RideRequest[]>([]);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+
+  // B: incoming pending request live (Home banner)
+  useEffect(() => {
+    if (!storeUser?.uid) return;
+    return rideRequestService.listenToIncoming(storeUser.uid, setIncomingRequests);
+  }, [storeUser?.uid]);
+
+  // A: outgoing request — accept হলে chat_id পাই → chat-এ navigate
+  const navigatedReqRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!storeUser?.uid) return;
+    return rideRequestService.listenToOutgoing(storeUser.uid, (reqs) => {
+      const accepted = reqs.find(
+        (r) => r.status === 'accepted' && r.chatId && !navigatedReqRef.current.has(r.id),
+      );
+      if (accepted?.chatId) {
+        navigatedReqRef.current.add(accepted.id);
+        clearRequestState(accepted.toUser);
+        navigation.navigate('Chat', { chatId: accepted.chatId, partnerName: 'Rider' });
+      }
+    });
+  }, [storeUser?.uid, navigation, clearRequestState]);
+
+  // B accept/decline handlers
+  const handleAcceptRequest = useCallback(async (req: RideRequest) => {
+    if (!storeUser?.uid) return;
+    setAcceptingId(req.id);
+    try {
+      const chatId = await rideRequestService.acceptRequest(req, storeUser.name ?? 'Rider');
+      navigation.navigate('Chat', { chatId, partnerName: req.fromName });
+    } catch (e) {
+      Alert.alert('Could not accept', 'Please try again.');
+      logger.warn('HomeScreen.acceptRequest', e);
+    } finally {
+      setAcceptingId(null);
+    }
+  }, [storeUser?.uid, storeUser?.name, navigation]);
+
+  const handleDeclineRequest = useCallback((req: RideRequest) => {
+    void rideRequestService.declineRequest(req.id);
+  }, []);
+
   useNearbyRiders(
     destination,
     LIVE_PARTNER_FEED_ENABLED && !!destination,
@@ -1319,11 +1366,30 @@ export default function HomeScreen() {
     isMatch: destination === partner.destination,
   });
 
-  const handleRequest = (partner: VisiblePartner) => {
+  const handleRequest = async (partner: VisiblePartner) => {
+    if (!storeUser?.uid) return;
     setPartner(buildRiderPayload(partner));
     setStatus('waiting');
-    setRequestState(partner.id, 'pending');
+    setRequestState(partner.id, 'pending');   // UI: optimistic pending
     setPendingPartner(partner);
+    // আসল request পাঠাই (Supabase) — B realtime banner-এ দেখবে, accept করলে
+    // chat খুলবে (A outgoing listener chat_id পেয়ে navigate করবে)।
+    try {
+      await rideRequestService.sendRequest({
+        fromUser: storeUser.uid,
+        fromName: storeUser.name ?? 'A rider',
+        toUser: partner.id,
+        destination: selectedDestDetails?.name ?? partner.destination,
+        destLat: selectedDestDetails?.lat,
+        destLng: selectedDestDetails?.lng,
+        fare: partner.splitFare,
+      });
+    } catch (e) {
+      clearRequestState(partner.id);
+      setPendingPartner(null);
+      Alert.alert('Request failed', 'Could not send the request. Please try again.');
+      logger.warn('HomeScreen.sendRequest', e);
+    }
   };
 
   const handleChat = (partner: VisiblePartner) => {
@@ -1356,6 +1422,33 @@ export default function HomeScreen() {
         onScroll={e => setElevated(e.nativeEvent.contentOffset.y > 8)}
         scrollEventThrottle={16}
       >
+        {/* Incoming ride requests — B এখানে accept/decline করে (realtime) */}
+        {incomingRequests.map((req) => (
+          <View key={req.id} style={S.reqBanner}>
+            <View style={{ flex: 1 }}>
+              <Text style={S.reqBannerTitle}>{req.fromName} wants to share a ride</Text>
+              <Text style={S.reqBannerSub}>To {req.destination}{req.fare > 0 ? ` · ৳${req.fare} each` : ''}</Text>
+            </View>
+            <View style={S.reqBannerActions}>
+              <TouchableOpacity
+                style={S.reqDeclineBtn}
+                onPress={() => handleDeclineRequest(req)}
+                activeOpacity={0.8}
+              >
+                <Text style={S.reqDeclineText}>Decline</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={S.reqAcceptBtn}
+                onPress={() => handleAcceptRequest(req)}
+                disabled={acceptingId === req.id}
+                activeOpacity={0.85}
+              >
+                <Text style={S.reqAcceptText}>{acceptingId === req.id ? '…' : 'Accept'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+
         {/* Header greeting */}
         <Animated.View style={[S.header, { opacity: headerOpacity }]}>
           {/* Left — greeting block */}
@@ -2101,6 +2194,21 @@ const S = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(99,102,241,0.25)',
   },
   zoneChipText: { fontSize: 12, fontWeight: '800', color: '#6366F1', letterSpacing: 0.2 },
+
+  // ── Incoming ride-request banner ──
+  reqBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#EEF0FF', borderRadius: 16, padding: 14,
+    marginHorizontal: 16, marginTop: 12,
+    borderWidth: 1, borderColor: 'rgba(99,102,241,0.25)',
+  },
+  reqBannerTitle: { fontSize: 14, fontWeight: '800', color: '#1A1A2E', letterSpacing: -0.2 },
+  reqBannerSub: { fontSize: 12, color: '#6B7280', fontWeight: '600', marginTop: 2 },
+  reqBannerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  reqDeclineBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: 'rgba(148,163,184,0.18)' },
+  reqDeclineText: { fontSize: 12, fontWeight: '700', color: '#6B7280' },
+  reqAcceptBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, backgroundColor: '#6366F1' },
+  reqAcceptText: { fontSize: 12, fontWeight: '800', color: '#FFFFFF' },
 
   // ── Destination chips ──
   destChipRow: { paddingTop: 10, paddingBottom: 6, gap: 10, flexDirection: 'row', paddingHorizontal: 0 },
