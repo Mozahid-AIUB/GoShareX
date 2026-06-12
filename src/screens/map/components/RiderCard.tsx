@@ -58,6 +58,11 @@ export const RiderCard = ({ rider, requestState, onOffer, onChat, onPress }: Pro
             <RNText style={rc.name} numberOfLines={1}>
               {rider.name}
             </RNText>
+            {rider.badge && rider.badge !== 'New Rider' && (
+              <View style={rc.badgePill}>
+                <RNText style={rc.badgeText}>{rider.badge}</RNText>
+              </View>
+            )}
             {isMatch && (
               <View style={rc.matchPill}>
                 <RNText style={rc.matchPillText}>✓ MATCH</RNText>
@@ -157,8 +162,17 @@ const rc = StyleSheet.create({
   },
   avatarLetter: { fontSize: 20, fontWeight: '900', color: C.text },
   info: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  name: { fontSize: 15, fontWeight: '800', color: C.text, flex: 1, letterSpacing: -0.3 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' },
+  name: { fontSize: 15, fontWeight: '800', color: C.text, letterSpacing: -0.3 },
+  badgePill: {
+    backgroundColor: 'rgba(192,132,252,0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(192,132,252,0.35)',
+  },
+  badgeText: { fontSize: 9, color: '#C084FC', fontWeight: '800', letterSpacing: 0.3 },
   matchPill: {
     backgroundColor: 'rgba(52,211,153,0.15)',
     paddingHorizontal: 6,

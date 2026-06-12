@@ -38,8 +38,13 @@ export const SelectedSheet = ({ rider, meetupRoute, onChat, onClose }: Props) =>
           <RNText style={ss.avatarText}>{rider.name.charAt(0).toUpperCase()}</RNText>
         </View>
         <View style={ss.info}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <RNText style={ss.name}>{rider.name}</RNText>
+            {rider.badge && rider.badge !== 'New Rider' && (
+              <View style={ss.trustBadge}>
+                <RNText style={ss.trustBadgeText}>{rider.badge}</RNText>
+              </View>
+            )}
             {isMatch && (
               <View style={ss.matchBadge}>
                 <RNText style={ss.matchText}>MATCH</RNText>
@@ -138,6 +143,15 @@ const ss = StyleSheet.create({
   avatarText: { fontSize: 21, fontWeight: '900', color: C.text },
   info: { flex: 1 },
   name: { fontSize: 16, fontWeight: '800', color: C.text, letterSpacing: -0.3 },
+  trustBadge: {
+    backgroundColor: 'rgba(192,132,252,0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(192,132,252,0.35)',
+  },
+  trustBadgeText: { fontSize: 9, color: '#C084FC', fontWeight: '800', letterSpacing: 0.3 },
   matchBadge: {
     backgroundColor: 'rgba(52,211,153,0.15)',
     paddingHorizontal: 7,
