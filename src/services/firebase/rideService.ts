@@ -2,7 +2,7 @@ import { updateBadge } from '@/services/user/badgePenaltyService';
 import { incrementRideCount, incrementStartedRides, addSavings, getUser } from '@/services/firebase/userService';
 import { addCancellationStrike } from '@/services/user/penaltyService';
 import { trackRideComplete } from '@/services/analytics/analyticsService';
-import { collection, doc, addDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, getDoc, serverTimestamp, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
 import { ref, set, remove } from 'firebase/database';
 import { db, realtimeDb } from '@/config/firebase.config';
 import type { RideRoutePreview } from '@/types/ride.types';
@@ -238,6 +238,27 @@ class RideService {
     const snap = await getDoc(doc(db, 'rides', rideId));
     if (!snap.exists()) return null;
     return { id: snap.id, ...snap.data() } as Ride;
+  }
+
+  /** ইউজারের ride history — rider1/rider2 দুই query merge (Firestore array নেই)। */
+  async getRideHistory(
+    userId: string,
+    page: number,
+    pageSize: number,
+  ): Promise<{ rides: Ride[]; hasMore: boolean }> {
+    // Firestore-এ OR query নেই — দুই দিক আলাদা query করে merge করি। সরল
+    // offset pagination: page*pageSize+pageSize+1 এনে client-এ slice (Firestore
+    // cursor screen-এ ছিল; router-এ simple রাখি, history সাধারণত ছোট)।
+    const want = (page + 1) * pageSize + 1;
+    const makeQuery = (field: 'rider1' | 'rider2') =>
+      query(collection(db, 'rides'), where(field, '==', userId), orderBy('confirmedAt', 'desc'), limit(want));
+    const [s1, s2] = await Promise.all([getDocs(makeQuery('rider1')), getDocs(makeQuery('rider2'))]);
+    const all = [...s1.docs, ...s2.docs]
+      .map((d) => ({ id: d.id, ...d.data() } as Ride & { confirmedAt?: number }))
+      .sort((a, b) => (b.confirmedAt ?? 0) - (a.confirmedAt ?? 0));
+    const start = page * pageSize;
+    const slice = all.slice(start, start + pageSize);
+    return { rides: slice, hasMore: all.length > start + pageSize };
   }
 }
 

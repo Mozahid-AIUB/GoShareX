@@ -89,6 +89,34 @@ class SupabaseRideService {
     return data ? rowToRide(data) : null;
   }
 
+  /**
+   * ইউজারের ride history — rider1 বা rider2 যেকোনো দিকে। Firestore-এ দুই query
+   * + client merge লাগত; Supabase-এ `or` দিয়ে এক query (server pagination,
+   * range)। page 0-ভিত্তিক, pageSize রিকর্ড করে। hasMore নির্ণয়ে pageSize+1
+   * চাই — তাই একটা বেশি এনে শেষেরটা বাদ দিই।
+   */
+  async getRideHistory(
+    userId: string,
+    page: number,
+    pageSize: number,
+  ): Promise<{ rides: Ride[]; hasMore: boolean }> {
+    const from = page * pageSize;
+    const { data, error } = await supabase
+      .from('rides')
+      .select('*')
+      .or(`rider1.eq.${userId},rider2.eq.${userId}`)
+      .order('confirmed_at', { ascending: false, nullsFirst: false })
+      .range(from, from + pageSize);   // pageSize+1 রিকর্ড (hasMore বুঝতে)
+    if (error) {
+      logger.warn('rideService.getRideHistory', error.message);
+      return { rides: [], hasMore: false };
+    }
+    const rows = data ?? [];
+    const hasMore = rows.length > pageSize;
+    const rides = rows.slice(0, pageSize).map(rowToRide);
+    return { rides, hasMore };
+  }
+
   async createRide(
     rider1Id: string, rider1Name: string,
     rider2Id: string, rider2Name: string,
