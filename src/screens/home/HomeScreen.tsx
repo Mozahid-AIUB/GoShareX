@@ -80,6 +80,7 @@ import {
 } from './components/HomeIcons';
 import { IconRickshaw, IconBikeVehicle, IconCNG } from './components/VehicleIcons';
 import VehicleIcon from '@/components/common/VehicleIcon';
+import { haversineDistance } from '@/utils/haversine';
 import { LiveDot, TrustChip, MatchRing } from './components/StatusChips';
 import {
   LIVE_PARTNER_FEED_ENABLED,
@@ -1375,6 +1376,7 @@ export default function HomeScreen() {
     // আসল request পাঠাই (Supabase) — B realtime banner-এ দেখবে, accept করলে
     // chat খুলবে (A outgoing listener chat_id পেয়ে navigate করবে)।
     try {
+      const loc = useLocationStore.getState();
       await rideRequestService.sendRequest({
         fromUser: storeUser.uid,
         fromName: storeUser.name ?? 'A rider',
@@ -1383,6 +1385,12 @@ export default function HomeScreen() {
         destLat: selectedDestDetails?.lat,
         destLng: selectedDestDetails?.lng,
         fare: partner.splitFare,
+        // sender info — banner premium card-এ দেখাতে
+        fromRating: storeUser.rating ?? 5,
+        fromBadge: storeUser.badge ?? 'New Rider',
+        fromVehicle: useRideStore.getState().vehicleType ?? 'rickshaw',
+        fromLat: loc.latitude ?? undefined,
+        fromLng: loc.longitude ?? undefined,
       });
     } catch (e) {
       clearRequestState(partner.id);
@@ -1422,32 +1430,64 @@ export default function HomeScreen() {
         onScroll={e => setElevated(e.nativeEvent.contentOffset.y > 8)}
         scrollEventThrottle={16}
       >
-        {/* Incoming ride requests — B এখানে accept/decline করে (realtime) */}
-        {incomingRequests.map((req) => (
-          <View key={req.id} style={S.reqBanner}>
-            <View style={{ flex: 1 }}>
-              <Text style={S.reqBannerTitle}>{req.fromName} wants to share a ride</Text>
-              <Text style={S.reqBannerSub}>To {req.destination}{req.fare > 0 ? ` · ৳${req.fare} each` : ''}</Text>
+        {/* Incoming ride requests — premium card: sender info + accept/decline */}
+        {incomingRequests.map((req) => {
+          // sender কত দূরে (নিজের GPS থেকে) — থাকলে দেখাই
+          const distM = (req.fromLat != null && req.fromLng != null && lat != null && lng != null)
+            ? Math.round(haversineDistance(lat, lng, req.fromLat, req.fromLng))
+            : null;
+          return (
+            <View key={req.id} style={S.reqBanner}>
+              {/* Top: avatar + name + rating/badge */}
+              <View style={S.reqTopRow}>
+                <View style={S.reqAvatar}>
+                  <VehicleIcon
+                    type={req.fromVehicle === 'bike' ? 'motorcycle' : req.fromVehicle === 'cng' ? 'cng' : 'rickshaw'}
+                    tone={req.fromVehicle === 'bike' ? 'indigo' : req.fromVehicle === 'cng' ? 'teal' : 'amber'}
+                    size={26}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={S.reqNameRow}>
+                    <Text style={S.reqBannerTitle} numberOfLines={1}>{req.fromName}</Text>
+                    {!!req.fromBadge && (
+                      <View style={S.reqBadgeChip}>
+                        <Text style={S.reqBadgeText}>{req.fromBadge}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={S.reqMetaRow}>
+                    {req.fromRating != null && (
+                      <Text style={S.reqMetaText}>⭐ {req.fromRating.toFixed(1)}</Text>
+                    )}
+                    {distM != null && <Text style={S.reqMetaText}>· {distM < 1000 ? `${distM}m` : `${(distM / 1000).toFixed(1)}km`} away</Text>}
+                  </View>
+                </View>
+              </View>
+
+              {/* Mid: route + fare */}
+              <View style={S.reqRouteRow}>
+                <Text style={S.reqRouteText} numberOfLines={1}>🎯 {req.destination}</Text>
+                {req.fare > 0 && <Text style={S.reqFareText}>৳{req.fare} each</Text>}
+              </View>
+
+              {/* Bottom: actions */}
+              <View style={S.reqBannerActions}>
+                <TouchableOpacity style={S.reqDeclineBtn} onPress={() => handleDeclineRequest(req)} activeOpacity={0.8}>
+                  <Text style={S.reqDeclineText}>Decline</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={S.reqAcceptBtn}
+                  onPress={() => handleAcceptRequest(req)}
+                  disabled={acceptingId === req.id}
+                  activeOpacity={0.85}
+                >
+                  <Text style={S.reqAcceptText}>{acceptingId === req.id ? 'Opening…' : 'Accept & Chat'}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={S.reqBannerActions}>
-              <TouchableOpacity
-                style={S.reqDeclineBtn}
-                onPress={() => handleDeclineRequest(req)}
-                activeOpacity={0.8}
-              >
-                <Text style={S.reqDeclineText}>Decline</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={S.reqAcceptBtn}
-                onPress={() => handleAcceptRequest(req)}
-                disabled={acceptingId === req.id}
-                activeOpacity={0.85}
-              >
-                <Text style={S.reqAcceptText}>{acceptingId === req.id ? '…' : 'Accept'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))}
+          );
+        })}
 
         {/* Header greeting */}
         <Animated.View style={[S.header, { opacity: headerOpacity }]}>
@@ -2195,20 +2235,39 @@ const S = StyleSheet.create({
   },
   zoneChipText: { fontSize: 12, fontWeight: '800', color: '#6366F1', letterSpacing: 0.2 },
 
-  // ── Incoming ride-request banner ──
+  // ── Incoming ride-request premium card ──
   reqBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#EEF0FF', borderRadius: 16, padding: 14,
+    backgroundColor: '#FFFFFF', borderRadius: 18, padding: 14, gap: 10,
     marginHorizontal: 16, marginTop: 12,
-    borderWidth: 1, borderColor: 'rgba(99,102,241,0.25)',
+    borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)',
+    shadowColor: '#6366F1', shadowOpacity: 0.12, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 }, elevation: 4,
   },
-  reqBannerTitle: { fontSize: 14, fontWeight: '800', color: '#1A1A2E', letterSpacing: -0.2 },
-  reqBannerSub: { fontSize: 12, color: '#6B7280', fontWeight: '600', marginTop: 2 },
+  reqTopRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  reqAvatar: {
+    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(99,102,241,0.1)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.2)',
+  },
+  reqNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  reqBannerTitle: { fontSize: 15, fontWeight: '800', color: '#1A1A2E', letterSpacing: -0.2, flexShrink: 1 },
+  reqBadgeChip: {
+    backgroundColor: 'rgba(16,185,129,0.12)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2,
+    borderWidth: 1, borderColor: 'rgba(16,185,129,0.25)',
+  },
+  reqBadgeText: { fontSize: 9, fontWeight: '800', color: '#0D9488', letterSpacing: 0.2 },
+  reqMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  reqMetaText: { fontSize: 12, color: '#6B7280', fontWeight: '600' },
+  reqRouteRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#F6F5FC', borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8,
+  },
+  reqRouteText: { fontSize: 13, color: '#1A1A2E', fontWeight: '700', flexShrink: 1 },
+  reqFareText: { fontSize: 13, color: '#0D9488', fontWeight: '800', marginLeft: 8 },
   reqBannerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  reqDeclineBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: 'rgba(148,163,184,0.18)' },
-  reqDeclineText: { fontSize: 12, fontWeight: '700', color: '#6B7280' },
-  reqAcceptBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, backgroundColor: '#6366F1' },
-  reqAcceptText: { fontSize: 12, fontWeight: '800', color: '#FFFFFF' },
+  reqDeclineBtn: { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, backgroundColor: 'rgba(148,163,184,0.16)' },
+  reqDeclineText: { fontSize: 13, fontWeight: '800', color: '#6B7280' },
+  reqAcceptBtn: { flex: 2, alignItems: 'center', paddingVertical: 11, borderRadius: 12, backgroundColor: '#6366F1' },
+  reqAcceptText: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
 
   // ── Destination chips ──
   destChipRow: { paddingTop: 10, paddingBottom: 6, gap: 10, flexDirection: 'row', paddingHorizontal: 0 },

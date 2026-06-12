@@ -20,6 +20,12 @@ export interface RideRequest {
   status: 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired';
   chatId?: string;
   createdAt: number;
+  // sender info (banner premium card)
+  fromRating?: number;
+  fromBadge?: string;
+  fromVehicle?: 'rickshaw' | 'cng' | 'bike';
+  fromLat?: number;
+  fromLng?: number;
 }
 
 function rowToRequest(r: any): RideRequest {
@@ -35,6 +41,11 @@ function rowToRequest(r: any): RideRequest {
     status: r.status,
     chatId: r.chat_id ?? undefined,
     createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+    fromRating: r.from_rating != null ? Number(r.from_rating) : undefined,
+    fromBadge: r.from_badge ?? undefined,
+    fromVehicle: r.from_vehicle ?? undefined,
+    fromLat: r.from_lat != null ? Number(r.from_lat) : undefined,
+    fromLng: r.from_lng != null ? Number(r.from_lng) : undefined,
   };
 }
 
@@ -43,6 +54,8 @@ class RideRequestService {
   async sendRequest(args: {
     fromUser: string; fromName: string; toUser: string;
     destination: string; destLat?: number; destLng?: number; fare?: number;
+    fromRating?: number; fromBadge?: string; fromVehicle?: string;
+    fromLat?: number; fromLng?: number;
   }): Promise<string> {
     // বিদ্যমান pending থাকলে সেটাই (partial unique index ডুপ্লিকেট আটকায়)
     const { data: existing } = await supabase
@@ -64,6 +77,11 @@ class RideRequestService {
         dest_lat: args.destLat ?? null,
         dest_lng: args.destLng ?? null,
         fare: args.fare ?? 0,
+        from_rating: args.fromRating ?? null,
+        from_badge: args.fromBadge ?? null,
+        from_vehicle: args.fromVehicle ?? null,
+        from_lat: args.fromLat ?? null,
+        from_lng: args.fromLng ?? null,
         status: 'pending',
       })
       .select('id')
