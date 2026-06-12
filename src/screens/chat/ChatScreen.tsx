@@ -117,21 +117,37 @@ export default function ChatScreen() {
   // কখনো "আটকে আছে" মনে হয় না — এটাই smooth experience-এর মূল।
   const [pendingEchoes, setPendingEchoes] = useState<Array<Message & { pending?: boolean }>>([]);
 
-  // server message এসে গেলে matching echo সরাই (sender+text মিল, সাম্প্রতিক)
+  // server message এসে গেলে matching echo সরাই। প্রতিটা server message
+  // সর্বোচ্চ একটা echo মেলায় (consume করা set) — নাহলে একই text দুবার পাঠালে
+  // একটা server message দুটো echo-ই সরিয়ে দিত (অকালে অদৃশ্য → flicker)।
   useEffect(() => {
     if (pendingEchoes.length === 0) return;
-    setPendingEchoes((prev) =>
-      prev.filter(
-        (e) =>
-          !messages.some(
-            (m) =>
-              m.senderId === e.senderId &&
-              m.text === e.text &&
-              (m.timestamp ?? 0) >= e.timestamp - 60_000,
-          ),
-      ),
-    );
+    setPendingEchoes((prev) => {
+      const consumed = new Set<string>();
+      return prev.filter((e) => {
+        const match = messages.find(
+          (m) =>
+            !consumed.has(m.id) &&
+            m.senderId === e.senderId &&
+            m.text === e.text &&
+            (m.timestamp ?? 0) >= e.timestamp - 60_000,
+        );
+        if (match) { consumed.add(match.id); return false; }  // server-এ এসেছে → echo বাদ
+        return true;  // এখনো server-এ আসেনি → echo রাখি
+      });
+    });
   }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // safety: কোনো echo যদি 30s-এও server-এ না মেলে (network glitch — sendMessage
+  // সফল কিন্তু realtime miss), তবু সরিয়ে দিই যাতে চিরকাল "pending" আটকে না থাকে।
+  useEffect(() => {
+    if (pendingEchoes.length === 0) return;
+    const t = setTimeout(() => {
+      const cutoff = Date.now() - 30_000;
+      setPendingEchoes((prev) => prev.filter((e) => e.timestamp > cutoff));
+    }, 31_000);
+    return () => clearTimeout(t);
+  }, [pendingEchoes]);
 
   // তালিকা = server message + এখনো-pending echo
   const displayMessages = useMemo(
@@ -240,7 +256,10 @@ export default function ChatScreen() {
       setChatMeta(chat);
       if (chat.lastMessageTime) {
         void persistReadTime(chatId, chat.lastMessageTime);
-        setPartnerOnline(Date.now() - chat.lastMessageTime < 2 * 60 * 1000);
+        // NOTE: partnerOnline এখানে সেট করি না — আসল presence (Supabase Realtime
+        // Presence channel, listenToPresence effect) authoritative। lastMessageTime
+        // দিয়ে online ধরা ভুল signal ছিল (message না পাঠালে offline দেখাত যদিও
+        // online) আর presence-এর সাথে দুই জায়গায় লড়ত।
       }
       if (!chat.anonymous && chat.dealConfirmed && typeof chat.dealConfirmed === 'object') {
         const both = Object.values(chat.dealConfirmed).length > 0 && Object.values(chat.dealConfirmed).every(Boolean);
