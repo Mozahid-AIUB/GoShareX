@@ -80,6 +80,26 @@ export async function sendRideConfirmed(
 }
 
 /**
+ * Notify a user to rate their ride partner (1 hour after ride completion).
+ */
+export async function sendRideRatingReminder(
+  targetUid: string,
+  partnerName: string,
+  rideId: string,
+): Promise<void> {
+  try {
+    await push(
+      targetUid,
+      'Rate Your Ride 👍',
+      `How was your ride with ${partnerName}? Your rating helps them earn trust.`,
+      { type: 'rate_ride_reminder', partnerName, rideId },
+    );
+  } catch (error) {
+    logger.warn('fcmService.sendRideRatingReminder', String((error as Error)?.message ?? error));
+  }
+}
+
+/**
  * Notify a user that their ride has been cancelled.
  */
 export async function sendRideCancelled(

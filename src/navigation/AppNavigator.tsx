@@ -7,6 +7,7 @@ import { startPresenceTracking, stopPresenceTracking } from '@/services/presence
 import { rideRequestService } from '@/services/supabase/rideRequestService';
 import { useRequestStore } from '@/store/requestStore';
 import IncomingRequestOverlay from '@/components/common/IncomingRequestOverlay';
+import { useUnratedRideReminder } from '@/hooks/useUnratedRideReminder';
 
 import AuthNavigator from './AuthNavigator';
 import BottomTabNavigator from './BottomTabNavigator';
@@ -68,6 +69,9 @@ const AppNavigator = () => {
     }
     clearIncoming();
   }, [isAuthenticated, user?.uid, setIncoming, clearIncoming]);
+
+  // Check unrated ride reminders when app opens (every time focus)
+  useUnratedRideReminder();
 
   return (
     <NavigationContainer>

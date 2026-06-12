@@ -8,6 +8,8 @@ import { useRideStore } from '@/store/rideStore';
 import { useAuthStore } from '@/store/authStore';
 import rideService from '@/services/rideService';
 import { submitRating, RATING_CATEGORIES, type CategoryId } from '@/services/ratingService';
+import { supabase } from '@/config/supabase.config';
+import { logger } from '@/utils/logger';
 import type { RideRoutePreview } from '@/types/ride.types';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -104,6 +106,26 @@ export default function RideCompleteScreen() {
     }).catch(() => undefined);
     return () => { mounted = false; };
   }, [rideId, routePreview]);
+
+  // Mark ride as completed (for rating reminder tracking)
+  useEffect(() => {
+    if (!rideId || !user?.uid || !rider?.uid) return;
+    const markCompleted = async () => {
+      try {
+        const { error } = await supabase.rpc('mark_ride_completed', {
+          p_ride_id: rideId,
+          p_ratee_id: rider.uid || rider.userId,
+          p_ratee_name: rider.name || 'Rider',
+          p_rater_id: user.uid,
+          p_rater_name: user.name || 'User',
+        });
+        if (error) logger.warn('RideCompleteScreen.markCompleted', error);
+      } catch (e) {
+        logger.warn('RideCompleteScreen.markCompleted', e);
+      }
+    };
+    void markCompleted();
+  }, [rideId, user?.uid, rider?.uid]);
 
   const toggleCategory = (id: CategoryId) => {
     setSelected((prev) =>
