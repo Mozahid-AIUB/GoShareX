@@ -28,6 +28,7 @@ import { COLORS } from '@/constants/theme';
 import { premiumTheme } from '@/design/premium';
 import type { MainTabNavProp } from '@/navigation/types';
 import { rideRequestService, type RideRequest } from '@/services/supabase/rideRequestService';
+import { sendRideRequest } from '@/services/notifications/fcmService';
 import { logger } from '@/utils/logger';
 import distanceMatrixService from '@/services/google/distanceMatrixService';
 import directionsService from '@/services/google/directionsService';
@@ -317,15 +318,18 @@ const PartnerCard = ({
           <Text style={S.partnerDestText}>Going to {partner.destinationName}</Text>
         </View>
 
-        {/* Actions */}
+        {/* Action — একটাই CTA: Request (accept হলে chat খোলে)। direct Chat
+            সরানো হয়েছে — অনুমতি ছাড়া কারো inbox-এ ঢোকা যায় না (anti-spam)। */}
         <View style={S.partnerActions}>
           <TouchableOpacity
             style={[
               S.btnRequest,
+              { flex: 1 },
               isPending && { backgroundColor: D.amber },
               isConfirmed && { backgroundColor: D.green },
             ]}
             onPress={onRequest}
+            disabled={isPending}
             activeOpacity={0.85}
           >
             <MaterialCommunityIcons
@@ -334,13 +338,8 @@ const PartnerCard = ({
               color="#FFF"
             />
             <Text style={S.btnRequestText}>
-              {isConfirmed ? 'Confirmed' : isPending ? 'Pending…' : 'Request'}
+              {isConfirmed ? 'Confirmed — Chat' : isPending ? 'Request sent · waiting…' : 'Request to ride'}
             </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={S.btnChat} onPress={onChat} activeOpacity={0.82}>
-            <MaterialCommunityIcons name="message-text-outline" size={16} color={D.primary} />
-            <Text style={S.btnChatText}>Chat</Text>
           </TouchableOpacity>
         </View>
       </Pressable>
@@ -1392,6 +1391,16 @@ export default function HomeScreen() {
         fromLat: loc.latitude ?? undefined,
         fromLng: loc.longitude ?? undefined,
       });
+      // push notification — B app বন্ধ/background-এ থাকলেও জানবে। Expo Go-তে
+      // কাজ করে না (production build লাগে), তাই fail করলে silent (catch করা)।
+      // production phase-এ এটাই request-কে app-এর বাইরে পৌঁছে দেবে।
+      void sendRideRequest(
+        partner.id,
+        storeUser.name ?? 'A rider',
+        selectedDestDetails?.name ?? partner.destination,
+        partner.splitFare,
+        '',  // chatId এখনো নেই (accept-এ তৈরি হবে)
+      );
     } catch (e) {
       clearRequestState(partner.id);
       setPendingPartner(null);
