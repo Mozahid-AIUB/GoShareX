@@ -1401,10 +1401,11 @@ export default function HomeScreen() {
         partner.splitFare,
         '',  // chatId এখনো নেই (accept-এ তৈরি হবে)
       );
-    } catch (e) {
+    } catch (e: any) {
       clearRequestState(partner.id);
       setPendingPartner(null);
-      Alert.alert('Request failed', 'Could not send the request. Please try again.');
+      // service-এর আসল বার্তা দেখাই (যেমন "rider not available" — fake rider)।
+      Alert.alert('Request failed', e?.message ?? 'Could not send the request. Please try again.');
       logger.warn('HomeScreen.sendRequest', e);
     }
   };
@@ -1881,22 +1882,21 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            <TouchableOpacity
-              style={S.primaryBtn}
-              activeOpacity={0.85}
-              onPress={() => pendingPartner && handleChat(pendingPartner)}
-            >
-              <MaterialCommunityIcons name="message-text-outline" size={18} color="#FFF" />
-              <Text style={S.primaryBtnText}>Continue to chat</Text>
-            </TouchableOpacity>
+            {/* request পাঠানো হয়েছে — accept-এর অপেক্ষা (সরাসরি chat না;
+                accept হলে outgoing listener আপনাআপনি chat-এ নিয়ে যাবে)। */}
+            <View style={S.waitCard}>
+              <MaterialCommunityIcons name="clock-outline" size={18} color={D.amber} />
+              <Text style={S.waitCardText}>
+                Request sent — waiting for {pendingPartner?.name ?? 'rider'} to accept. Chat opens automatically once they accept.
+              </Text>
+            </View>
 
             <TouchableOpacity
               style={S.modalSecondaryBtn}
               activeOpacity={0.85}
-              onPress={() => { setPendingPartner(null); navigation.navigate('Map'); }}
+              onPress={() => setPendingPartner(null)}
             >
-              <MaterialCommunityIcons name="map-outline" size={18} color={D.text} />
-              <Text style={S.modalSecondaryBtnText}>Open live map</Text>
+              <Text style={S.modalSecondaryBtnText}>OK</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2478,4 +2478,11 @@ const S = StyleSheet.create({
     gap: 8, borderWidth: 1, borderColor: '#EDE8F5',
   },
   modalSecondaryBtnText: { color: '#1A1A2E', fontSize: 15, fontWeight: '700' },
+  // request পাঠানোর পর "waiting for accept" card
+  waitCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: 'rgba(245,158,11,0.1)', borderRadius: 14, padding: 14, marginBottom: 12,
+    borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)',
+  },
+  waitCardText: { flex: 1, fontSize: 13, color: '#92700E', fontWeight: '600', lineHeight: 18 },
 });

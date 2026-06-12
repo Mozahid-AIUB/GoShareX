@@ -88,6 +88,11 @@ class RideRequestService {
       .single();
     if (error || !data) {
       logger.warn('rideRequest.send', error?.message);
+      // FK violation (23503) = receiver আসল user না (যেমন fake/test rider)।
+      // আসল ইউজারের ক্ষেত্রে হয় না; পরিষ্কার বার্তা দিই।
+      if (error?.code === '23503') {
+        throw new Error('This rider is not available to request right now.');
+      }
       throw new Error('Could not send request. Please try again.');
     }
     return data.id;
