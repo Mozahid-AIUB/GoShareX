@@ -27,6 +27,7 @@ import { sendRideRequest } from '@/services/notifications/fcmService';
 import { storage, STORAGE_KEYS } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 import { listenToPresence } from '@/services/presenceService';
+import { rideRequestService } from '@/services/supabase/rideRequestService';
 import { usePrivacyStore } from '@/store/privacyStore';
 
 import {
@@ -264,6 +265,12 @@ export default function ChatScreen() {
       if (!chat.anonymous && chat.dealConfirmed && typeof chat.dealConfirmed === 'object') {
         const both = Object.values(chat.dealConfirmed).length > 0 && Object.values(chat.dealConfirmed).every(Boolean);
         setDealConfirmed(both);
+        if (both) {
+          // deal পাকা — দুজনকে in_ride (reserved → locked দৃঢ়, chat ghost
+          // হলেও free হবে না; release হবে শুধু ride complete/cancel-এ)।
+          const parts = chat.participants ?? [];
+          if (parts.length === 2) void rideRequestService.setRidersInRide(parts);
+        }
         if (both && !myDealPressedRef.current) {
           const f = chat.fare ?? fare;
           navigation.navigate('RideConfirmed', {
