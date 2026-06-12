@@ -103,9 +103,10 @@ begin
 exception when others then null;
 end $$;
 
+-- cron format: '*/5 * * * *' = every 5 minutes
 select cron.schedule(
   'queue-rating-reminders',
-  '5 minutes',
+  '*/5 * * * *',
   $$ select public.queue_rating_reminders(); $$
 );
 
@@ -139,9 +140,10 @@ exception when others then null;
 end $$;
 
 -- Trigger Edge Function every 30s to send pending reminders
+-- cron format limitation: minimum 1 minute, so use */1 * * * * (every minute) instead
 -- Note: Edge Function must be deployed first
 select cron.schedule(
   'trigger-send-rating-reminders',
-  '30 seconds',
+  '* * * * *',
   $$ select public.trigger_send_rating_reminders(); $$
 );
