@@ -8,6 +8,7 @@
 import { supabase } from '@/config/supabase.config';
 import { logger } from '@/utils/logger';
 import type { RatingPayload, TrustBreakdown } from '@/services/firebase/ratingService';
+import type { UserBadge } from '@/types/user.types';
 
 export {
   RATING_CATEGORIES,
@@ -16,7 +17,24 @@ export {
   type TrustBreakdown,
 } from '@/services/firebase/ratingService';
 
-// ─── trust recalculation (Firebase formula হুবহু) ───
+/**
+ * trust_score + ride count + strikes থেকে auto badge (অর্জন করতে হয়)।
+ * Uber/Pathao প্যাটার্ন — badge এমনি দেওয়া হয় না, trust বাড়লে badge বাড়ে।
+ *   Unreliable  → strike বেশি (≥3) বা trust খুব কম
+ *   New Rider   → নতুন (<5 ride)
+ *   Regular     → 5+ ride, trust 60+
+ *   Trusted     → 15+ ride, trust 80+
+ *   Elite Rider → 50+ ride, trust 92+
+ */
+function computeBadge(trustScore: number, totalRides: number, strikes: number): UserBadge {
+  if (strikes >= 3) return 'Unreliable';
+  if (totalRides >= 50 && trustScore >= 92) return 'Elite Rider';
+  if (totalRides >= 15 && trustScore >= 80) return 'Trusted';
+  if (totalRides >= 5 && trustScore >= 60) return 'Regular';
+  return 'New Rider';
+}
+
+// ─── trust recalculation (Firebase formula হুবহু) + auto badge ───
 async function recalculateTrust(userId: string): Promise<void> {
   const { data, error } = await supabase
     .from('ratings')
@@ -45,6 +63,14 @@ async function recalculateTrust(userId: string): Promise<void> {
     trustScore,
   };
 
+  // ride count + strikes এনে badge auto-হিসাব
+  const { data: u } = await supabase
+    .from('users')
+    .select('total_rides, strikes')
+    .eq('id', userId)
+    .single();
+  const badge = computeBadge(trustScore, Number(u?.total_rides ?? 0), Number(u?.strikes ?? 0));
+
   // users আপডেট। rating/trust trigger-সুরক্ষিত — তাই service_role/RPC
   // ছাড়া client এটা বদলাতে পারে না। আপাতত client update; পরে Edge
   // Function-এ সরানো হবে (ধাপ ৬) যাতে cheat-proof হয়।
@@ -55,6 +81,7 @@ async function recalculateTrust(userId: string): Promise<void> {
       rating: breakdown.avgStars,
       total_ratings: breakdown.totalRatings,
       trust_breakdown: breakdown,
+      badge,
     })
     .eq('id', userId);
 }
