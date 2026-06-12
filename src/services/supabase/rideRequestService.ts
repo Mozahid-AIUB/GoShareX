@@ -88,8 +88,20 @@ class RideRequestService {
       .single();
     if (error || !data) {
       logger.warn('rideRequest.send', error?.message);
+      // duplicate key (23505) = ইতিমধ্যে একটা pending request আছে (race বা
+      // RLS-এ existing চেক miss)। fail না করে বিদ্যমানটাই খুঁজে ফেরত দিই।
+      if (error?.code === '23505') {
+        const { data: dup } = await supabase
+          .from('ride_requests')
+          .select('id')
+          .eq('from_user', args.fromUser)
+          .eq('to_user', args.toUser)
+          .eq('status', 'pending')
+          .limit(1)
+          .maybeSingle();
+        if (dup?.id) return dup.id;
+      }
       // FK violation (23503) = receiver আসল user না (যেমন fake/test rider)।
-      // আসল ইউজারের ক্ষেত্রে হয় না; পরিষ্কার বার্তা দিই।
       if (error?.code === '23503') {
         throw new Error('This rider is not available to request right now.');
       }
