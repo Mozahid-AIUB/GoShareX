@@ -177,10 +177,11 @@ class SupabaseRideService {
       .update({ status: 'completed', completed_at: new Date().toISOString() })
       .eq('id', rideId);
 
-    // presence থেকে দুজনকে সরাই
+    // presence থেকে দুজনকে সরাই + ride_status free করি (locked থেকে মুক্ত)
     await Promise.allSettled([
       supabasePresenceService.removeActiveRider(ride.rider1),
       supabasePresenceService.removeActiveRider(ride.rider2),
+      supabase.rpc('release_ride_status', { p_uids: [ride.rider1, ride.rider2] }),
     ]);
 
     // savings = solo fare - split amount
@@ -211,6 +212,7 @@ class SupabaseRideService {
     await Promise.allSettled([
       supabasePresenceService.removeActiveRider(ride.rider1),
       supabasePresenceService.removeActiveRider(ride.rider2),
+      supabase.rpc('release_ride_status', { p_uids: [ride.rider1, ride.rider2] }),
     ]);
     // cancellation strike পরে Edge Function-এ (penalty server-side, ধাপ ৬)।
   }

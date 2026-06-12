@@ -6,7 +6,6 @@
 // ============================================================
 import { supabase } from '@/config/supabase.config';
 import { logger } from '@/utils/logger';
-import supabaseChatService from '@/services/supabase/chat';
 
 export interface RideRequest {
   id: string;
@@ -50,6 +49,24 @@ function rowToRequest(r: any): RideRequest {
 }
 
 class RideRequestService {
+  /** নিজের ride_status (free/reserved/in_ride) — request পাঠানোর আগে গার্ড। */
+  async getMyRideStatus(userId: string): Promise<'free' | 'reserved' | 'in_ride'> {
+    const { data } = await supabase.from('users').select('ride_status').eq('id', userId).single();
+    return (data?.ride_status as any) ?? 'free';
+  }
+
+  /** ride শেষ/cancel — দুজনকে free করি (RPC)। */
+  async releaseRideStatus(uids: string[]): Promise<void> {
+    const { error } = await supabase.rpc('release_ride_status', { p_uids: uids });
+    if (error) logger.warn('rideRequest.release', error.message);
+  }
+
+  /** deal confirm — reserved → in_ride (lock দৃঢ়)। */
+  async setRidersInRide(uids: string[]): Promise<void> {
+    const { error } = await supabase.rpc('set_riders_in_ride', { p_uids: uids });
+    if (error) logger.warn('rideRequest.setInRide', error.message);
+  }
+
   /** A → B request পাঠায় (বা বিদ্যমান pending থাকলে সেটাই)। request id ফেরত। */
   async sendRequest(args: {
     fromUser: string; fromName: string; toUser: string;
@@ -57,6 +74,11 @@ class RideRequestService {
     fromRating?: number; fromBadge?: string; fromVehicle?: string;
     fromLat?: number; fromLng?: number;
   }): Promise<string> {
+    // গার্ড: নিজে free না হলে (একটা ride চলছে) নতুন request পাঠাতে পারবে না
+    const myStatus = await this.getMyRideStatus(args.fromUser);
+    if (myStatus !== 'free') {
+      throw new Error('Finish your current ride before requesting another.');
+    }
     // বিদ্যমান pending থাকলে সেটাই (partial unique index ডুপ্লিকেট আটকায়)
     const { data: existing } = await supabase
       .from('ride_requests')
@@ -111,25 +133,25 @@ class RideRequestService {
   }
 
   /**
-   * B request accept করে → chat তৈরি করে chat_id সেট। chatId ফেরত (দুজনেই
-   * এই chat-এ ঢুকবে; A realtime-এ chat_id দেখে navigate করতে পারে)।
+   * B request accept করে — ATOMIC RPC (race-safe)। ভিতরে: দুজন free কিনা
+   * চেক + lock (reserved) + chat তৈরি + এই দুজনের বাকি pending request expire।
+   * concurrent accept হলে DB একটাকেই জিততে দেয়। chatId ফেরত।
    */
   async acceptRequest(req: RideRequest, receiverName: string): Promise<string> {
-    // chat বানাই (getOrCreateChat — ডুপ্লিকেট হলে বিদ্যমানটাই)
-    const chatId = await supabaseChatService.getOrCreateChat(
-      req.fromUser, req.fromName,
-      req.toUser, receiverName,
-      req.destination, req.fare,
-    );
-    const { error } = await supabase
-      .from('ride_requests')
-      .update({ status: 'accepted', chat_id: chatId, responded_at: new Date().toISOString() })
-      .eq('id', req.id);
-    if (error) {
-      logger.warn('rideRequest.accept', error.message);
-      throw new Error('Could not accept request.');
+    const { data, error } = await supabase.rpc('accept_ride_request', {
+      p_request_id: req.id,
+      p_receiver_name: receiverName,
+    });
+    if (error || !data) {
+      logger.warn('rideRequest.accept', error?.message);
+      // RPC-র raise message ইউজারকে দেখাই (already in ride / no longer available)
+      const msg = error?.message ?? '';
+      if (msg.includes('already in a ride')) throw new Error('You already have an active ride.');
+      if (msg.includes('no longer available') || msg.includes('no longer pending'))
+        throw new Error('This request is no longer available.');
+      throw new Error('Could not accept request. Please try again.');
     }
-    return chatId;
+    return data as string;
   }
 
   /** B decline করে। */
