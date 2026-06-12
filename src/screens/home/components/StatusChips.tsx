@@ -102,7 +102,7 @@ export const MatchRing = ({ score }: { score: number }) => {
         backgroundColor: color + '18',
       }}
     >
-      <Text style={{ fontSize: 13, fontWeight: '800', color }}>{score}</Text>
+      <Text style={{ fontSize: 13, fontWeight: '800', color }}>{score}%</Text>
       <Text
         style={{
           fontSize: 7,

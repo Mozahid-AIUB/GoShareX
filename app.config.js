@@ -22,6 +22,9 @@ export default {
                 foregroundImage: "./assets/images/adaptive-icon.png",
                 backgroundColor: "#6366F1"
             },
+            // keyboard খুললে view resize হয় (input keyboard-এর উপরে স্থির থাকে,
+            // jump করে না) — chat screen-এর জন্য জরুরি।
+            softwareKeyboardLayoutMode: "resize",
             package: "com.gosharex.app",
             config: {
                 googleMaps: {

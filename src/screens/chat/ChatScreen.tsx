@@ -751,8 +751,11 @@ export default function ChatScreen() {
       {/* Messages */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 60 : 60}
+        // Android-এ behavior="height" পুরো view ছোট করে → input "jump" করত।
+        // Android নিজেই adjustResize করে (app.json), তাই behavior undefined +
+        // offset 0 = input keyboard-এর ঠিক উপরে স্থির বসে। iOS-এ padding।
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 44 : 0}
       >
         <FlatList
           ref={listRef}
