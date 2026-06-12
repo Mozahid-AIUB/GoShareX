@@ -827,14 +827,9 @@ export default function HomeScreen() {
   const setZoneRadius = useRideStore(s => s.setZoneRadius);
 
   // ── Ride request handshake ──
-  const [incomingRequests, setIncomingRequests] = useState<RideRequest[]>([]);
-  const [acceptingId, setAcceptingId] = useState<string | null>(null);
-
-  // B: incoming pending request live (Home banner)
-  useEffect(() => {
-    if (!storeUser?.uid) return;
-    return rideRequestService.listenToIncoming(storeUser.uid, setIncomingRequests);
-  }, [storeUser?.uid]);
+  // incoming banner এখন GLOBAL (AppNavigator → IncomingRequestOverlay) — সব
+  // screen-এ দেখায়, তাই Home-এর local listener/banner সরানো হয়েছে। এখানে
+  // শুধু outgoing (নিজের পাঠানো request accept হলে chat-এ navigate)।
 
   // A: outgoing request — accept হলে chat_id পাই → chat-এ navigate
   const navigatedReqRef = useRef<Set<string>>(new Set());
@@ -852,24 +847,7 @@ export default function HomeScreen() {
     });
   }, [storeUser?.uid, navigation, clearRequestState]);
 
-  // B accept/decline handlers
-  const handleAcceptRequest = useCallback(async (req: RideRequest) => {
-    if (!storeUser?.uid) return;
-    setAcceptingId(req.id);
-    try {
-      const chatId = await rideRequestService.acceptRequest(req, storeUser.name ?? 'Rider');
-      navigation.navigate('Chat', { chatId, partnerName: req.fromName });
-    } catch (e) {
-      Alert.alert('Could not accept', 'Please try again.');
-      logger.warn('HomeScreen.acceptRequest', e);
-    } finally {
-      setAcceptingId(null);
-    }
-  }, [storeUser?.uid, storeUser?.name, navigation]);
-
-  const handleDeclineRequest = useCallback((req: RideRequest) => {
-    void rideRequestService.declineRequest(req.id);
-  }, []);
+  // (accept/decline handlers এখন IncomingRequestOverlay-এ — global)
 
   useNearbyRiders(
     destination,
@@ -1440,64 +1418,8 @@ export default function HomeScreen() {
         onScroll={e => setElevated(e.nativeEvent.contentOffset.y > 8)}
         scrollEventThrottle={16}
       >
-        {/* Incoming ride requests — premium card: sender info + accept/decline */}
-        {incomingRequests.map((req) => {
-          // sender কত দূরে (নিজের GPS থেকে) — থাকলে দেখাই
-          const distM = (req.fromLat != null && req.fromLng != null && lat != null && lng != null)
-            ? Math.round(haversineDistance(lat, lng, req.fromLat, req.fromLng))
-            : null;
-          return (
-            <View key={req.id} style={S.reqBanner}>
-              {/* Top: avatar + name + rating/badge */}
-              <View style={S.reqTopRow}>
-                <View style={S.reqAvatar}>
-                  <VehicleIcon
-                    type={req.fromVehicle === 'bike' ? 'motorcycle' : req.fromVehicle === 'cng' ? 'cng' : 'rickshaw'}
-                    tone={req.fromVehicle === 'bike' ? 'indigo' : req.fromVehicle === 'cng' ? 'teal' : 'amber'}
-                    size={26}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={S.reqNameRow}>
-                    <Text style={S.reqBannerTitle} numberOfLines={1}>{req.fromName}</Text>
-                    {!!req.fromBadge && (
-                      <View style={S.reqBadgeChip}>
-                        <Text style={S.reqBadgeText}>{req.fromBadge}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <View style={S.reqMetaRow}>
-                    {req.fromRating != null && (
-                      <Text style={S.reqMetaText}>⭐ {req.fromRating.toFixed(1)}</Text>
-                    )}
-                    {distM != null && <Text style={S.reqMetaText}>· {distM < 1000 ? `${distM}m` : `${(distM / 1000).toFixed(1)}km`} away</Text>}
-                  </View>
-                </View>
-              </View>
-
-              {/* Mid: route + fare */}
-              <View style={S.reqRouteRow}>
-                <Text style={S.reqRouteText} numberOfLines={1}>🎯 {req.destination}</Text>
-                {req.fare > 0 && <Text style={S.reqFareText}>৳{req.fare} each</Text>}
-              </View>
-
-              {/* Bottom: actions */}
-              <View style={S.reqBannerActions}>
-                <TouchableOpacity style={S.reqDeclineBtn} onPress={() => handleDeclineRequest(req)} activeOpacity={0.8}>
-                  <Text style={S.reqDeclineText}>Decline</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={S.reqAcceptBtn}
-                  onPress={() => handleAcceptRequest(req)}
-                  disabled={acceptingId === req.id}
-                  activeOpacity={0.85}
-                >
-                  <Text style={S.reqAcceptText}>{acceptingId === req.id ? 'Opening…' : 'Accept & Chat'}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          );
-        })}
+        {/* Incoming request banner এখন GLOBAL (IncomingRequestOverlay,
+            AppNavigator-এ) — সব screen-এ দেখায়, তাই Home থেকে সরানো হয়েছে। */}
 
         {/* Header greeting */}
         <Animated.View style={[S.header, { opacity: headerOpacity }]}>

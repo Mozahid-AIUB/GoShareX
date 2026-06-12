@@ -4,6 +4,9 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { RootStackParamList } from './types';
 import { useAuthStore } from '@/store/authStore';
 import { startPresenceTracking, stopPresenceTracking } from '@/services/presenceService';
+import { rideRequestService } from '@/services/supabase/rideRequestService';
+import { useRequestStore } from '@/store/requestStore';
+import IncomingRequestOverlay from '@/components/common/IncomingRequestOverlay';
 
 import AuthNavigator from './AuthNavigator';
 import BottomTabNavigator from './BottomTabNavigator';
@@ -53,6 +56,18 @@ const AppNavigator = () => {
       return () => { void stopPresenceTracking(user.uid); };
     }
   }, [isAuthenticated, user?.uid]);
+
+  // GLOBAL incoming-request listener — যেকোনো screen-এ request banner আসে
+  // (আগে শুধু HomeScreen-এর local listener ছিল)। store-এ রাখি, overlay দেখায়।
+  const setIncoming = useRequestStore((s) => s.setIncoming);
+  const clearIncoming = useRequestStore((s) => s.clear);
+  useEffect(() => {
+    if (isAuthenticated && user?.uid) {
+      const unsub = rideRequestService.listenToIncoming(user.uid, setIncoming);
+      return () => { unsub(); clearIncoming(); };
+    }
+    clearIncoming();
+  }, [isAuthenticated, user?.uid, setIncoming, clearIncoming]);
 
   return (
     <NavigationContainer>
@@ -115,6 +130,8 @@ const AppNavigator = () => {
           </>
         )}
       </Stack.Navigator>
+      {/* global incoming-request banner — সব screen-এর উপরে */}
+      {isAuthenticated && <IncomingRequestOverlay />}
     </NavigationContainer>
   );
 };
