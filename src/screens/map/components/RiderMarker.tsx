@@ -70,7 +70,7 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
           type={vType === 'bike' ? 'motorcycle' : vType === 'cng' ? 'cng' : 'rickshaw'}
           tone="mono"
           active
-          size={20}
+          size={24}
         />
       </View>
       <View style={[m.pinTail, { borderTopColor: bg }]} />
@@ -94,7 +94,7 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
       tracksViewChanges={tracks}
     >
       <View style={m.wrap}>
-        {isMatch && <PulseRing color={matchColor} size={60} />}
+        {isMatch && <PulseRing color={matchColor} size={72} />}
         {isMatch ? <MatchGlow glowColor={matchColor}>{pin}</MatchGlow> : pin}
       </View>
     </Marker>
@@ -115,33 +115,33 @@ export default memo(RiderMarkerBase, (prev, next) =>
 const m = StyleSheet.create({
   wrap: { alignItems: 'center' },
   pin: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 44, height: 44, borderRadius: 22,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2,
-    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 5, shadowOffset: { width: 0, height: 3 },
+    borderWidth: 2.5,
+    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
     elevation: 7,
   },
   // selected pin — box একটু বড় + glow (icon size একই থাকে)।
   pinSelected: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 52, height: 52, borderRadius: 26,
     borderWidth: 3,
-    shadowOpacity: 0.7, shadowRadius: 10,
+    shadowOpacity: 0.7, shadowRadius: 11,
     elevation: 12,
   },
   pinTail: {
     width: 0, height: 0,
-    borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 8,
+    borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 9,
     borderLeftColor: 'transparent', borderRightColor: 'transparent',
     marginTop: -2,
   },
   // premium pill — শুধু name (center)। wrap center-align করায় chip-এর
   // প্রস্থ যাই হোক pin-এর নিচে মাঝখানে থাকে।
   destChip: {
-    marginTop: 3,
-    maxWidth: 132,
+    marginTop: 4,
+    maxWidth: 144,
     backgroundColor: 'rgba(14,20,48,0.95)',
-    paddingHorizontal: 9,
-    paddingVertical: 3,
+    paddingHorizontal: 11,
+    paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
     shadowColor: '#000',
@@ -152,7 +152,7 @@ const m = StyleSheet.create({
   },
   destChipText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     letterSpacing: -0.1,
     textAlign: 'center',

@@ -586,7 +586,7 @@ export default function LiveMapScreen() {
             >
               <View style={userDot.wrap}>
                 {/* radar wave — অ্যাপ আশেপাশে "খুঁজছে" এই অনুভূতি দেয় */}
-                <PulseRing color={C.primary} size={90} />
+                <PulseRing color={C.primary} size={100} />
                 <View style={userDot.ring} />
                 <View style={userDot.core} />
                 {/* নিজের নাম dot-এর নিচে — absolute, যাতে dot center-এ থাকে। */}
@@ -750,31 +750,32 @@ export default function LiveMapScreen() {
 
 // ─── Marker styles ─────────────────────────────────────────────────────────────
 const userDot = StyleSheet.create({
-  wrap: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  wrap: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
   ring: {
-    position: 'absolute', width: 24, height: 24, borderRadius: 12,
-    borderWidth: 2, borderColor: '#C084FC',
+    position: 'absolute', width: 30, height: 30, borderRadius: 15,
+    borderWidth: 2.5, borderColor: '#C084FC',
     backgroundColor: 'rgba(192,132,252,0.18)',
   },
+  // core = তোমার EXACT GPS পয়েন্ট (circle শুধু search zone, এই dot-ই আসল)।
   core: {
-    width: 10, height: 10, borderRadius: 5,
+    width: 14, height: 14, borderRadius: 7,
     backgroundColor: '#C084FC',
-    borderWidth: 2, borderColor: '#FFFFFF',
-    shadowColor: '#C084FC', shadowOpacity: 0.8, shadowRadius: 6, shadowOffset: { width: 0, height: 0 },
+    borderWidth: 2.5, borderColor: '#FFFFFF',
+    shadowColor: '#C084FC', shadowOpacity: 0.9, shadowRadius: 7, shadowOffset: { width: 0, height: 0 },
     elevation: 6,
   },
   // নিজের নাম — dot-এর ঠিক নিচে, absolute (dot-এর position না নড়াতে)।
   nameChip: {
-    position: 'absolute', top: 26,
+    position: 'absolute', top: 32,
     backgroundColor: '#C084FC',
-    paddingHorizontal: 8, paddingVertical: 2,
-    borderRadius: 8,
+    paddingHorizontal: 9, paddingVertical: 3,
+    borderRadius: 9,
     borderWidth: 1.2, borderColor: '#FFFFFF',
     shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 4, shadowOffset: { width: 0, height: 2 },
     elevation: 7,
   },
   nameText: {
-    color: '#FFFFFF', fontSize: 10, fontWeight: '800',
+    color: '#FFFFFF', fontSize: 11, fontWeight: '800',
     letterSpacing: -0.1, textAlign: 'center',
   },
 });
