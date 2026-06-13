@@ -51,7 +51,9 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
   useEffect(() => {
     // coordinate/match অবস্থা বদলালে আবার track করি (pin নড়া/রং বদল render হোক)।
     setTracks(true);
-    const t = setTimeout(() => setTracks(false), 600);
+    // বড় pin (44px) + PulseRing(72) + dest chip পুরো render হওয়ার সময় দিই,
+    // নাহলে Android-এ freeze আগে হলে icon অর্ধেক/কাটা দেখায়।
+    const t = setTimeout(() => setTracks(false), 1000);
     return () => clearTimeout(t);
   }, [rider.lat, rider.lng, isMatch, isSelected]);
 
@@ -113,7 +115,9 @@ export default memo(RiderMarkerBase, (prev, next) =>
 );
 
 const m = StyleSheet.create({
-  wrap: { alignItems: 'center' },
+  // fixed bounding box — PulseRing(72)+pin+tail+chip সব এর ভেতরে যেন থাকে,
+  // নাহলে Android marker view box ছোট ধরে icon অর্ধেক কেটে ফেলে।
+  wrap: { width: 150, alignItems: 'center', justifyContent: 'center' },
   pin: {
     width: 44, height: 44, borderRadius: 22,
     alignItems: 'center', justifyContent: 'center',
