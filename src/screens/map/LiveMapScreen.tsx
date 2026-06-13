@@ -190,9 +190,9 @@ export default function LiveMapScreen() {
   const nearbyRiders = useMemo<RiderMatch[]>(() => {
     return rawRiders.map((r: any) => ({
       userId: r.id,
-      name: r.name || 'Unknown',
+      name: (r.name && r.name.trim()) || 'Rider',
       distance: r.distanceM ?? 0,
-      destination: r.destination ?? '',
+      destination: (r.destination && r.destination.trim()) || '',
       pickupPoint: r.pickupPoint ?? '',
       rating: r.rating ?? 5,
       badge: r.badge ?? 'New Rider',
@@ -569,7 +569,13 @@ export default function LiveMapScreen() {
             ? `${rider.distance}m`
             : `${(rider.distance / 1000).toFixed(1)}km`;
           return (
-            <Marker key={rider.userId} coordinate={{ latitude: rider.lat, longitude: rider.lng }} onPress={() => { if (canSelect) setSelectedRider(rider); }}>
+            <Marker
+              key={rider.userId}
+              coordinate={{ latitude: rider.lat, longitude: rider.lng }}
+              onPress={() => { if (canSelect) setSelectedRider(rider); }}
+              zIndex={isMatch ? 20 : 10}
+              tracksViewChanges={false}
+            >
               <View style={m.wrap}>
                 {/* match-করা rider-এর পিছনে live pulse — জীবন্ত দেখায়।
                     শুধু match হলে, যাতে সব marker pulse করে map ভারী না হয়। */}
@@ -577,21 +583,37 @@ export default function LiveMapScreen() {
                 {/* match হলে bubble-টা "পেয়েছি!" bounce+glow সহ আসে;
                     নাহলে সাধারণ bubble (extra animation নেই, হালকা)। */}
                 {(() => {
-                  const bubble = (
+                  const vType = (rider.vehicleType as VehicleType) ?? 'rickshaw';
+                  const isSelected = selectedRider?.userId === rider.userId;
+                  const pin = (
                     <>
-                      <View style={[m.bubble, { backgroundColor: bg }]}>
+                      <View
+                        style={[
+                          m.pin,
+                          { backgroundColor: bg, borderColor: isMatch ? '#ECFDF5' : '#FFF7ED' },
+                          isSelected && m.pinSelected,
+                        ]}
+                      >
                         <VehicleIcon
-                          type={((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'bike' ? 'motorcycle' : ((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'cng' ? 'cng' : 'rickshaw'}
-                          tone={((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'bike' ? 'indigo' : ((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'cng' ? 'teal' : 'amber'}
-                          size={24}
+                          type={vType === 'bike' ? 'motorcycle' : vType === 'cng' ? 'cng' : 'rickshaw'}
+                          tone="mono"
+                          active
+                          size={isSelected ? 22 : 18}
                         />
-                        <RNText style={m.name} numberOfLines={1}>{rider.name}</RNText>
-                        <RNText style={m.dist}>{distLabel}</RNText>
                       </View>
-                      <View style={[m.tail, { borderTopColor: bg }]} />
+                      <View style={[m.pinTail, { borderTopColor: bg }]} />
+                      {/* destination label সব pin-এ (green match + orange nearby) —
+                          এক নজরে কে কোথায় যাচ্ছে বোঝা যায় */}
+                      {rider.destination ? (
+                        <View style={[m.destChip, { borderColor: bg }]}>
+                          <RNText style={m.destChipText} numberOfLines={1}>
+                            {rider.destination}
+                          </RNText>
+                        </View>
+                      ) : null}
                     </>
                   );
-                  return isMatch ? <MatchGlow glowColor={C.matchGreen}>{bubble}</MatchGlow> : bubble;
+                  return isMatch ? <MatchGlow glowColor={C.matchGreen}>{pin}</MatchGlow> : pin;
                 })()}
               </View>
             </Marker>
@@ -647,10 +669,12 @@ export default function LiveMapScreen() {
           <RNText style={[s.statPillNum, matchCount > 0 && { color: C.matchGreen }]}>{matchCount}</RNText>
           <RNText style={s.statPillLbl}> Match</RNText>
         </View>
-        <View style={s.statPill}>
-          <RNText style={s.statPillNum}>{routeRiders.length}</RNText>
-          <RNText style={s.statPillLbl}> On Route</RNText>
-        </View>
+        {routeRiders.length > 0 ? (
+          <View style={s.statPill}>
+            <RNText style={s.statPillNum}>{routeRiders.length}</RNText>
+            <RNText style={s.statPillLbl}> On Route</RNText>
+          </View>
+        ) : null}
         <TouchableOpacity style={[s.statPill, s.statPillGps]} onPress={handleExpandZone} activeOpacity={0.75}>
           <RNText style={[s.statPillNum, { fontSize: 11, color: C.amber }]}>
             {hasLoc ? `${userAccuracyRadius}m` : '…'}
@@ -668,7 +692,7 @@ export default function LiveMapScreen() {
       </View>
 
       {!showNoRidersSheet ? (
-        <View style={[s.scanChip, { bottom: selectedRider ? 210 : 8 }]}>
+        <View style={[s.scanChip, { bottom: selectedRider ? 165 : 8 }]}>
           <Animated.View style={[s.scanDot, {
             opacity: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.2, 1] }),
             transform: [{ scale: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.6, 1] }) }],
@@ -689,12 +713,18 @@ export default function LiveMapScreen() {
 
       {selectedRider ? (
         <View style={{ position: 'absolute', left: 0, right: 0, bottom: 8 }}>
-          <SelectedSheet rider={selectedRider} meetupRoute={meetupRoute} onChat={openChat} onClose={() => setSelectedRider(null)} />
+          <SelectedSheet
+            rider={selectedRider}
+            meetupRoute={meetupRoute}
+            requestState={requestStates[selectedRider.userId] ?? 'idle'}
+            onOffer={handleOffer}
+            onClose={() => setSelectedRider(null)}
+          />
         </View>
       ) : null}
 
       {showNoRidersSheet && !selectedRider ? (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 50, elevation: 50 }}>
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 12, zIndex: 50, elevation: 50 }}>
           <NoRidersSheet
             scanSecs={scanSecs}
             zoneIdx={zoneIdx}
@@ -729,11 +759,49 @@ const userDot = StyleSheet.create({
 
 const m = StyleSheet.create({
   wrap: { alignItems: 'center' },
-  bubble: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, alignItems: 'center', minWidth: 68, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-  emoji: { marginBottom: 2 },
-  name: { color: '#FFF', fontSize: 10, fontWeight: '800', maxWidth: 80, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
-  dist: { color: 'rgba(255,255,255,0.75)', fontSize: 9, fontWeight: '600', marginTop: 1 },
-  tail: { width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 7, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
+  // compact round teardrop pin — Uber/Pathao style, icon only (name shows on tap → card)
+  pin: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2,
+    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 5, shadowOffset: { width: 0, height: 3 },
+    elevation: 7,
+  },
+  // selected pin — বড় + উজ্জ্বল glow, যাতে কোন rider select করা স্পষ্ট বোঝা যায়
+  pinSelected: {
+    width: 46, height: 46, borderRadius: 23,
+    borderWidth: 3,
+    shadowOpacity: 0.7, shadowRadius: 10,
+    elevation: 12,
+  },
+  pinTail: {
+    width: 0, height: 0,
+    borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 8,
+    borderLeftColor: 'transparent', borderRightColor: 'transparent',
+    marginTop: -2,
+  },
+  // slim destination label under the pin — "এই rider কোথায় যাচ্ছে" এক নজরে
+  destChip: {
+    marginTop: 1,
+    maxWidth: 130,
+    backgroundColor: '#0E1430',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1.2,
+    shadowColor: '#000',
+    shadowOpacity: 0.45,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
+  },
+  destChipText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: -0.1,
+    textAlign: 'center',
+  },
 });
 
 // ─── Screen styles ─────────────────────────────────────────────────────────────
@@ -770,17 +838,18 @@ const s = StyleSheet.create({
   etaText: { fontSize: 9, color: '#C084FC', fontWeight: '700', letterSpacing: 0.2 },
 
   // ── Stats — compact pill row, solid readable dark cards
-  statsRow: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', gap: 5, zIndex: 9 },
+  statsRow: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', gap: 4, zIndex: 9 },
   statPill: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#111827', borderRadius: 8,
-    paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', elevation: 4,
+    paddingVertical: 4, paddingHorizontal: 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', elevation: 4,
     shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 },
   },
-  statPillGreen: { borderColor: 'rgba(52,211,153,0.4)', backgroundColor: '#0d1f18' },
+  // Match pill — সবচেয়ে গুরুত্বপূর্ণ signal, একটু জোর দেওয়া
+  statPillGreen: { borderColor: 'rgba(52,211,153,0.5)', backgroundColor: '#0d1f18' },
   statPillGps: { borderColor: 'rgba(245,158,11,0.35)', backgroundColor: '#1a1500' },
-  statPillNum: { fontSize: 12, fontWeight: '900', color: '#F1F5F9' },
-  statPillLbl: { fontSize: 10, fontWeight: '600', color: '#94A3B8' },
+  statPillNum: { fontSize: 11, fontWeight: '900', color: '#F1F5F9' },
+  statPillLbl: { fontSize: 9, fontWeight: '600', color: '#94A3B8' },
 
   // ── Legend inline (inside stats row)
   legendInline: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6 },

@@ -11,6 +11,9 @@ import type { RiderMatch } from '@/services/firebase/matchingService';
 import { IconChat, IconClose, IconStar } from './MapIcons';
 
 const C = {
+  surface: '#0A1022',
+  cardBorder: 'rgba(192,132,252,0.12)',
+  primary: '#C084FC',
   text: '#EEF2FF',
   textSub: '#8892A4',
   textMuted: '#4A5568',
@@ -23,144 +26,206 @@ const C = {
 type Props = {
   rider: RiderMatch;
   meetupRoute: { distanceText: string; durationText: string; summary: string } | null;
-  onChat: (r: RiderMatch) => void;
+  requestState: 'idle' | 'pending' | 'confirmed';
+  onOffer: (r: RiderMatch) => void;
   onClose: () => void;
 };
 
-export const SelectedSheet = ({ rider, meetupRoute, onChat, onClose }: Props) => {
+export const SelectedSheet = ({ rider, meetupRoute, requestState, onOffer, onClose }: Props) => {
   const isMatch = rider.isMatch;
   const accentColor = isMatch ? C.matchGreen : C.nearbyOrange;
+  const confirmed = requestState === 'confirmed';
+  const pending = requestState === 'pending';
+  const btnLabel = confirmed ? 'Open Chat' : pending ? 'Request Sent · Waiting' : 'Send Request';
   return (
     <View style={ss.wrap}>
       <View style={ss.handle} />
+
+      {/* ── Header row: avatar + identity + close ── */}
       <View style={ss.row}>
         <View style={[ss.avatar, { borderColor: accentColor }]}>
           <RNText style={ss.avatarText}>{rider.name.charAt(0).toUpperCase()}</RNText>
+          <View style={[ss.statusDot, { backgroundColor: accentColor }]} />
         </View>
+
         <View style={ss.info}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <RNText style={ss.name}>{rider.name}</RNText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <RNText style={ss.name} numberOfLines={1}>
+              {rider.name}
+            </RNText>
             {isMatch && (
               <View style={ss.matchBadge}>
                 <RNText style={ss.matchText}>MATCH</RNText>
               </View>
             )}
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+
+          {/* meta chips inline — dest · distance · rating */}
+          <View style={ss.metaLine}>
             <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
               <Path
                 d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
                 fill={C.textSub}
               />
-              <SvgCircle cx="12" cy="9" r="2.5" fill="#0A1022" />
+              <SvgCircle cx="12" cy="9" r="2.5" fill={C.surface} />
             </Svg>
-            <RNText style={ss.dest}>{rider.destination}</RNText>
+            <RNText style={ss.dest} numberOfLines={1}>
+              {rider.destination}
+            </RNText>
+            <View style={ss.dotSep} />
+            <RNText style={ss.meta}>{rider.distance}m</RNText>
+            <View style={ss.dotSep} />
+            <IconStar size={11} />
+            <RNText style={ss.meta}>{rider.rating.toFixed(1)}</RNText>
           </View>
-          <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                <Path
-                  d="M2 12h20M12 2l10 10-10 10"
-                  stroke={C.textMuted}
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </Svg>
-              <RNText style={ss.meta}>{rider.distance}m away</RNText>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <IconStar size={12} />
-              <RNText style={ss.meta}>{rider.rating.toFixed(1)}</RNText>
-            </View>
-          </View>
-          {meetupRoute ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
-              <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                <Path
-                  d="M13 4a1 1 0 10-2 0 1 1 0 002 0zM7 20l3-8 2 3 3-5 2 10"
-                  stroke={C.teal}
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </Svg>
-              <RNText style={ss.walk}>
-                Walk {meetupRoute.distanceText} · ~{meetupRoute.durationText}
-              </RNText>
-            </View>
-          ) : null}
         </View>
-        <TouchableOpacity onPress={onClose} style={ss.close}>
+
+        <TouchableOpacity onPress={onClose} style={ss.close} hitSlop={8}>
           <IconClose />
         </TouchableOpacity>
       </View>
-      <TouchableOpacity style={ss.chatBtn} onPress={() => onChat(rider)} activeOpacity={0.85}>
-        <IconChat />
-        <RNText style={ss.chatText}>Open Chat</RNText>
-      </TouchableOpacity>
+
+      {/* ── Walk pill (only if route known) ── */}
+      {meetupRoute ? (
+        <View style={ss.walkPill}>
+          <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
+            <Path
+              d="M13 4a1 1 0 10-2 0 1 1 0 002 0zM7 20l3-8 2 3 3-5 2 10"
+              stroke={C.teal}
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
+          <RNText style={ss.walk}>
+            {meetupRoute.distanceText} walk · ~{meetupRoute.durationText}
+          </RNText>
+        </View>
+      ) : null}
+
+      {/* ── Action: request flow → pending → chat (same logic as Home) ── */}
+      <View style={ss.actions}>
+        <TouchableOpacity
+          style={[ss.chatBtn, confirmed ? ss.btnConfirmed : pending ? ss.btnPending : null]}
+          onPress={() => onOffer(rider)}
+          activeOpacity={0.85}
+          disabled={pending}
+        >
+          {confirmed && <IconChat />}
+          <RNText style={ss.chatText}>{btnLabel}</RNText>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
 
 const ss = StyleSheet.create({
   wrap: {
-    marginHorizontal: 12,
-    backgroundColor: '#0A1022',
-    borderRadius: 24,
+    marginHorizontal: 10,
+    backgroundColor: '#0E1430',
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(192,132,252,0.16)',
-    padding: 16,
-    elevation: 14,
-    shadowColor: '#C084FC',
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
+    borderColor: 'rgba(192,132,252,0.22)',
+    paddingHorizontal: 13,
+    paddingTop: 8,
+    paddingBottom: 11,
+    overflow: 'hidden',
+    elevation: 18,
+    shadowColor: C.primary,
+    shadowOpacity: 0.4,
+    shadowRadius: 18,
     shadowOffset: { width: 0, height: -4 },
   },
   handle: {
     width: 32,
-    height: 3,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    height: 3.5,
+    backgroundColor: 'rgba(255,255,255,0.14)',
     borderRadius: 2,
     alignSelf: 'center',
-    marginBottom: 14,
+    marginBottom: 9,
   },
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(192,132,252,0.12)',
-    borderWidth: 2,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(192,132,252,0.15)',
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { fontSize: 21, fontWeight: '900', color: C.text },
+  avatarText: { fontSize: 16, fontWeight: '900', color: C.text },
+  statusDot: {
+    position: 'absolute',
+    right: -1,
+    bottom: -1,
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    borderWidth: 2,
+    borderColor: '#0E1430',
+  },
   info: { flex: 1 },
-  name: { fontSize: 16, fontWeight: '800', color: C.text, letterSpacing: -0.3 },
+  name: { fontSize: 15, fontWeight: '800', color: C.text, letterSpacing: -0.3, flexShrink: 1 },
   matchBadge: {
     backgroundColor: 'rgba(52,211,153,0.15)',
-    paddingHorizontal: 7,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
+    borderRadius: 5,
+    borderWidth: 0.8,
     borderColor: 'rgba(52,211,153,0.35)',
   },
-  matchText: { fontSize: 8, color: C.matchGreen, fontWeight: '800' },
-  dest: { fontSize: 12, color: C.textSub, marginTop: 4 },
+  matchText: { fontSize: 8, color: C.matchGreen, fontWeight: '800', letterSpacing: 0.3 },
+  metaLine: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  dest: { fontSize: 12, color: C.textSub, fontWeight: '600', flexShrink: 1 },
   meta: { fontSize: 12, color: C.textMuted, fontWeight: '600' },
-  walk: { fontSize: 11, color: C.teal, marginTop: 6, fontWeight: '700' },
-  close: { padding: 6, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 10 },
+  dotSep: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: C.textMuted,
+    marginHorizontal: 2,
+  },
+  walkPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+    backgroundColor: 'rgba(52,211,153,0.1)',
+    borderWidth: 0.8,
+    borderColor: 'rgba(52,211,153,0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginTop: 8,
+    marginLeft: 48,
+  },
+  walk: { fontSize: 10.5, color: C.teal, fontWeight: '700' },
+  close: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 15,
+  },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 10 },
   chatBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#C084FC',
-    borderRadius: 16,
-    paddingVertical: 13,
-    marginTop: 14,
-    elevation: 4,
+    backgroundColor: C.primary,
+    borderRadius: 13,
+    paddingVertical: 11,
+    elevation: 6,
+    shadowColor: C.primary,
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
+  btnPending: { backgroundColor: C.nearbyOrange, shadowColor: C.nearbyOrange },
+  btnConfirmed: { backgroundColor: C.matchGreen, shadowColor: C.matchGreen },
   chatText: { color: C.white, fontSize: 14, fontWeight: '800', letterSpacing: -0.2 },
 });
