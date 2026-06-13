@@ -47,17 +47,12 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
   const bg = isMatch ? matchColor : nearbyColor;
   const vType = (rider.vehicleType as VehicleType) ?? 'rickshaw';
 
-  // self-freeze: render-এর পর track করি, তারপর freeze।
-  // KEY: SVG vector icon (rickshaw চাকা/প্যাডেল) পুরো আঁকতে সময় নেয়।
-  // খুব তাড়াতাড়ি freeze করলে Android marker bitmap অর্ধেক-আঁকা icon snapshot
-  // নেয় → icon কাটা দেখায়। তাই বড় delay (1200ms) পর freeze করি, যাতে icon
-  // নিশ্চিত পুরো আঁকা হওয়ার পরই snapshot নেওয়া হয়। (আগে 700ms ছিল — সাদা
-  // mono icon-এ কাটাটা স্পষ্ট ধরা পড়ছিল।)
+  // self-freeze: render-এর পর অল্প সময় track করি, তারপর freeze।
   const [tracks, setTracks] = useState(true);
   useEffect(() => {
     // coordinate/match অবস্থা বদলালে আবার track করি (pin নড়া/রং বদল render হোক)।
     setTracks(true);
-    const t = setTimeout(() => setTracks(false), 1200);
+    const t = setTimeout(() => setTracks(false), 600);
     return () => clearTimeout(t);
   }, [rider.lat, rider.lng, isMatch, isSelected]);
 
@@ -76,7 +71,7 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
           type={vType === 'bike' ? 'motorcycle' : vType === 'cng' ? 'cng' : 'rickshaw'}
           tone="mono"
           active
-          size={22}
+          size={20}
         />
       </View>
       <View style={[m.pinTail, { borderTopColor: bg }]} />
@@ -102,7 +97,7 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
       tracksViewChanges={tracks}
     >
       <View style={m.wrap}>
-        {isMatch && <PulseRing color={matchColor} size={64} />}
+        {isMatch && <PulseRing color={matchColor} size={60} />}
         {isMatch ? <MatchGlow glowColor={matchColor}>{pin}</MatchGlow> : pin}
       </View>
     </Marker>
@@ -121,13 +116,11 @@ export default memo(RiderMarkerBase, (prev, next) =>
 );
 
 const m = StyleSheet.create({
-  // fixed bounding box — Android marker view box children থেকে মাপে; box
-  // ছোট হলে pin/PulseRing/chip-এর প্রান্ত কেটে ফেলে। তাই যথেষ্ট চওড়া (160)
-  // + লম্বা (110) box দিই যাতে PulseRing(64), pin(48), tail, dest chip সব
-  // ভেতরে থাকে। center-align করায় coordinate box-এর মাঝে বসে।
-  wrap: { width: 160, height: 110, alignItems: 'center', justifyContent: 'center' },
+  // d0b559d-এর working wrap — fixed size দিলে anchor 0.5/0.5 + বড় box
+  // pin-কে GPS থেকে সরিয়ে দেয়/lukিয়ে ফেলে। center-align যথেষ্ট।
+  wrap: { alignItems: 'center' },
   pin: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 2,
     shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 5, shadowOffset: { width: 0, height: 3 },
@@ -135,7 +128,7 @@ const m = StyleSheet.create({
   },
   // selected pin — box একটু বড় + glow (icon size একই থাকে)।
   pinSelected: {
-    width: 48, height: 48, borderRadius: 24,
+    width: 44, height: 44, borderRadius: 22,
     borderWidth: 3,
     shadowOpacity: 0.7, shadowRadius: 10,
     elevation: 12,
