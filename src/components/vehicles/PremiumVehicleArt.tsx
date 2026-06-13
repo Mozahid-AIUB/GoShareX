@@ -68,8 +68,10 @@ const RickshawArt = ({ size, active, mono, monoColor }: { size: number; active: 
           <Stop offset="1" stopColor={c2} />
         </LinearGradient>
       </Defs>
-      {/* viewBox 120x120, art উপর-নিচ center করতে y≈18 থেকে */}
-      <G transform="translate(0,16)">
+      {/* viewBox 120x120, art উপর-নিচ center করতে y≈18 থেকে।
+          scale 0.84 + translate দিয়ে চারপাশে padding — গোল pin-এর border
+          যেন art কেটে না ফেলে (mono সাদা হওয়ায় কাটা স্পষ্ট দেখা যেত)। */}
+      <G transform="translate(9.6,18) scale(0.84)">
         <Ellipse cx="60" cy="86" rx="50" ry="3.6" fill={c3} opacity="0.18" />
         {/* ভাঁজ-করা খাড়া hood */}
         <Path d="M28 60V34C28 22 36 12 44 12C46 18 46 26 45 34C46 44 44 54 44 60Z" fill={hood} />

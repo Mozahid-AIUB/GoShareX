@@ -1,3 +1,4 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text as RNText, View } from 'react-native';
 import { Marker } from 'react-native-maps';
@@ -64,6 +65,9 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
           isSelected && m.pinSelected,
         ]}
       >
+        {/* icon-এর পিছনে হালকা inner glow disc — সাদা icon pin-এ "float"
+            করে, premium depth দেয়। */}
+        <View style={m.iconGlow} pointerEvents="none" />
         {/* সব pin-এর icon একই size (match/non-match/selected নির্বিশেষে) —
             শুধু রং আলাদা, size কখনো বদলায় না। */}
         <VehicleIcon
@@ -74,9 +78,11 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
         />
       </View>
       <View style={[m.pinTail, { borderTopColor: bg }]} />
-      {/* destination chip — premium pill, শুধু name (center)। */}
+      {/* destination chip — premium glass pill: ছোট location pin glyph
+          (pin-এর রঙে) + destination name (center)। */}
       {rider.destination ? (
         <View style={[m.destChip, { borderColor: bg }]}>
+          <MaterialCommunityIcons name="map-marker" size={11} color={bg} style={m.destChipIcon} />
           <RNText style={m.destChipText} numberOfLines={1}>
             {rider.destination}
           </RNText>
@@ -134,21 +140,34 @@ const m = StyleSheet.create({
     borderLeftColor: 'transparent', borderRightColor: 'transparent',
     marginTop: -2,
   },
-  // premium pill — শুধু name (center)। wrap center-align করায় chip-এর
-  // প্রস্থ যাই হোক pin-এর নিচে মাঝখানে থাকে।
+  // icon-এর পিছনে glow disc — হালকা সাদা আভা, icon-কে depth দেয়।
+  iconGlow: {
+    position: 'absolute',
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  // premium glass pill — location glyph + name (center)। wrap center-align
+  // করায় chip-এর প্রস্থ যাই হোক pin-এর নিচে মাঝখানে থাকে।
   destChip: {
-    marginTop: 4,
-    maxWidth: 144,
-    backgroundColor: 'rgba(14,20,48,0.95)',
-    paddingHorizontal: 11,
+    marginTop: 5,
+    maxWidth: 152,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(12,17,40,0.96)',
+    paddingLeft: 8,
+    paddingRight: 11,
     paddingVertical: 4,
     borderRadius: 999,
-    borderWidth: 1,
+    borderWidth: 1.2,
     shadowColor: '#000',
-    shadowOpacity: 0.5,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 7,
+    shadowOpacity: 0.55,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 9,
+  },
+  destChipIcon: {
+    marginRight: 3,
+    marginLeft: -1,
   },
   destChipText: {
     color: '#FFFFFF',
