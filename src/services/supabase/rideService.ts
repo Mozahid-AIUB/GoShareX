@@ -10,7 +10,6 @@
 import { supabase } from '@/config/supabase.config';
 import { supabasePresenceService } from '@/services/supabase/presenceService';
 import type { RideRoutePreview } from '@/types/ride.types';
-import { getFare } from '@/utils/fareTable';
 import { logger } from '@/utils/logger';
 
 export type RideStatus = 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled';
@@ -60,27 +59,6 @@ function rowToRide(row: any): Ride {
     cancelledBy: row.cancelled_by ?? undefined,
     cancelReason: row.cancel_reason ?? undefined,
   };
-}
-
-// ছোট helper: একটা user-এর কাউন্টার increment (started/total rides, savings)
-async function bumpUser(uid: string, patch: { started?: number; rides?: number; saved?: number }) {
-  const { data } = await supabase
-    .from('users')
-    .select('total_rides, total_saved')
-    .eq('id', uid)
-    .single();
-  if (!data) return;
-  const update: Record<string, any> = {};
-  if (patch.rides) update.total_rides = Number(data.total_rides ?? 0) + patch.rides;
-  if (patch.saved) update.total_saved = Number(data.total_saved ?? 0) + patch.saved;
-  if (Object.keys(update).length) {
-    // NOTE: total_rides/total_saved trigger-সুরক্ষিত (client বদলাতে পারে না)।
-    // তাই এটা পরে Edge Function/service_role-এ সরাতে হবে (ধাপ ৬)। আপাতত
-    // চেষ্টা করি; আটকালে non-fatal।
-    await supabase.from('users').update(update).eq('id', uid).then(({ error }) => {
-      if (error) logger.warn('rideService.bumpUser', error.message);
-    });
-  }
 }
 
 class SupabaseRideService {
@@ -184,15 +162,12 @@ class SupabaseRideService {
       supabase.rpc('release_ride_status', { p_uids: [ride.rider1, ride.rider2] }),
     ]);
 
-    // savings = solo fare - split amount
-    const soloFare = getFare(ride.pickupPoint, ride.destination) || ride.fare;
-    const savings = soloFare - ride.splitAmount;
-
-    await Promise.allSettled([
-      bumpUser(ride.rider1, { rides: 1, saved: savings }),
-      bumpUser(ride.rider2, { rides: 1, saved: savings }),
-    ]);
-    // badge upgrade পরে Edge Function-এ (ধাপ ৬) — server-side, cheat-proof।
+    // total_rides/total_saved/badge cheat-proof RPC-তে — client কোনো সংখ্যা
+    // পাঠায় না; RPC নিজে ride.split_amount দেখে গোনে (security definer)।
+    // idempotent: rides.counted ফ্ল্যাগে double-count আটকায়।
+    await supabase.rpc('apply_ride_completion', { p_ride_id: rideId }).then(({ error }) => {
+      if (error) logger.warn('rideService.applyCompletion', error.message);
+    });
   }
 
   async cancelRide(rideId: string, userId: string, reason = 'Cancelled by user'): Promise<void> {
@@ -213,8 +188,9 @@ class SupabaseRideService {
       supabasePresenceService.removeActiveRider(ride.rider1),
       supabasePresenceService.removeActiveRider(ride.rider2),
       supabase.rpc('release_ride_status', { p_uids: [ride.rider1, ride.rider2] }),
+      // যে cancel করছে শুধু তার strike +1 (RPC auth.uid() ব্যবহার করে — cheat-proof)
+      supabase.rpc('record_my_cancellation'),
     ]);
-    // cancellation strike পরে Edge Function-এ (penalty server-side, ধাপ ৬)।
   }
 }
 

@@ -8,7 +8,6 @@
 import { supabase } from '@/config/supabase.config';
 import { logger } from '@/utils/logger';
 import type { RatingPayload, TrustBreakdown } from '@/services/firebase/ratingService';
-import type { UserBadge } from '@/types/user.types';
 
 export {
   RATING_CATEGORIES,
@@ -17,73 +16,13 @@ export {
   type TrustBreakdown,
 } from '@/services/firebase/ratingService';
 
-/**
- * trust_score + ride count + strikes থেকে auto badge (অর্জন করতে হয়)।
- * Uber/Pathao প্যাটার্ন — badge এমনি দেওয়া হয় না, trust বাড়লে badge বাড়ে।
- *   Unreliable  → strike বেশি (≥3) বা trust খুব কম
- *   New Rider   → নতুন (<5 ride)
- *   Regular     → 5+ ride, trust 60+
- *   Trusted     → 15+ ride, trust 80+
- *   Elite Rider → 50+ ride, trust 92+
- */
-function computeBadge(trustScore: number, totalRides: number, strikes: number): UserBadge {
-  if (strikes >= 3) return 'Unreliable';
-  if (totalRides >= 50 && trustScore >= 92) return 'Elite Rider';
-  if (totalRides >= 15 && trustScore >= 80) return 'Trusted';
-  if (totalRides >= 5 && trustScore >= 60) return 'Regular';
-  return 'New Rider';
-}
-
-// ─── trust recalculation (Firebase formula হুবহু) + auto badge ───
+// ─── trust recalculation — সম্পূর্ণ server-side (cheat-proof) ───
+// সব হিসাব (গড় star, trust score, badge) recalc_user_trust RPC ভেতরে হয়।
+// client কোনো সংখ্যা পাঠায় না — শুধু "এই user-এর rating বদলেছে" জানায়।
+// তাই কেউ নিজের trust/rating/badge fake করতে পারে না।
 async function recalculateTrust(userId: string): Promise<void> {
-  const { data, error } = await supabase
-    .from('ratings')
-    .select('stars, friendly, safe_ride')
-    .eq('rated_id', userId);
-  if (error || !data || data.length === 0) return;
-
-  const count = data.length;
-  let totalStars = 0, friendly = 0, safeRide = 0;
-  for (const r of data) {
-    totalStars += Number(r.stars ?? 0);
-    if (r.friendly) friendly++;
-    if (r.safe_ride) safeRide++;
-  }
-  const avgStars = totalStars / count;
-  // 70% star + 30% category (Firebase-এর একই formula)
-  const starPoints = (avgStars / 5) * 70;
-  const catAvg = (friendly + safeRide) / (count * 2);
-  const trustScore = Math.round(starPoints + catAvg * 30);
-
-  const breakdown: TrustBreakdown = {
-    totalRatings: count,
-    avgStars: Math.round(avgStars * 10) / 10,
-    friendlyPct: Math.round((friendly / count) * 100),
-    safeRidePct: Math.round((safeRide / count) * 100),
-    trustScore,
-  };
-
-  // ride count + strikes এনে badge auto-হিসাব
-  const { data: u } = await supabase
-    .from('users')
-    .select('total_rides, strikes')
-    .eq('id', userId)
-    .single();
-  const badge = computeBadge(trustScore, Number(u?.total_rides ?? 0), Number(u?.strikes ?? 0));
-
-  // users আপডেট। rating/trust trigger-সুরক্ষিত — তাই service_role/RPC
-  // ছাড়া client এটা বদলাতে পারে না। আপাতত client update; পরে Edge
-  // Function-এ সরানো হবে (ধাপ ৬) যাতে cheat-proof হয়।
-  await supabase
-    .from('users')
-    .update({
-      trust_score: breakdown.trustScore,
-      rating: breakdown.avgStars,
-      total_ratings: breakdown.totalRatings,
-      trust_breakdown: breakdown,
-      badge,
-    })
-    .eq('id', userId);
+  const { error } = await supabase.rpc('recalc_user_trust', { p_rated_id: userId });
+  if (error) logger.warn('ratingService.recalcTrust', error.message);
 }
 
 export async function submitRating(payload: RatingPayload): Promise<void> {
