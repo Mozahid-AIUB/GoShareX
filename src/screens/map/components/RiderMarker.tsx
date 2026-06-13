@@ -46,13 +46,27 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
   const bg = isMatch ? matchColor : nearbyColor;
   const vType = (rider.vehicleType as VehicleType) ?? 'rickshaw';
 
-  // self-freeze: render-এর পর অল্প সময় track করি, তারপর freeze।
+  // self-freeze: marker content পুরো layout/paint হওয়ার পর তবেই freeze করি।
+  // timer-only ভরসা করা যায় না (icon font/SVG কখন paint শেষ অজানা) — তাই
+  // onLayout (layout মাপা শেষ) + একটা ছোট safety-delay মিলিয়ে freeze করি।
+  // coordinate/match বদলালে আবার track on করি যাতে নতুন frame snapshot হয়।
   const [tracks, setTracks] = useState(true);
+  const freezeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // layout শেষ হলে: চলমান freeze বাতিল করে নতুন safety-delay শুরু করি।
+  // delay-এর মধ্যে চাকা/text/dot সব paint হয়ে যায়, তারপরই snapshot freeze।
+  const scheduleFreeze = () => {
+    if (freezeTimer.current) clearTimeout(freezeTimer.current);
+    freezeTimer.current = setTimeout(() => setTracks(false), 350);
+  };
+
   useEffect(() => {
-    // coordinate/match অবস্থা বদলালে আবার track করি (pin নড়া/রং বদল render হোক)।
     setTracks(true);
-    const t = setTimeout(() => setTracks(false), 600);
-    return () => clearTimeout(t);
+    scheduleFreeze(); // onLayout না এলেও (একই size হলে) fallback হিসেবে।
+    return () => {
+      if (freezeTimer.current) clearTimeout(freezeTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rider.lat, rider.lng, isMatch, isSelected]);
 
   const pin = (
@@ -98,7 +112,7 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
       anchor={{ x: 0.5, y: 0.5 }}
       tracksViewChanges={tracks}
     >
-      <View style={m.wrap}>
+      <View style={m.wrap} onLayout={scheduleFreeze}>
         {isMatch && <PulseRing color={matchColor} size={60} />}
         {isMatch ? <MatchGlow glowColor={matchColor}>{pin}</MatchGlow> : pin}
       </View>

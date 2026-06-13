@@ -1,15 +1,17 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet } from 'react-native';
+import React from 'react';
+import { StyleSheet, View } from 'react-native';
 
 /**
- * MatchGlow — match-করা rider-এর bubble প্রথমবার map-এ এলে একটা
- * "পেয়েছি!" entrance bounce (spring scale) দিয়ে আসে।
+ * MatchGlow — match-করা rider-এর bubble wrap।
  *
- * শুধু scale (native driver) — shadow animation বাদ দেওয়া হয়েছে কারণ
- * একই node-এ native (transform) + JS (shadow) driver মেশালে RN error দেয়
- * ("animated node moved to native earlier")। glow-এর কাজ PulseRing করে।
+ * আগে এটা native-driver spring scale (0.4→1) entrance animation করত।
+ * কিন্তু react-native-maps Android marker `tracksViewChanges` দিয়ে bitmap
+ * snapshot নেয় — child-এ চলমান native animation থাকলে snapshot
+ * mid-animation (scale≈0.4) freeze হয়ে যায় → pin ছোট/কাটা আটকে যেত।
+ * তাই animation বাদ; এটা এখন একটা স্থির wrap (scale সবসময় 1) — pin
+ * সবসময় পুরো আঁকা অবস্থায় freeze হয়। entrance "জীবন্ত" ভাব PulseRing দেয়।
  *
- * glowColor prop রাখা হয়েছে API একই রাখতে (এখন ব্যবহার হয় না)।
+ * glowColor prop API একই রাখতে রাখা হয়েছে (ব্যবহার হয় না)।
  */
 export default function MatchGlow({
   children,
@@ -17,22 +19,7 @@ export default function MatchGlow({
   children: React.ReactNode;
   glowColor?: string;
 }) {
-  const scale = useRef(new Animated.Value(0.4)).current;
-
-  useEffect(() => {
-    Animated.spring(scale, {
-      toValue: 1,
-      friction: 5,
-      tension: 140,
-      useNativeDriver: true,
-    }).start();
-  }, [scale]);
-
-  return (
-    <Animated.View style={[s.wrap, { transform: [{ scale }] }]}>
-      {children}
-    </Animated.View>
-  );
+  return <View style={s.wrap}>{children}</View>;
 }
 
 const s = StyleSheet.create({
