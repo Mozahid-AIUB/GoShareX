@@ -6,7 +6,7 @@ import Svg, { Circle, Defs, LinearGradient, Path, Stop, G, Rect, Ellipse } from 
 import { auth } from '@/config/firebase.config';
 import { useAuthStore } from '@/store';
 import authService from '@/services/authService';
-import { checkSuspension } from '@/services/firebase/badgeService';
+import { checkSuspension } from '@/services/badgeService';
 import { FEATURE_FLAGS } from '@/config/featureFlags';
 import { supabase } from '@/config/supabase.config';
 
@@ -241,8 +241,8 @@ const SplashScreen = () => {
 
     // ---- Supabase auth mode ----
     // Firebase onAuthStateChanged-এর বদলে Supabase session দেখি।
-    // suspension চেক authService (Supabase login) করে — এখানে আবার
-    // Firebase checkSuspension ডাকি না (permission_denied এড়াতে)।
+    // suspension চেক এখন Supabase badgeService দিয়ে — RLS-এ কাজ করে
+    // (Firebase-এ permission_denied দিত, তাই আগে skip করা ছিল)।
     if (FEATURE_FLAGS.USE_SUPABASE_AUTH) {
       (async () => {
         if (resolved.current) return;
@@ -251,6 +251,16 @@ const SplashScreen = () => {
           const { data: { session } } = await supabase.auth.getSession();
           if (session) {
             const userData = await authService.getCurrentUser();
+            if (userData) {
+              const suspension = await checkSuspension(userData.uid);
+              if (suspension.suspended) {
+                await authService.logout();
+                setSuspension({ reason: suspension.reason, suspendedUntil: (userData as any).suspendedUntil });
+                setUser(null);
+                finishLoading();
+                return;
+              }
+            }
             setUser(userData ?? null);
           } else {
             setUser(null);

@@ -24,4 +24,8 @@ export const FEATURE_FLAGS = {
 
   // Post board (ride খোঁজার পোস্ট) Supabase দিয়ে।
   USE_SUPABASE_POSTS: true,
+
+  // Badge/strike/suspension tracking Supabase দিয়ে।
+  // (Firebase-এ checkSuspension permission_denied দিত — Supabase RLS-এ ঠিক।)
+  USE_SUPABASE_BADGE: true,
 } as const;
