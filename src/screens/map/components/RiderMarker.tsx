@@ -47,12 +47,17 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
   const bg = isMatch ? matchColor : nearbyColor;
   const vType = (rider.vehicleType as VehicleType) ?? 'rickshaw';
 
-  // self-freeze: render-এর পর অল্প সময় track করি, তারপর freeze।
+  // self-freeze: render-এর পর track করি, তারপর freeze।
+  // KEY: SVG vector icon (rickshaw চাকা/প্যাডেল) পুরো আঁকতে সময় নেয়।
+  // খুব তাড়াতাড়ি freeze করলে Android marker bitmap অর্ধেক-আঁকা icon snapshot
+  // নেয় → icon কাটা দেখায়। তাই বড় delay (1200ms) পর freeze করি, যাতে icon
+  // নিশ্চিত পুরো আঁকা হওয়ার পরই snapshot নেওয়া হয়। (আগে 700ms ছিল — সাদা
+  // mono icon-এ কাটাটা স্পষ্ট ধরা পড়ছিল।)
   const [tracks, setTracks] = useState(true);
   useEffect(() => {
     // coordinate/match অবস্থা বদলালে আবার track করি (pin নড়া/রং বদল render হোক)।
     setTracks(true);
-    const t = setTimeout(() => setTracks(false), 700);
+    const t = setTimeout(() => setTracks(false), 1200);
     return () => clearTimeout(t);
   }, [rider.lat, rider.lng, isMatch, isSelected]);
 
