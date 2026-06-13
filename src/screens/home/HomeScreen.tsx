@@ -281,17 +281,23 @@ const PartnerCard = ({
               size={28}
             />
           </View>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={S.partnerName}>{partner.name}</Text>
-              <TrustChip badge={partner.badge} confirmed={isConfirmed} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[S.partnerName, { flexShrink: 1 }]} numberOfLines={1}>
+                {partner.name}
+              </Text>
+              <View style={{ flexShrink: 0 }}>
+                <TrustChip badge={partner.badge} confirmed={isConfirmed} />
+              </View>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
               <IconStar size={11} />
               <Text style={S.partnerMeta}> {partner.rating?.toFixed(1)}</Text>
             </View>
           </View>
-          <MatchRing score={partner.matchScore} />
+          <View style={{ flexShrink: 0, marginLeft: 4 }}>
+            <MatchRing score={partner.matchScore} />
+          </View>
         </View>
 
         {/* Info row */}
@@ -2219,41 +2225,40 @@ const S = StyleSheet.create({
   // ── Partner card ──
   partnerCard: {
     backgroundColor: '#FFFFFF', borderRadius: 20,
-    padding: 16, marginBottom: 12,
+    padding: 14, marginBottom: 12,
     borderWidth: 1, borderColor: '#EDE8F5',
     elevation: 3, shadowColor: '#6366F1', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
   },
-  partnerHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  partnerHeader: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 10 },
   partnerAvatar: {
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: '#EEF0FF', borderWidth: 2, borderColor: '#D4D7FF',
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#EEF0FF', borderWidth: 1.5, borderColor: '#DDE0FF',
     alignItems: 'center', justifyContent: 'center',
   },
   partnerAvatarText: { fontSize: 20, fontWeight: '900', color: '#6366F1' },
-  partnerName: { fontSize: 17, fontWeight: '800', color: '#1A1A2E', letterSpacing: -0.2 },
+  partnerName: { fontSize: 16, fontWeight: '800', color: '#1A1A2E', letterSpacing: -0.2 },
   partnerMeta: { fontSize: 12, color: '#9896A8', marginTop: 2, fontWeight: '600' },
 
   partnerInfoRow: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#FAF8FF', borderRadius: 14,
-    padding: 12, marginBottom: 12,
-    borderWidth: 1, borderColor: '#EDE8F5',
+    backgroundColor: '#FAF8FF', borderRadius: 12,
+    paddingVertical: 10, paddingHorizontal: 8, marginBottom: 8,
+    borderWidth: 1, borderColor: '#EFEAF7',
   },
-  partnerInfoItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center' },
+  partnerInfoItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5, justifyContent: 'center' },
   partnerInfoVal: { fontSize: 13, fontWeight: '700', color: '#1A1A2E', letterSpacing: 0.2 },
-  partnerInfoDivider: { width: 1, height: 18, backgroundColor: '#EDE8F5' },
+  partnerInfoDivider: { width: 1, height: 16, backgroundColor: '#EDE8F5' },
 
   partnerDest: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#FAF8FF', borderRadius: 10,
-    paddingHorizontal: 10, paddingVertical: 8, marginBottom: 12,
+    paddingHorizontal: 2, paddingVertical: 2, marginBottom: 10,
   },
-  partnerDestText: { fontSize: 13, fontWeight: '600', color: '#4A4860' },
+  partnerDestText: { fontSize: 13, fontWeight: '600', color: '#6B6980' },
 
   partnerActions: {
     flexDirection: 'row', gap: 8,
     borderTopWidth: 1, borderTopColor: '#F3F0FC',
-    paddingTop: 12, marginTop: 12,
+    paddingTop: 11,
   },
   btnRequest: {
     flex: 1, height: 44, borderRadius: 14, backgroundColor: '#6366F1',
