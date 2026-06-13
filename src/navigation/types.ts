@@ -46,6 +46,7 @@ export type RootStackParamList = {
   EditProfile: undefined;
   Settings: undefined;
   RideHistory: undefined;
+  AdminDashboard: undefined;
   PostBoard: { highlightPostId?: string };
   CreatePost: undefined;
   LiveMap: { destination?: string; pickup?: string } | undefined;

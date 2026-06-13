@@ -21,6 +21,7 @@ import RideHistoryScreen from '@/screens/profile/RideHistoryScreen';
 import SettingsScreen from '@/screens/profile/SettingsScreen';
 import EditProfileScreen from '@/screens/profile/EditProfileScreen';
 import ProfileScreen from '@/screens/profile/ProfileScreen';
+import AdminDashboardScreen from '@/screens/admin/AdminDashboardScreen';
 import ChatListScreen from '@/screens/chat/ChatListScreen';
 import LiveMapScreen from '@/screens/map/LiveMapScreen';
 import PostBoardScreen from '@/screens/board/PostBoardScreen';
@@ -111,6 +112,7 @@ const AppNavigator = () => {
               component={SettingsScreen}
               options={{ headerShown: true, title: 'Settings', headerStyle: DARK_HEADER, headerTitleStyle: DARK_HEADER_TITLE, headerTintColor: '#A5B4FC' }}
             />
+            <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ headerShown: false }} />
             <Stack.Screen name="LiveMap" component={LiveMapScreen} options={{ headerShown: false }} />
             <Stack.Screen
               name="ChatList"

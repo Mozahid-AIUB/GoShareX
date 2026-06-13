@@ -23,6 +23,7 @@ import authService from '@/services/authService';
 import { getUser } from '@/services/userService';
 import { getTrustBreakdown, RATING_CATEGORIES, type TrustBreakdown } from '@/services/ratingService';
 import { useAuthStore } from '@/store/authStore';
+import { isAdminEmail } from '@/config/admin';
 import type { User } from '@/types/auth.types';
 import PremiumIcon from '@/components/common/PremiumIcon';
 import { logger } from '@/utils/logger';
@@ -69,6 +70,7 @@ const Icon = ({ d, color = C.textSub, size = 16 }: { d: string; color?: string; 
 const IconEdit     = () => <Icon d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />;
 const IconHistory  = () => <Icon d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />;
 const IconSettings = () => <Icon d="M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />;
+const IconAdmin    = () => <Icon d="M3 3v18h18M7 16l4-6 4 3 5-8" color="#6366F1" />;
 const IconAlert    = () => <Icon d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" color={C.red} />;
 const IconMail     = () => <Icon d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6" color={C.amber} />;
 const IconShield   = () => <Icon d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" color={C.teal} />;
@@ -522,6 +524,9 @@ export default function ProfileScreen() {
             <MenuItem icon={<IconEdit />}     label="Edit Profile"  sub="Update name & photo"       onPress={() => navigation.navigate('EditProfile')} />
             <MenuItem icon={<IconHistory />}  label="Ride History"  sub="Past rides & receipts"      onPress={() => navigation.navigate('RideHistory')} />
             <MenuItem icon={<IconSettings />} label="Settings"      sub="Notifications, privacy"     onPress={() => navigation.navigate('Settings')} />
+            {isAdminEmail(profile?.email) && (
+              <MenuItem icon={<IconAdmin />} label="Admin Dashboard" sub="Live stats — only you" rightBadge="ADMIN" onPress={() => navigation.navigate('AdminDashboard')} />
+            )}
           </View>
 
           {/* ── Support ── */}
