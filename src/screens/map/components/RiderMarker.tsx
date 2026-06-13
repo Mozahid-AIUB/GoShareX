@@ -70,9 +70,6 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
           isSelected && m.pinSelected,
         ]}
       >
-        {/* icon-এর পিছনে হালকা inner glow disc — সাদা icon pin-এ "float"
-            করে, premium depth দেয়। */}
-        <View style={m.iconGlow} pointerEvents="none" />
         {/* সব pin-এর icon একই size (match/non-match/selected নির্বিশেষে) —
             শুধু রং আলাদা, size কখনো বদলায় না। */}
         <VehicleIcon
@@ -148,12 +145,6 @@ const m = StyleSheet.create({
     borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 9,
     borderLeftColor: 'transparent', borderRightColor: 'transparent',
     marginTop: -2,
-  },
-  // icon-এর পিছনে glow disc — হালকা সাদা আভা, icon-কে depth দেয়।
-  iconGlow: {
-    position: 'absolute',
-    width: 26, height: 26, borderRadius: 13,
-    backgroundColor: 'rgba(255,255,255,0.16)',
   },
   // premium glass pill — location glyph + name (center)। wrap center-align
   // করায় chip-এর প্রস্থ যাই হোক pin-এর নিচে মাঝখানে থাকে।
