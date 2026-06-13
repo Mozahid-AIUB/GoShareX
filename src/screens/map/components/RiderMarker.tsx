@@ -1,4 +1,3 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text as RNText, View } from 'react-native';
 import { Marker } from 'react-native-maps';
@@ -75,11 +74,14 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
         />
       </View>
       <View style={[m.pinTail, { borderTopColor: bg }]} />
-      {/* destination chip — premium glass pill: ছোট location pin glyph
-          (pin-এর রঙে) + destination name (center)। */}
+      {/* destination chip — premium glass pill: ছোট রঙিন dot (pin-এর রঙে) +
+          destination name। dot একটা pure View — font glyph নয়। কারণ
+          MaterialCommunityIcons icon-FONT glyph render হতে দেরি করে, আর
+          marker 600ms-এ freeze হয়ে যাওয়ায় font load-এর আগেই snapshot নিত →
+          chip কালো/ফাঁকা box হয়ে আটকে যেত। View dot সাথে সাথে রঙে আঁকে। */}
       {rider.destination ? (
         <View style={[m.destChip, { borderColor: bg }]}>
-          <MaterialCommunityIcons name="map-marker" size={11} color={bg} style={m.destChipIcon} />
+          <View style={[m.destChipDot, { backgroundColor: bg }]} />
           <RNText style={m.destChipText} numberOfLines={1}>
             {rider.destination}
           </RNText>
@@ -158,9 +160,12 @@ const m = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 9,
   },
-  destChipIcon: {
-    marginRight: 3,
-    marginLeft: -1,
+  // ছোট রঙিন বৃত্ত — pure View, font-free (snapshot-এ সাথে সাথে আঁকে)।
+  destChipDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 5,
   },
   destChipText: {
     color: '#FFFFFF',
