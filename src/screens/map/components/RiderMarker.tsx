@@ -124,7 +124,11 @@ export default memo(RiderMarkerBase, (prev, next) =>
 );
 
 const m = StyleSheet.create({
-  wrap: { alignItems: 'center' },
+  // fixed bounding box — Android marker view box children থেকে মাপে; box
+  // ছোট হলে pin/PulseRing/chip-এর প্রান্ত কেটে ফেলে। তাই যথেষ্ট চওড়া (160)
+  // + লম্বা (110) box দিই যাতে PulseRing(64), pin(48), tail, dest chip সব
+  // ভেতরে থাকে। center-align করায় coordinate box-এর মাঝে বসে।
+  wrap: { width: 160, height: 110, alignItems: 'center', justifyContent: 'center' },
   pin: {
     width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',
