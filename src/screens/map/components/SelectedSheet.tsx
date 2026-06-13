@@ -189,16 +189,15 @@ const ss = StyleSheet.create({
   walkPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
     gap: 5,
     backgroundColor: 'rgba(52,211,153,0.1)',
     borderWidth: 0.8,
     borderColor: 'rgba(52,211,153,0.25)',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
     marginTop: 8,
-    marginLeft: 48,
   },
   walk: { fontSize: 10.5, color: C.teal, fontWeight: '700' },
   close: {

@@ -18,7 +18,6 @@ import { useNavigation, useRoute, useIsFocused } from '@react-navigation/native'
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle as SvgCircle, G } from 'react-native-svg';
-import VehicleIcon from '@/components/common/VehicleIcon';
 
 import { getDestinationById } from '@/constants/destinations';
 import { getPickupPointById } from '@/constants/pickupPoints';
@@ -37,7 +36,7 @@ import { Speedometer } from './components/Speedometer';
 import { LiveBadge } from './components/LiveBadge';
 import { RiderCard } from './components/RiderCard';
 import PulseRing from './components/PulseRing';
-import MatchGlow from './components/MatchGlow';
+import RiderMarker from './components/RiderMarker';
 import { SelectedSheet } from './components/SelectedSheet';
 import { NoRidersSheet } from './components/NoRidersSheet';
 import {
@@ -123,10 +122,19 @@ export default function LiveMapScreen() {
   const [routeSummary, setRouteSummary] = useState<{ distanceText: string; durationText: string } | null>(null);
   const [meetupRoute, setMeetupRoute] = useState<{ distanceText: string; durationText: string; summary: string } | null>(null);
   const mapRef = useRef<MapView>(null);
+  // প্রথম GPS fix-এ একবারই center করি — পরে user যেভাবে zoom/pan করে রাখে
+  // সেভাবেই থাকে (প্রতি GPS tick-এ map লাফায় না)। rider select করলেও map
+  // নড়ে না — দুটোই premium/professional behaviour।
+  const didInitialCenter = useRef(false);
+  // user নিজে pin tap করলে true → map ওই rider-এ আলতো focus (premium zoom in)।
+  // auto-select (list বদলে প্রথম rider) হলে false → map নড়ে না (লাফায় না)।
+  const userTappedRider = useRef(false);
   const scanAnim = useRef(new Animated.Value(0)).current;
+  // map wide (দূর থেকে) শুরু হয় → intro effect-এ smooth zoom in হয়ে user-এর
+  // location-এ settle করে (cinematic establishing shot)।
   const initialRegion = useRef({
     latitude: latitude ?? 23.7749, longitude: longitude ?? 90.3990,
-    latitudeDelta: 0.003, longitudeDelta: 0.003,
+    latitudeDelta: 0.025, longitudeDelta: 0.025,
   }).current;
 
   useEffect(() => {
@@ -188,7 +196,14 @@ export default function LiveMapScreen() {
   // server distance ব্যবহার → Map ও Home একই সংখ্যা (125m/135m অসঙ্গতি শেষ)।
   // rawRiders/জোন বদলালে এটা আবার চলে → list real-time।
   const nearbyRiders = useMemo<RiderMatch[]>(() => {
-    return rawRiders.map((r: any) => ({
+    return rawRiders
+      // valid coordinate ছাড়া rider বাদ (null/0/NaN হলে pin (0,0)-তে চলে যেত →
+      // map-এ দেখা যেত না, কিন্তু count-এ থাকত → "3 match, 2 icon" সমস্যা)।
+      .filter((r: any) =>
+        typeof r.lat === 'number' && typeof r.lng === 'number' &&
+        !Number.isNaN(r.lat) && !Number.isNaN(r.lng) &&
+        Math.abs(r.lat) > 0.0001 && Math.abs(r.lng) > 0.0001)
+      .map((r: any) => ({
       userId: r.id,
       name: (r.name && r.name.trim()) || 'Rider',
       distance: r.distanceM ?? 0,
@@ -361,20 +376,41 @@ export default function LiveMapScreen() {
     setSelectedRider((cur) => cur && prioritizedRiders.some((r) => r.userId === cur.userId) ? cur : prioritizedRiders[0]);
   }, [prioritizedRiders]);
 
-  // Fit map to selected rider
+  // rider-এ focus — শুধু user নিজে pin tap করলে (auto-select-এ নয়)। আগে
+  // fitToCoordinates দিয়ে origin+rider+dest সব দেখাতে map zoom OUT করত →
+  // প্রতি tap-এ লাফাত। এখন শুধু ওই rider-এ আলতো center + হালকা zoom IN
+  // (smooth glide, ~0.0045 delta) → premium focus feel, লাফ নয়।
   useEffect(() => {
-    if (!selectedRider) return;
-    const pts = [{ latitude: selectedRider.lat, longitude: selectedRider.lng }];
-    if (routeOrigin) pts.unshift({ latitude: routeOrigin.lat, longitude: routeOrigin.lng });
-    if (destinationDetails) pts.push({ latitude: destinationDetails.lat, longitude: destinationDetails.lng });
-    if (pts.length > 1) { mapRef.current?.fitToCoordinates(pts, { edgePadding: { top: 160, right: 60, bottom: 320, left: 60 }, animated: true }); return; }
-    mapRef.current?.animateToRegion({ latitude: selectedRider.lat, longitude: selectedRider.lng, latitudeDelta: 0.004, longitudeDelta: 0.004 }, 450);
-  }, [destinationDetails, routeOrigin, selectedRider]);
+    if (!selectedRider || !userTappedRider.current) return;
+    userTappedRider.current = false;
+    mapRef.current?.animateToRegion(
+      {
+        latitude: selectedRider.lat,
+        longitude: selectedRider.lng,
+        latitudeDelta: 0.0045,
+        longitudeDelta: 0.0045,
+      },
+      500,
+    );
+  }, [selectedRider]);
 
-  // Center on first GPS fix
+  // Cinematic intro — শুধু একবার (didInitialCenter ref)। map wide (দূর থেকে)
+  // শুরু হয় (initialRegion delta 0.025); GPS fix এলে একটু পরে মসৃণ zoom in
+  // হয়ে user-এর location-এ settle করে — premium "establishing shot"। এর পরে
+  // আর কখনো auto-zoom হয় না (user-এর zoom/pan অক্ষত থাকে)।
   useEffect(() => {
-    if (!hasLoc) return;
-    mapRef.current?.animateToRegion({ latitude: latitude!, longitude: longitude!, latitudeDelta: 0.002, longitudeDelta: 0.002 }, 600);
+    if (!hasLoc || didInitialCenter.current) return;
+    didInitialCenter.current = true;
+    const lat = latitude!;
+    const lng = longitude!;
+    // সামান্য delay → wide shot এক পলক দেখা যায়, তারপর smooth zoom in।
+    const t = setTimeout(() => {
+      mapRef.current?.animateToRegion(
+        { latitude: lat, longitude: lng, latitudeDelta: 0.004, longitudeDelta: 0.004 },
+        1100,
+      );
+    }, 600);
+    return () => clearTimeout(t);
   }, [hasLoc, latitude, longitude]);
 
   // Route polyline
@@ -530,7 +566,9 @@ export default function LiveMapScreen() {
           <Polyline coordinates={routeCoordinates} strokeColor="#818CF8" strokeWidth={5} lineCap="round" lineJoin="round" />
         )}
         {selectedRiderRouteCoordinates.length > 1 && (
-          <Polyline coordinates={selectedRiderRouteCoordinates} strokeColor={C.amber} strokeWidth={3} lineDashPattern={[8, 5]} lineCap="round" />
+          // হাঁটার পথ — teal ডটেড (card-এর "walk" pill-এর রঙের সাথে মেলে;
+          // কমলা pin-এর সাথে মেশে না)। কঠিন লাইন = গাড়ির route, ডটেড = হাঁটা।
+          <Polyline coordinates={selectedRiderRouteCoordinates} strokeColor={C.teal} strokeWidth={3} lineDashPattern={[8, 5]} lineCap="round" />
         )}
         {hasLoc && (
           <>
@@ -551,74 +589,44 @@ export default function LiveMapScreen() {
                 <PulseRing color={C.primary} size={90} />
                 <View style={userDot.ring} />
                 <View style={userDot.core} />
+                {/* নিজের নাম dot-এর নিচে — absolute, যাতে dot center-এ থাকে। */}
+                <View style={userDot.nameChip}>
+                  <RNText style={userDot.nameText} numberOfLines={1}>
+                    {(user?.name && user.name.trim()) || 'You'}
+                  </RNText>
+                </View>
               </View>
             </Marker>
           </>
         )}
-        {prioritizedRiders.map((rider) => {
-          const isMatch = rider.isMatch;
-          // সবুজ = MATCH (জোনের ভিতরে + একই গন্তব্য, উপরে useMemo-তে হিসাব)।
-          // কমলা = বাকি সবাই (জোনের বাইরে, অথবা ভিন্ন গন্তব্য) — কাছে আছে
-          // কিন্তু এখনই ride-share করার মতো না।
-          const bg = isMatch ? C.matchGreen : C.nearbyOrange;
-          // শুধু MATCH (সবুজ = জোনের ভিতরে + একই গন্তব্য) rider tap করা যাবে →
-          // কার্ড আসবে, contact করা যাবে। কমলা (দূরে বা ভিন্ন গন্তব্য) marker
-          // দেখাবে আশেপাশে কে আছে বোঝাতে, কিন্তু tap-এ কার্ড আসবে না।
-          const canSelect = isMatch;
-          const distLabel = rider.distance < 1000
-            ? `${rider.distance}m`
-            : `${(rider.distance / 1000).toFixed(1)}km`;
-          return (
-            <Marker
+        {/* render order: কমলা আগে, সবুজ (match) পরে, selected সবার শেষে →
+            শেষে আঁকা pin উপরে থাকে (Android-এ zIndex অনির্ভরযোগ্য, তাই render
+            order দিয়েই stacking ঠিক করি)। প্রতিটা RiderMarker নিজে নিজে
+            tracksViewChanges manage করে → icon ছোট/hide হওয়ার সমস্যা শেষ। */}
+        {[...prioritizedRiders]
+          .sort((a, b) => {
+            const rank = (r: RiderMatch) =>
+              selectedRider?.userId === r.userId ? 2 : r.isMatch ? 1 : 0;
+            return rank(a) - rank(b);
+          })
+          .map((rider) => (
+            <RiderMarker
               key={rider.userId}
-              coordinate={{ latitude: rider.lat, longitude: rider.lng }}
-              onPress={() => { if (canSelect) setSelectedRider(rider); }}
-              zIndex={isMatch ? 20 : 10}
-              tracksViewChanges={false}
-            >
-              <View style={m.wrap}>
-                {/* match-করা rider-এর পিছনে live pulse — জীবন্ত দেখায়।
-                    শুধু match হলে, যাতে সব marker pulse করে map ভারী না হয়। */}
-                {isMatch && <PulseRing color={C.matchGreen} size={60} />}
-                {/* match হলে bubble-টা "পেয়েছি!" bounce+glow সহ আসে;
-                    নাহলে সাধারণ bubble (extra animation নেই, হালকা)। */}
-                {(() => {
-                  const vType = (rider.vehicleType as VehicleType) ?? 'rickshaw';
-                  const isSelected = selectedRider?.userId === rider.userId;
-                  const pin = (
-                    <>
-                      <View
-                        style={[
-                          m.pin,
-                          { backgroundColor: bg, borderColor: isMatch ? '#ECFDF5' : '#FFF7ED' },
-                          isSelected && m.pinSelected,
-                        ]}
-                      >
-                        <VehicleIcon
-                          type={vType === 'bike' ? 'motorcycle' : vType === 'cng' ? 'cng' : 'rickshaw'}
-                          tone="mono"
-                          active
-                          size={isSelected ? 22 : 18}
-                        />
-                      </View>
-                      <View style={[m.pinTail, { borderTopColor: bg }]} />
-                      {/* destination label সব pin-এ (green match + orange nearby) —
-                          এক নজরে কে কোথায় যাচ্ছে বোঝা যায় */}
-                      {rider.destination ? (
-                        <View style={[m.destChip, { borderColor: bg }]}>
-                          <RNText style={m.destChipText} numberOfLines={1}>
-                            {rider.destination}
-                          </RNText>
-                        </View>
-                      ) : null}
-                    </>
-                  );
-                  return isMatch ? <MatchGlow glowColor={C.matchGreen}>{pin}</MatchGlow> : pin;
-                })()}
-              </View>
-            </Marker>
-          );
-        })}
+              rider={rider}
+              isSelected={selectedRider?.userId === rider.userId}
+              matchColor={C.matchGreen}
+              nearbyColor={C.nearbyOrange}
+              // শুধু MATCH (সবুজ) rider tap করা যাবে → কার্ড আসবে। কমলা marker
+              // আশেপাশে কে আছে দেখায়, কিন্তু tap-এ কার্ড আসে না।
+              // user নিজে tap করল → flag on (পরের effect ওই rider-এ আলতো focus
+              // করবে — premium feel)। auto-select-এ map নড়ে না।
+              onPress={(r) => {
+                if (!r.isMatch) return;
+                userTappedRider.current = true;
+                setSelectedRider(r as RiderMatch);
+              }}
+            />
+          ))}
       </MapView>
 
       {/* ── Top bar — single row: back | destination+meta | live | center ── */}
@@ -660,7 +668,7 @@ export default function LiveMapScreen() {
       </View>
 
       {/* ── Stats row — single compact bar below top bar ── */}
-      <View style={[s.statsRow, { top: insets.top + 72 }]}>
+      <View style={[s.statsRow, { top: insets.top + 58 }]}>
         <View style={s.statPill}>
           <RNText style={s.statPillNum}>{prioritizedRiders.length}</RNText>
           <RNText style={s.statPillLbl}> Nearby</RNText>
@@ -676,7 +684,7 @@ export default function LiveMapScreen() {
           </View>
         ) : null}
         <TouchableOpacity style={[s.statPill, s.statPillGps]} onPress={handleExpandZone} activeOpacity={0.75}>
-          <RNText style={[s.statPillNum, { fontSize: 11, color: C.amber }]}>
+          <RNText style={[s.statPillNum, { fontSize: 13, color: C.amber }]}>
             {hasLoc ? `${userAccuracyRadius}m` : '…'}
           </RNText>
           <RNText style={s.statPillLbl}>{zoneIdx >= ZONE_LEVELS.length - 1 ? ' ↺' : ' ↑'}</RNText>
@@ -755,54 +763,23 @@ const userDot = StyleSheet.create({
     shadowColor: '#C084FC', shadowOpacity: 0.8, shadowRadius: 6, shadowOffset: { width: 0, height: 0 },
     elevation: 6,
   },
-});
-
-const m = StyleSheet.create({
-  wrap: { alignItems: 'center' },
-  // compact round teardrop pin — Uber/Pathao style, icon only (name shows on tap → card)
-  pin: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2,
-    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 5, shadowOffset: { width: 0, height: 3 },
+  // নিজের নাম — dot-এর ঠিক নিচে, absolute (dot-এর position না নড়াতে)।
+  nameChip: {
+    position: 'absolute', top: 26,
+    backgroundColor: '#C084FC',
+    paddingHorizontal: 8, paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1.2, borderColor: '#FFFFFF',
+    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 4, shadowOffset: { width: 0, height: 2 },
     elevation: 7,
   },
-  // selected pin — বড় + উজ্জ্বল glow, যাতে কোন rider select করা স্পষ্ট বোঝা যায়
-  pinSelected: {
-    width: 46, height: 46, borderRadius: 23,
-    borderWidth: 3,
-    shadowOpacity: 0.7, shadowRadius: 10,
-    elevation: 12,
-  },
-  pinTail: {
-    width: 0, height: 0,
-    borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 8,
-    borderLeftColor: 'transparent', borderRightColor: 'transparent',
-    marginTop: -2,
-  },
-  // slim destination label under the pin — "এই rider কোথায় যাচ্ছে" এক নজরে
-  destChip: {
-    marginTop: 1,
-    maxWidth: 130,
-    backgroundColor: '#0E1430',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1.2,
-    shadowColor: '#000',
-    shadowOpacity: 0.45,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 6,
-  },
-  destChipText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: -0.1,
-    textAlign: 'center',
+  nameText: {
+    color: '#FFFFFF', fontSize: 10, fontWeight: '800',
+    letterSpacing: -0.1, textAlign: 'center',
   },
 });
+
+// rider pin-এর style এখন RiderMarker.tsx-এ (self-contained component)।
 
 // ─── Screen styles ─────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
@@ -842,14 +819,14 @@ const s = StyleSheet.create({
   statPill: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#111827', borderRadius: 8,
-    paddingVertical: 4, paddingHorizontal: 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', elevation: 4,
+    paddingVertical: 5, paddingHorizontal: 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', elevation: 4,
     shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 },
   },
   // Match pill — সবচেয়ে গুরুত্বপূর্ণ signal, একটু জোর দেওয়া
   statPillGreen: { borderColor: 'rgba(52,211,153,0.5)', backgroundColor: '#0d1f18' },
   statPillGps: { borderColor: 'rgba(245,158,11,0.35)', backgroundColor: '#1a1500' },
-  statPillNum: { fontSize: 11, fontWeight: '900', color: '#F1F5F9' },
-  statPillLbl: { fontSize: 9, fontWeight: '600', color: '#94A3B8' },
+  statPillNum: { fontSize: 13, fontWeight: '900', color: '#F1F5F9' },
+  statPillLbl: { fontSize: 10.5, fontWeight: '600', color: '#94A3B8' },
 
   // ── Legend inline (inside stats row)
   legendInline: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6 },
