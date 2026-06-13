@@ -51,9 +51,7 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
   useEffect(() => {
     // coordinate/match অবস্থা বদলালে আবার track করি (pin নড়া/রং বদল render হোক)।
     setTracks(true);
-    // বড় pin (44px) + PulseRing(72) + dest chip পুরো render হওয়ার সময় দিই,
-    // নাহলে Android-এ freeze আগে হলে icon অর্ধেক/কাটা দেখায়।
-    const t = setTimeout(() => setTracks(false), 1000);
+    const t = setTimeout(() => setTracks(false), 700);
     return () => clearTimeout(t);
   }, [rider.lat, rider.lng, isMatch, isSelected]);
 
@@ -72,7 +70,7 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
           type={vType === 'bike' ? 'motorcycle' : vType === 'cng' ? 'cng' : 'rickshaw'}
           tone="mono"
           active
-          size={24}
+          size={22}
         />
       </View>
       <View style={[m.pinTail, { borderTopColor: bg }]} />
@@ -96,7 +94,7 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
       tracksViewChanges={tracks}
     >
       <View style={m.wrap}>
-        {isMatch && <PulseRing color={matchColor} size={72} />}
+        {isMatch && <PulseRing color={matchColor} size={64} />}
         {isMatch ? <MatchGlow glowColor={matchColor}>{pin}</MatchGlow> : pin}
       </View>
     </Marker>
@@ -115,21 +113,19 @@ export default memo(RiderMarkerBase, (prev, next) =>
 );
 
 const m = StyleSheet.create({
-  // fixed bounding box — PulseRing(72)+pin+tail+chip সব এর ভেতরে যেন থাকে,
-  // নাহলে Android marker view box ছোট ধরে icon অর্ধেক কেটে ফেলে।
-  wrap: { width: 150, alignItems: 'center', justifyContent: 'center' },
+  wrap: { alignItems: 'center' },
   pin: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2.5,
-    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
+    borderWidth: 2,
+    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 5, shadowOffset: { width: 0, height: 3 },
     elevation: 7,
   },
   // selected pin — box একটু বড় + glow (icon size একই থাকে)।
   pinSelected: {
-    width: 52, height: 52, borderRadius: 26,
+    width: 48, height: 48, borderRadius: 24,
     borderWidth: 3,
-    shadowOpacity: 0.7, shadowRadius: 11,
+    shadowOpacity: 0.7, shadowRadius: 10,
     elevation: 12,
   },
   pinTail: {

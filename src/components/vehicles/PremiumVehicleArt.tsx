@@ -21,6 +21,10 @@ type Props = {
   type: VehicleType;
   size?: number;
   active?: boolean;
+  /** mono=true → পুরো icon এক রঙে (ডিফল্ট সাদা)। রঙিন pin-এর উপর contrast
+   *  দরকার হলে ব্যবহার করো (যেমন map-এর rider marker)। */
+  mono?: boolean;
+  monoColor?: string;
 };
 
 const COLORS = {
@@ -48,10 +52,14 @@ const SpokeWheel = ({ cx, cy, r, rim, spoke }: { cx: number; cy: number; r: numb
   );
 };
 
-const RickshawArt = ({ size, active }: { size: number; active: boolean }) => {
-  const { c1, c2, c3 } = active ? COLORS.rickshaw : IDLE;
-  const id = active ? 'rka' : 'rki';
-  const hood = active ? '#1E1B4B' : '#334155';
+const RickshawArt = ({ size, active, mono, monoColor }: { size: number; active: boolean; mono?: boolean; monoColor?: string }) => {
+  // mono হলে সব অংশ এক রঙ (সাদা ডিফল্ট) — রঙিন pin-এর উপর স্পষ্ট দেখা যায়।
+  const mc = monoColor ?? '#FFFFFF';
+  const { c1, c2, c3 } = mono
+    ? { c1: mc, c2: mc, c3: mc }
+    : active ? COLORS.rickshaw : IDLE;
+  const id = mono ? 'rkm' : active ? 'rka' : 'rki';
+  const hood = mono ? mc : active ? '#1E1B4B' : '#334155';
   return (
     <Svg width={size} height={size} viewBox="0 0 120 120" fill="none">
       <Defs>
@@ -66,7 +74,7 @@ const RickshawArt = ({ size, active }: { size: number; active: boolean }) => {
         {/* ভাঁজ-করা খাড়া hood */}
         <Path d="M28 60V34C28 22 36 12 44 12C46 18 46 26 45 34C46 44 44 54 44 60Z" fill={hood} />
         <Path d="M30 18C33 16 38 15 43 16M30 24C33 22 38 21 43 22M30 30C33 28 38 27 43 28"
-          stroke={active ? '#A5B4FC' : '#64748B'} strokeWidth="1" opacity="0.5" />
+          stroke={mono ? mc : active ? '#A5B4FC' : '#64748B'} strokeWidth="1" opacity="0.5" />
         {/* যাত্রী আসন */}
         <Path d="M28 60H64L60 52H32Z" fill={`url(#${id}b)`} />
         <Path d="M30 52H58V46C58 43 56 41 53 41H35C32 41 30 43 30 46Z" fill={`url(#${id}b)`} />
@@ -87,16 +95,18 @@ const RickshawArt = ({ size, active }: { size: number; active: boolean }) => {
   );
 };
 
-export default function PremiumVehicleArt({ type, size = 40, active = false }: Props) {
+export default function PremiumVehicleArt({ type, size = 40, active = false, mono = false, monoColor }: Props) {
   if (type === 'rickshaw') {
     return (
       <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-        <RickshawArt size={size} active={active} />
+        <RickshawArt size={size} active={active} mono={mono} monoColor={monoColor} />
       </View>
     );
   }
   const glyph: keyof typeof MaterialCommunityIcons.glyphMap = type === 'bike' ? 'motorbike' : 'rickshaw-electric';
-  const color = active ? (type === 'bike' ? COLORS.bike : COLORS.cng) : IDLE_COLOR;
+  const color = mono
+    ? (monoColor ?? '#FFFFFF')
+    : active ? (type === 'bike' ? COLORS.bike : COLORS.cng) : IDLE_COLOR;
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <MaterialCommunityIcons name={glyph} size={size} color={color} />
