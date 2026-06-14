@@ -126,6 +126,11 @@ export default function LiveMapScreen() {
   // সেভাবেই থাকে (প্রতি GPS tick-এ map লাফায় না)। rider select করলেও map
   // নড়ে না — দুটোই premium/professional behaviour।
   const didInitialCenter = useRef(false);
+  // route fit একবারই করি প্রতি (origin→dest) জোড়ার জন্য। GPS jitter-এ
+  // routeOrigin নতুন object হয়ে route effect বারবার চলে → আগে প্রতিবার
+  // fitToCoordinates zoom করত (map বারবার zoom in/out হত)। এই ref দিয়ে
+  // একই গন্তব্যের জন্য একবারই fit হয়, পরে আর নয়।
+  const lastFittedRoute = useRef<string | null>(null);
   // user নিজে pin tap করলে true → map ওই rider-এ আলতো focus (premium zoom in)।
   // auto-select (list বদলে প্রথম rider) হলে false → map নড়ে না (লাফায় না)।
   const userTappedRider = useRef(false);
@@ -424,7 +429,13 @@ export default function LiveMapScreen() {
         const pts = safeDecodePolyline(r?.polyline?.encodedPolyline);
         setRouteCoordinates(pts);
         setRouteSummary({ distanceText: r?.distanceMeters ? `${(r.distanceMeters / 1000).toFixed(1)} km` : '', durationText: r?.duration ? `${Math.max(1, Math.round(r.duration / 60))} min` : '' });
-        mapRef.current?.fitToCoordinates(pts.length > 1 ? pts : [{ latitude: routeOrigin.lat, longitude: routeOrigin.lng }, { latitude: destinationDetails.lat, longitude: destinationDetails.lng }], { edgePadding: { top: 150, right: 40, bottom: 320, left: 40 }, animated: true });
+        // একই গন্তব্যে একবারই fit (GPS jitter-এ বারবার zoom বন্ধ)। গন্তব্য
+        // বদলালে key বদলে আবার fit হবে।
+        const fitKey = `${destinationDetails.lat.toFixed(4)},${destinationDetails.lng.toFixed(4)}`;
+        if (lastFittedRoute.current !== fitKey) {
+          lastFittedRoute.current = fitKey;
+          mapRef.current?.fitToCoordinates(pts.length > 1 ? pts : [{ latitude: routeOrigin.lat, longitude: routeOrigin.lng }, { latitude: destinationDetails.lat, longitude: destinationDetails.lng }], { edgePadding: { top: 150, right: 40, bottom: 320, left: 40 }, animated: true });
+        }
       } catch {
         try {
           const fb = await directionsService.getRoute({ origin: { latitude: routeOrigin.lat, longitude: routeOrigin.lng }, destination: { latitude: destinationDetails.lat, longitude: destinationDetails.lng }, mode: 'driving' });

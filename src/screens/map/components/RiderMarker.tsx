@@ -88,19 +88,6 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
         />
       </View>
       <View style={[m.pinTail, { borderTopColor: bg }]} />
-      {/* destination chip — premium glass pill: ছোট রঙিন dot (pin-এর রঙে) +
-          destination name। dot একটা pure View — font glyph নয়। কারণ
-          MaterialCommunityIcons icon-FONT glyph render হতে দেরি করে, আর
-          marker 600ms-এ freeze হয়ে যাওয়ায় font load-এর আগেই snapshot নিত →
-          chip কালো/ফাঁকা box হয়ে আটকে যেত। View dot সাথে সাথে রঙে আঁকে। */}
-      {rider.destination ? (
-        <View style={[m.destChip, { borderColor: bg }]}>
-          <View style={[m.destChipDot, { backgroundColor: bg }]} />
-          <RNText style={m.destChipText} numberOfLines={1}>
-            {rider.destination}
-          </RNText>
-        </View>
-      ) : null}
     </>
   );
 
