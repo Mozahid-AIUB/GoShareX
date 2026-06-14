@@ -121,6 +121,10 @@ export default function LiveMapScreen() {
   const [selectedRiderRouteCoordinates, setSelectedRiderRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([]);
   const [routeSummary, setRouteSummary] = useState<{ distanceText: string; durationText: string } | null>(null);
   const [meetupRoute, setMeetupRoute] = useState<{ distanceText: string; durationText: string; summary: string } | null>(null);
+  // route process (search) শেষ হলে true → map + rider list/card একসাথে দেখাই।
+  // গন্তব্য না থাকলে gate লাগে না (true)। গন্তব্য থাকলে route compute শেষ না
+  // হওয়া পর্যন্ত list চাপা থাকে → "আগেই list দেখাচ্ছে" সমস্যা শেষ।
+  const [routeReady, setRouteReady] = useState(false);
   const mapRef = useRef<MapView>(null);
   // প্রথম GPS fix-এ একবারই center করি — পরে user যেভাবে zoom/pan করে রাখে
   // সেভাবেই থাকে (প্রতি GPS tick-এ map লাফায় না)। rider select করলেও map
@@ -375,11 +379,13 @@ export default function LiveMapScreen() {
     return () => { cancelled = true; };
   }, [selectedRider, latitude, longitude, routeOrigin?.lat, routeOrigin?.lng]);
 
-  // Auto-select first rider
+  // Auto-select first rider — শুধু route process শেষ হলে (routeReady)। এতে
+  // map + rider list/card একসাথে দেখায় (search চলাকালীন "আগেই list" আসে না)।
   useEffect(() => {
+    if (!routeReady) return;
     if (!prioritizedRiders.length) { setSelectedRider(null); return; }
     setSelectedRider((cur) => cur && prioritizedRiders.some((r) => r.userId === cur.userId) ? cur : prioritizedRiders[0]);
-  }, [prioritizedRiders]);
+  }, [prioritizedRiders, routeReady]);
 
   // rider-এ focus — শুধু user নিজে pin tap করলে (auto-select-এ নয়)। আগে
   // fitToCoordinates দিয়ে origin+rider+dest সব দেখাতে map zoom OUT করত →
@@ -400,15 +406,19 @@ export default function LiveMapScreen() {
   }, [selectedRider]);
 
   // Cinematic intro — শুধু একবার (didInitialCenter ref)। map wide (দূর থেকে)
-  // শুরু হয় (initialRegion delta 0.025); GPS fix এলে একটু পরে মসৃণ zoom in
-  // হয়ে user-এর location-এ settle করে — premium "establishing shot"। এর পরে
-  // আর কখনো auto-zoom হয় না (user-এর zoom/pan অক্ষত থাকে)।
+  // শুরু হয়, GPS fix এলে একটু পরে মসৃণ zoom IN হয়ে user-এর location +
+  // কাছের round pin দেখায় — premium "establishing shot"।
+  //
+  // গুরুত্বপূর্ণ: এই intro শুধু তখনই চলে যখন কোনো গন্তব্য নেই (route fit
+  // নিজেই establishing shot দেয়, নাহলে দুটো animation সংঘর্ষ করে flicker)।
+  // route fit-ও একবারই হয় (lastFittedRoute guard), তাই দুই ক্ষেত্রেই
+  // "একবার zoom in, তারপর স্থির" — user-এর pan/zoom অক্ষত থাকে।
   useEffect(() => {
     if (!hasLoc || didInitialCenter.current) return;
+    if (destinationDetails) return; // গন্তব্য আছে → route fit establishing shot দেবে।
     didInitialCenter.current = true;
     const lat = latitude!;
     const lng = longitude!;
-    // সামান্য delay → wide shot এক পলক দেখা যায়, তারপর smooth zoom in।
     const t = setTimeout(() => {
       mapRef.current?.animateToRegion(
         { latitude: lat, longitude: lng, latitudeDelta: 0.004, longitudeDelta: 0.004 },
@@ -416,12 +426,14 @@ export default function LiveMapScreen() {
       );
     }, 600);
     return () => clearTimeout(t);
-  }, [hasLoc, latitude, longitude]);
+  }, [hasLoc, latitude, longitude, destinationDetails]);
 
   // Route polyline
   useEffect(() => {
-    if (!routeOrigin || !destinationDetails) { setRouteCoordinates([]); setRouteSummary(null); return; }
+    // গন্তব্য নেই → route gate লাগে না, list সরাসরি দেখাই।
+    if (!routeOrigin || !destinationDetails) { setRouteCoordinates([]); setRouteSummary(null); setRouteReady(true); return; }
     let cancelled = false;
+    setRouteReady(false); // নতুন গন্তব্য → route compute শেষ না হওয়া পর্যন্ত list চাপা।
     (async () => {
       try {
         const r = await routesService.computeRoute({ origin: { location: { latLng: { latitude: routeOrigin.lat, longitude: routeOrigin.lng } } }, destination: { location: { latLng: { latitude: destinationDetails.lat, longitude: destinationDetails.lng } } }, travelMode: 'DRIVE', routingPreference: 'TRAFFIC_AWARE', computeAlternativeRoutes: false });
@@ -434,6 +446,7 @@ export default function LiveMapScreen() {
         const fitKey = `${destinationDetails.lat.toFixed(4)},${destinationDetails.lng.toFixed(4)}`;
         if (lastFittedRoute.current !== fitKey) {
           lastFittedRoute.current = fitKey;
+          didInitialCenter.current = true; // route fit-ই establishing shot; intro যেন আর না চলে।
           mapRef.current?.fitToCoordinates(pts.length > 1 ? pts : [{ latitude: routeOrigin.lat, longitude: routeOrigin.lng }, { latitude: destinationDetails.lat, longitude: destinationDetails.lng }], { edgePadding: { top: 150, right: 40, bottom: 320, left: 40 }, animated: true });
         }
       } catch {
@@ -444,6 +457,9 @@ export default function LiveMapScreen() {
           setRouteCoordinates(pts);
           setRouteSummary({ distanceText: fb.distanceText, durationText: fb.durationText });
         } catch { if (!cancelled) { setRouteCoordinates([]); setRouteSummary(null); } }
+      } finally {
+        // route compute শেষ (সফল/ব্যর্থ যাই হোক) → list+card দেখানোর gate খুলি।
+        if (!cancelled) setRouteReady(true);
       }
     })();
     return () => { cancelled = true; };
@@ -614,7 +630,7 @@ export default function LiveMapScreen() {
             শেষে আঁকা pin উপরে থাকে (Android-এ zIndex অনির্ভরযোগ্য, তাই render
             order দিয়েই stacking ঠিক করি)। প্রতিটা RiderMarker নিজে নিজে
             tracksViewChanges manage করে → icon ছোট/hide হওয়ার সমস্যা শেষ। */}
-        {[...prioritizedRiders]
+        {(routeReady ? [...prioritizedRiders] : [])
           .sort((a, b) => {
             const rank = (r: RiderMatch) =>
               selectedRider?.userId === r.userId ? 2 : r.isMatch ? 1 : 0;

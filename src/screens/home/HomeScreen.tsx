@@ -1606,14 +1606,23 @@ export default function HomeScreen() {
                 </View>
               )}
 
-              {/* Find riders button */}
+              {/* Find riders button — GPS resolve হওয়ার সময় spinner দেখায়
+                  আর disable থাকে (double-tap বন্ধ), যাতে user বোঝে কাজ হচ্ছে।
+                  আগে চুপচাপ আটকে থাকত বলে "tap কাজ করছে না" মনে হত। */}
               <TouchableOpacity
-                style={S.searchPassengersBtn}
+                style={[S.searchPassengersBtn, isResolvingCurrentLocation && { opacity: 0.7 }]}
                 activeOpacity={0.88}
+                disabled={isResolvingCurrentLocation}
                 onPress={() => { void handlePassengerSearch(); }}
               >
-                <MaterialCommunityIcons name="account-search-outline" size={20} color="#FFF" />
-                <Text style={S.searchPassengersText}>Find riders going my way</Text>
+                {isResolvingCurrentLocation ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <MaterialCommunityIcons name="account-search-outline" size={20} color="#FFF" />
+                )}
+                <Text style={S.searchPassengersText}>
+                  {isResolvingCurrentLocation ? 'Getting your location…' : 'Find riders going my way'}
+                </Text>
               </TouchableOpacity>
 
               {/* Secondary actions */}
