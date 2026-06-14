@@ -149,16 +149,26 @@ const m = StyleSheet.create({
     shadowOpacity: 0.7, shadowRadius: 10,
     elevation: 12,
   },
+  // pin-এর নিচের ত্রিভুজ লেজ। pin-এর সমান elevation যাতে map-এর উপরে
+  // দেখা যায়, কিন্তু chip (elevation 1)-এর চেয়ে বেশি যাতে chip এর উপরে
+  // উঠে না আসে।
   pinTail: {
     width: 0, height: 0,
     borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 9,
     borderLeftColor: 'transparent', borderRightColor: 'transparent',
     marginTop: -2,
+    elevation: 7,
   },
-  // premium glass pill — location glyph + name (center)। wrap center-align
+  // premium glass pill — location dot + name (center)। wrap center-align
   // করায় chip-এর প্রস্থ যাই হোক pin-এর নিচে মাঝখানে থাকে।
+  //
+  // KEY: Android-এ `elevation` z-order ঠিক করে — বেশি elevation-এর View
+  // উপরে আঁকে। আগে chip-এর elevation (9) pin-এর (7) চেয়ে বেশি ছিল, তাই
+  // chip-এর কালো box pin-এর উপরে উঠে icon-এর নিচের অংশ ঢেকে ফেলত (icon
+  // "কাটা" দেখাত)। chip pin-এর নিচে — তাই এর elevation pin-এর চেয়ে কম
+  // রাখি (1) যাতে কখনো icon-এর উপরে না আসে।
   destChip: {
-    marginTop: 5,
+    marginTop: 6,
     maxWidth: 152,
     flexDirection: 'row',
     alignItems: 'center',
@@ -169,10 +179,10 @@ const m = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1.2,
     shadowColor: '#000',
-    shadowOpacity: 0.55,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 9,
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
   // ছোট রঙিন বৃত্ত — pure View, font-free (snapshot-এ সাথে সাথে আঁকে)।
   destChipDot: {
