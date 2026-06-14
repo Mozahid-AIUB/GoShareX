@@ -4,6 +4,8 @@ import Constants from 'expo-constants';
 import { storage, STORAGE_KEYS } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 import { requestNotificationPermission } from '@/utils/permissions';
+import { FEATURE_FLAGS } from '@/config/featureFlags';
+import { saveMyPushToken } from '@/services/supabase/pushTokenService';
 
 interface UseNotificationResult {
   hasPermission: boolean;
@@ -29,6 +31,11 @@ export function useNotification(): UseNotificationResult {
       if (pushToken) {
         await storage.set(STORAGE_KEYS.FCM_TOKEN, pushToken);
         logger.info('useNotification', 'Device push token registered');
+        // Supabase mode-এ token-টা users টেবিলেও save করি (server থেকে push
+        // পাঠাতে দরকার)। Firebase save আগের মতোই messaging.ts-এ হয়।
+        if (FEATURE_FLAGS.USE_SUPABASE_AUTH) {
+          await saveMyPushToken(pushToken);
+        }
       }
     } catch (err) {
       logger.error('useNotification.registerToken', err);

@@ -24,6 +24,8 @@ configureNotificationHandler();
 void useUIStore.getState().loadMapStylePreference();
 // Load privacy preferences (chat typing/read/presence toggles)
 import('@/store/privacyStore').then((m) => void m.usePrivacyStore.getState().load());
+// Load notification toggle preferences (Settings ride/chat alerts)
+import('@/store/notificationPrefsStore').then((m) => void m.useNotificationPrefsStore.getState().load());
 
 // Keep native splash visible until we explicitly hide it (after preload finishes).
 // Catches the race where SplashScreen API is unavailable in older Expo Go.

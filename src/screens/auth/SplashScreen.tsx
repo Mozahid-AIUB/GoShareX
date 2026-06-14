@@ -110,6 +110,10 @@ const PARTICLES = [
   { x: W * 0.25, y: H * 0.85, size: 4, color: '#A78BFA', delay: 750 },
   { x: W * 0.75, y: H * 0.88, size: 3, color: '#6366F1', delay: 200 },
   { x: W * 0.92, y: H * 0.42, size: 5, color: '#34D399', delay: 550 },
+  { x: W * 0.18, y: H * 0.40, size: 3, color: '#A78BFA', delay: 850 },
+  { x: W * 0.68, y: H * 0.15, size: 4, color: '#818CF8', delay: 350 },
+  { x: W * 0.35, y: H * 0.68, size: 3, color: '#34D399', delay: 650 },
+  { x: W * 0.6,  y: H * 0.80, size: 5, color: '#6366F1', delay: 100 },
 ];
 
 // ─── Main Splash ──────────────────────────────────────────────────────────────
@@ -123,6 +127,12 @@ const SplashScreen = () => {
   // Logo mark
   const markOpacity = useRef(new Animated.Value(0)).current;
   const markScale   = useRef(new Animated.Value(0.5)).current;
+  // logo "breathing" — entrance-এর পর আস্তে শ্বাস নেওয়ার মতো (premium feel)।
+  const markBreath  = useRef(new Animated.Value(0)).current;
+  // brand text-এর উপর দিয়ে চলে যাওয়া shine sweep।
+  const shineX      = useRef(new Animated.Value(-120)).current;
+  // shooting star — এক কোণ থেকে আরেক কোণে দ্রুত শাঁ করে যায় (0→1 progress)।
+  const starProg    = useRef(new Animated.Value(0)).current;
 
   // Ring pulse around logo
   const ring1Scale   = useRef(new Animated.Value(1)).current;
@@ -170,7 +180,15 @@ const SplashScreen = () => {
     Animated.parallel([
       Animated.spring(markScale,   { toValue: 1,   tension: 70, friction: 7,  useNativeDriver: true }),
       Animated.timing(markOpacity, { toValue: 1,   duration: 500,              useNativeDriver: true }),
-    ]).start();
+    ]).start(() => {
+      // entrance শেষ → logo আস্তে শ্বাস নেওয়া শুরু (subtle 0↔1 loop)।
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(markBreath, { toValue: 1, duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(markBreath, { toValue: 0, duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ])
+      ).start();
+    });
 
     // Phase 2 (500ms) — ring pulses
     setTimeout(() => {
@@ -207,12 +225,20 @@ const SplashScreen = () => {
       ]).start();
     }, 950);
 
-    // Phase 5 (1150ms) — "X" pops
+    // Phase 5 (1150ms) — "X" pops, তারপর brand text-এর উপর shine sweep loop
     setTimeout(() => {
       Animated.parallel([
         Animated.timing(xOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
         Animated.spring(xScale,   { toValue: 1, tension: 120, friction: 5, useNativeDriver: true }),
       ]).start();
+      // brand text পুরো এলে — একটা আলোর ঝলক বাঁ→ডান চলে যায় (premium shine)।
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(900),
+          Animated.timing(shineX, { toValue: W * 0.6, duration: 1100, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(shineX, { toValue: -120, duration: 0, useNativeDriver: true }),
+        ])
+      ).start();
     }, 1150);
 
     // Phase 6 (1550ms) — tagline + bar
@@ -230,6 +256,17 @@ const SplashScreen = () => {
         ])
       ).start();
     }, 1550);
+
+    // Shooting star — মাঝে মাঝে এক কোণ থেকে আরেক কোণে দ্রুত শাঁ করে যায়।
+    // fast (550ms) + লম্বা বিরতি (2.6s) → বিরল, premium "শুটিং স্টার" feel।
+    Animated.loop(
+      Animated.sequence([
+        Animated.delay(1800),
+        Animated.timing(starProg, { toValue: 1, duration: 550, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+        Animated.timing(starProg, { toValue: 0, duration: 0, useNativeDriver: true }),
+        Animated.delay(2600),
+      ])
+    ).start();
 
     // Auth
     const startTime = Date.now();
@@ -319,6 +356,32 @@ const SplashScreen = () => {
       {/* Floating particles */}
       {PARTICLES.map((p, i) => <Particle key={i} {...p} />)}
 
+      {/* Shooting star — চিকন আলোর streak (trail সহ) উপর-বাঁ → নিচ-ডানে
+          দ্রুত শাঁ করে যায়। translate দিয়ে চলে, opacity দিয়ে শুরু/শেষে fade।
+          pointerEvents none → শুধু দৃশ্য। */}
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: H * 0.16,
+          left: -60,
+          width: 90,
+          height: 2.5,
+          borderRadius: 2,
+          backgroundColor: 'rgba(199,210,254,0.9)',
+          shadowColor: '#A5B4FC',
+          shadowOpacity: 0.9,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 0 },
+          opacity: starProg.interpolate({ inputRange: [0, 0.1, 0.85, 1], outputRange: [0, 1, 1, 0] }),
+          transform: [
+            { translateX: starProg.interpolate({ inputRange: [0, 1], outputRange: [0, W * 0.95] }) },
+            { translateY: starProg.interpolate({ inputRange: [0, 1], outputRange: [0, H * 0.42] }) },
+            { rotate: '24deg' },
+          ],
+        }}
+      />
+
       {/* ── Logo mark + pulse rings ── */}
       <View style={s.logoArea}>
 
@@ -326,16 +389,28 @@ const SplashScreen = () => {
         <Animated.View style={[s.ring, { transform: [{ scale: ring1Scale }], opacity: ring1Opacity }]} />
         <Animated.View style={[s.ring, { transform: [{ scale: ring2Scale }], opacity: ring2Opacity }]} />
 
-        {/* Logo mark */}
-        <Animated.View style={{ opacity: markOpacity, transform: [{ scale: markScale }] }}>
+        {/* Logo mark — entrance scale + subtle breathing (0↔1 → 1↔1.045)। */}
+        <Animated.View style={{
+          opacity: markOpacity,
+          transform: [
+            { scale: markScale },
+            { scale: markBreath.interpolate({ inputRange: [0, 1], outputRange: [1, 1.045] }) },
+          ],
+        }}>
           <LogoMark size={100} />
         </Animated.View>
 
-        {/* Brand name */}
+        {/* Brand name + shine sweep */}
         <View style={s.brandRow}>
           <Animated.Text style={[s.brandGo,    { opacity: goOpacity,    transform: [{ translateY: goY }] }]}>Go</Animated.Text>
           <Animated.Text style={[s.brandShare, { opacity: shareOpacity, transform: [{ translateY: shareY }] }]}>Share</Animated.Text>
           <Animated.Text style={[s.brandX,     { opacity: xOpacity,     transform: [{ scale: xScale }] }]}>X</Animated.Text>
+          {/* আলোর ঝলক — brand text-এর উপর দিয়ে বাঁ→ডান চলে যায়। তির্যক
+              (rotate) সাদা streak, pointerEvents none → শুধু দৃশ্য, tap নয়। */}
+          <Animated.View
+            pointerEvents="none"
+            style={[s.shine, { transform: [{ translateX: shineX }, { rotate: '18deg' }] }]}
+          />
         </View>
 
         {/* Tagline */}
@@ -400,6 +475,15 @@ const s = StyleSheet.create({
   brandGo:    { fontSize: 44, fontWeight: '900', color: '#FFFFFF',  letterSpacing: -2 },
   brandShare: { fontSize: 44, fontWeight: '900', color: '#818CF8',  letterSpacing: -2 },
   brandX:     { fontSize: 44, fontWeight: '900', color: '#34D399',  letterSpacing: -2 },
+
+  // brand text-এর উপর দিয়ে যাওয়া তির্যক আলোর streak (premium shine)।
+  shine: {
+    position: 'absolute',
+    top: -10, left: 0,
+    width: 36, height: 80,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderRadius: 18,
+  },
 
   // Tagline
   tagline: {

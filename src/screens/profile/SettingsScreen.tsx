@@ -20,11 +20,14 @@ import authService from '@/services/authService';
 import googleAuthService from '@/services/googleAuthService';
 import { functions } from '@/config/firebase.config';
 import { httpsCallable } from 'firebase/functions';
+import { FEATURE_FLAGS } from '@/config/featureFlags';
+import { supabase } from '@/config/supabase.config';
 import { logger } from '@/utils/logger';
 import PremiumIcon from '@/components/common/PremiumIcon';
 import { biometricService } from '@/services/security/biometricService';
 import { useUIStore } from '@/store/uiStore';
 import { usePrivacyStore } from '@/store/privacyStore';
+import { useNotificationPrefsStore } from '@/store/notificationPrefsStore';
 import { MAP_STYLE_LABELS, type MapStyleId } from '@/config/mapStyles';
 
 // ─── Light theme — matches Home tab ──────────────────────────────────────────
@@ -140,8 +143,12 @@ export default function SettingsScreen() {
   const { user, logout } = useAuthStore();
   const [dataActionBusy, setDataActionBusy] = useState(false);
 
-  const [notifRides,      setNotifRides]      = useState(true);
-  const [notifChat,       setNotifChat]        = useState(true);
+  // notification toggle এখন persist হয় (app বন্ধ হলেও মনে রাখে) —
+  // notificationPrefsStore + AsyncStorage। আগে শুধু useState ছিল → reset হত।
+  const notifRides     = useNotificationPrefsStore((st) => st.notifRides);
+  const setNotifRides  = useNotificationPrefsStore((st) => st.setNotifRides);
+  const notifChat      = useNotificationPrefsStore((st) => st.notifChat);
+  const setNotifChat   = useNotificationPrefsStore((st) => st.setNotifChat);
   const [locationBg,      setLocationBg]       = useState(true);
   const [shareAnonymous,  setShareAnonymous]   = useState(false);
   const [biometric,       setBiometric]        = useState(false);
@@ -236,8 +243,16 @@ export default function SettingsScreen() {
           onPress: async () => {
             setDataActionBusy(true);
             try {
-              const deleteMyAccount = httpsCallable(functions, 'deleteMyAccount');
-              await deleteMyAccount({ userId: user.uid });
+              if (FEATURE_FLAGS.USE_SUPABASE_AUTH) {
+                // Supabase: security-definer RPC শুধু auth.uid()-এর নিজের সব
+                // data + login মুছে দেয় (অন্য কারো নয় — IDOR-safe)।
+                const { error } = await supabase.rpc('delete_my_account');
+                if (error) throw new Error(error.message);
+              } else {
+                // Firebase fallback (flag off হলে)।
+                const deleteMyAccount = httpsCallable(functions, 'deleteMyAccount');
+                await deleteMyAccount({ userId: user.uid });
+              }
               await googleAuthService.signOut().catch((e) => logger.warn('Settings.deleteAccount.googleSignOut', e));
               await authService.logout().catch((e) => logger.warn('Settings.deleteAccount.logout', e));
             } catch (error: any) {
