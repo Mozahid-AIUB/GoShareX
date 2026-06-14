@@ -885,9 +885,15 @@ export default function HomeScreen() {
     }
   }, [selectedDestDetails]);
 
+  // user আসল pickup/destination বদলালে তবেই search "পুরোনো" — list লুকাও।
+  // KEY: selectedPickupDetails একটা useMemo যার deps-এ live currentLocation
+  // আছে; GPS jitter-এ ওটা নতুন object হয়। object reference-এ depend করলে
+  // প্রতি GPS tick-এ এই effect চলত → search করার পরেও hasSearchedPassengers
+  // বারবার false হয়ে list লুকিয়ে যেত। তাই শুধু আসল pickup id ও destination
+  // id (primitive) বদলালে reset করি — GPS jitter আর list-কে নাড়ায় না।
   useEffect(() => {
     setHasSearchedPassengers(false);
-  }, [selectedPickupDetails, selectedDestDetails]);
+  }, [selectedPickup, destination, customDestination?.id]);
 
   // ── Google Routes API: fetch optimised route when pickup + destination set ──
   useEffect(() => {
@@ -1644,8 +1650,11 @@ export default function HomeScreen() {
 
 
 
-        {/* Live partner feed — show as soon as destination selected */}
-        {LIVE_PARTNER_FEED_ENABLED && selectedDestDetails ? (
+        {/* Live partner feed — শুধু "Find riders going my way" click করার পরে
+            (hasSearchedPassengers)। আগে destination সেট করলেই list চলে আসত;
+            এখন user স্পষ্টভাবে search না করলে list দেখায় না। FROM/TO বদলালে
+            hasSearchedPassengers false হয় (নিচের effect) → list আবার লুকায়। */}
+        {LIVE_PARTNER_FEED_ENABLED && selectedDestDetails && hasSearchedPassengers ? (
           <View style={S.section}>
             <View style={S.sectionHeader}>
               <View style={{ flex: 1 }}>
