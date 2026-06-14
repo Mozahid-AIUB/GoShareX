@@ -92,18 +92,52 @@ function RiderMarkerBase({ rider, isSelected, matchColor, nearbyColor, onPress }
   );
 
   return (
-    <Marker
-      coordinate={{ latitude: rider.lat, longitude: rider.lng }}
-      onPress={() => onPress(rider)}
-      zIndex={isSelected ? 30 : isMatch ? 20 : 10}
-      anchor={{ x: 0.5, y: 0.5 }}
-      tracksViewChanges={tracks}
-    >
-      <View style={m.wrap} onLayout={scheduleFreeze}>
-        {isMatch && <PulseRing color={matchColor} size={60} />}
-        {isMatch ? <MatchGlow glowColor={matchColor}>{pin}</MatchGlow> : pin}
-      </View>
-    </Marker>
+    <>
+      <Marker
+        coordinate={{ latitude: rider.lat, longitude: rider.lng }}
+        onPress={() => onPress(rider)}
+        zIndex={isSelected ? 30 : isMatch ? 20 : 10}
+        anchor={{ x: 0.5, y: 0.5 }}
+        tracksViewChanges={tracks}
+      >
+        <View style={m.wrap} onLayout={scheduleFreeze}>
+          {isMatch && <PulseRing color={matchColor} size={60} />}
+          {isMatch ? <MatchGlow glowColor={matchColor}>{pin}</MatchGlow> : pin}
+        </View>
+      </Marker>
+
+      {/* destination label — সম্পূর্ণ আলাদা Marker (pin-এর নিজস্ব bitmap
+          snapshot থেকে স্বাধীন)। তাই এটা pin-এর icon-কে কখনো clip/ঢাকতে
+          পারে না — আগের সব "icon কাটা/কালো box" সমস্যা প্রযুক্তিগতভাবে অসম্ভব।
+          anchor x:0.5,y:0 → label-এর উপরের-মাঝ rider coordinate-এ, তাই text
+          pin-এর নিচে ঝোলে। zIndex pin-এর চেয়ে কম। শুধু text (font আগেই
+          loaded), tracksViewChanges সবসময় false → কোনো timing race নেই।
+          pointerEvents/tappable false → tap শুধু pin-এ যায়। */}
+      <Marker
+        coordinate={{ latitude: rider.lat, longitude: rider.lng }}
+        anchor={{ x: 0.5, y: 0 }}
+        // pin-এর ব্যাসার্ধ (~24px) নিচে নামাই যাতে text গোল pin + tail-এর
+        // নিচে বসে, গায়ে লাগে না।
+        centerOffset={{ x: 0, y: 32 }}
+        zIndex={(isSelected ? 30 : isMatch ? 20 : 10) - 1}
+        // pin-এর মতোই self-freeze: প্রথমে track=true (label-এর bitmap তৈরি
+        // হওয়ার সুযোগ), তারপর freeze। শুরু থেকেই false দিলে Android কখনো
+        // কখনো bitmap-ই বানায় না → কিছু label invisible (তাই আগে অল্প কয়েকটা
+        // দেখাত)। onLayout freeze schedule করে — সব label নিশ্চিত আঁকা হয়।
+        tracksViewChanges={tracks}
+        tappable={false}
+      >
+        <View style={m.destChip} onLayout={scheduleFreeze}>
+          <View style={[m.destChipDot, { backgroundColor: bg }]} />
+          {/* numberOfLines নেই → text কখনো কাটে না, পুরো নাম এক লাইনে দেখায়।
+              chip text-এর প্রাকৃতিক প্রস্থ অনুযায়ী বড় হয় (maxWidth/flexShrink
+              নেই — Android marker snapshot-এ flex-shrink text কেটে ফেলত)। */}
+          <RNText style={m.destChipText}>
+            {rider.destination || 'Somewhere'}
+          </RNText>
+        </View>
+      </Marker>
+    </>
   );
 }
 
@@ -153,26 +187,26 @@ const m = StyleSheet.create({
   // করায় chip-এর প্রস্থ যাই হোক pin-এর নিচে মাঝখানে থাকে।
   //
   // KEY: Android-এ `elevation` z-order ঠিক করে — বেশি elevation-এর View
-  // উপরে আঁকে। আগে chip-এর elevation (9) pin-এর (7) চেয়ে বেশি ছিল, তাই
-  // chip-এর কালো box pin-এর উপরে উঠে icon-এর নিচের অংশ ঢেকে ফেলত (icon
-  // "কাটা" দেখাত)। chip pin-এর নিচে — তাই এর elevation pin-এর চেয়ে কম
-  // রাখি (1) যাতে কখনো icon-এর উপরে না আসে।
+  // destination glass pill — এখন এটা সম্পূর্ণ আলাদা Marker-এর child, তাই
+  // pin-এর icon-এর সাথে z-order/clip-এর কোনো সম্পর্ক নেই।
   destChip: {
-    marginTop: 6,
-    maxWidth: 152,
+    // maxWidth নেই → chip text-এর পুরো প্রস্থ অনুযায়ী বড় হয়, নাম কখনো কাটে
+    // না। (Android marker snapshot-এ maxWidth/flexShrink দিলে text কাটত।)
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'center',
     backgroundColor: 'rgba(12,17,40,0.96)',
-    paddingLeft: 8,
-    paddingRight: 11,
+    paddingLeft: 9,
+    paddingRight: 12,
     paddingVertical: 4,
-    borderRadius: 999,
+    borderRadius: 14,
     borderWidth: 1.2,
+    borderColor: 'rgba(255,255,255,0.18)',
     shadowColor: '#000',
     shadowOpacity: 0.4,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    elevation: 4,
   },
   // ছোট রঙিন বৃত্ত — pure View, font-free (snapshot-এ সাথে সাথে আঁকে)।
   destChipDot: {
@@ -186,6 +220,5 @@ const m = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: -0.1,
-    textAlign: 'center',
   },
 });

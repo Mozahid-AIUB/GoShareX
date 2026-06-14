@@ -47,6 +47,10 @@ export interface NearbyRider {
   name: string;
   distance: number;
   destination: string;
+  // গন্তব্যের coordinate — Uber-style auto-complete geofence-এ লাগে (custom
+  // গন্তব্যেও কাজ করাতে; নাম দিয়ে preset resolve-এর দরকার পড়ে না)।
+  destLat?: number;
+  destLng?: number;
   pickupPoint: string;
   rating: number;
   badge: string;

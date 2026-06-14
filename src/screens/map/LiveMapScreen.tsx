@@ -130,11 +130,6 @@ export default function LiveMapScreen() {
   // সেভাবেই থাকে (প্রতি GPS tick-এ map লাফায় না)। rider select করলেও map
   // নড়ে না — দুটোই premium/professional behaviour।
   const didInitialCenter = useRef(false);
-  // route fit একবারই করি প্রতি (origin→dest) জোড়ার জন্য। GPS jitter-এ
-  // routeOrigin নতুন object হয়ে route effect বারবার চলে → আগে প্রতিবার
-  // fitToCoordinates zoom করত (map বারবার zoom in/out হত)। এই ref দিয়ে
-  // একই গন্তব্যের জন্য একবারই fit হয়, পরে আর নয়।
-  const lastFittedRoute = useRef<string | null>(null);
   // user নিজে pin tap করলে true → map ওই rider-এ আলতো focus (premium zoom in)।
   // auto-select (list বদলে প্রথম rider) হলে false → map নড়ে না (লাফায় না)।
   const userTappedRider = useRef(false);
@@ -197,7 +192,13 @@ export default function LiveMapScreen() {
   const gpsTier = useMemo(() => getSearchRadius(accuracy), [accuracy]);
   // জোন radius = ইউজার-নির্বাচিত (store, Home-এর সাথে শেয়ার)।
   const userAccuracyRadius = zoneRadius;
-  const routeDestinationKey = customDestination?.name ?? destination ?? '';
+  // rider active হলে এই নামটাই DB-তে যায় (presence) → অন্যদের map-এ
+  // pin-এর নিচে দেখায়। আগে এটা ছিল `customDestination?.name ?? destination`
+  // — preset গন্তব্যে `destination` একটা ID (যেমন "kuril_flyover"), নাম নয়,
+  // তাই preset rider-দের label খালি/অপাঠ্য থাকত (শুধু custom-search rider-দের
+  // নাম দেখাত)। এখন destinationDetails.name ব্যবহার করি — custom ও preset
+  // দুটোতেই পাঠযোগ্য নাম দেয়।
+  const routeDestinationKey = destinationDetails?.name ?? customDestination?.name ?? destination ?? '';
 
   // rawRiders এখন server (PostGIS RPC) থেকে আসে — distanceM (server-হিসাবকৃত)
   // + isMatchDest (গন্তব্য ≤500m) সহ। এখানে শুধু RiderMatch shape-এ map করি
@@ -405,28 +406,32 @@ export default function LiveMapScreen() {
     );
   }, [selectedRider]);
 
-  // Cinematic intro — শুধু একবার (didInitialCenter ref)। map wide (দূর থেকে)
-  // শুরু হয়, GPS fix এলে একটু পরে মসৃণ zoom IN হয়ে user-এর location +
-  // কাছের round pin দেখায় — premium "establishing shot"।
+  // Cinematic intro — একবারই (didInitialCenter ref)। map wide (দূর থেকে,
+  // initialRegion delta 0.025 ≈ 2.5km) শুরু হয় → সব rider এক পলক দেখা যায় →
+  // GPS fix এলে animated হয়ে user-এর location-এ একদম কাছে (~450m view,
+  // delta 0.0045) zoom IN হয় → কাছের round pin স্পষ্ট।
   //
-  // গুরুত্বপূর্ণ: এই intro শুধু তখনই চলে যখন কোনো গন্তব্য নেই (route fit
-  // নিজেই establishing shot দেয়, নাহলে দুটো animation সংঘর্ষ করে flicker)।
-  // route fit-ও একবারই হয় (lastFittedRoute guard), তাই দুই ক্ষেত্রেই
-  // "একবার zoom in, তারপর স্থির" — user-এর pan/zoom অক্ষত থাকে।
+  // গন্তব্য থাকুক বা না থাকুক — সবসময় এই কাছের zoom-ই establishing shot।
+  // route-এর fitToCoordinates (যা পুরো রুট দেখাতে zoom OUT করত) আর camera
+  // নাড়ায় না; route শুধু polyline + destination marker হিসেবে আঁকে।
   useEffect(() => {
     if (!hasLoc || didInitialCenter.current) return;
-    if (destinationDetails) return; // গন্তব্য আছে → route fit establishing shot দেবে।
     didInitialCenter.current = true;
-    const lat = latitude!;
-    const lng = longitude!;
+    // BUG ছিল: dependency-তে latitude/longitude থাকায় প্রতি GPS tick-এ effect
+    // re-run হত → cleanup আগের timer বাতিল করত, কিন্তু didInitialCenter
+    // প্রথম run-এই true হয়ে যেত → 600ms timer কখনো fire করত না → zoom হত না,
+    // map wide-এ আটকে থাকত। এখন dependency শুধু hasLoc (false→true একবারই),
+    // আর lat/lng store থেকে fire-এর সময়ে fresh পড়ি (closure stale নয়)।
     const t = setTimeout(() => {
+      const loc = useLocationStore.getState();
+      if (loc.latitude == null || loc.longitude == null) return;
       mapRef.current?.animateToRegion(
-        { latitude: lat, longitude: lng, latitudeDelta: 0.004, longitudeDelta: 0.004 },
+        { latitude: loc.latitude, longitude: loc.longitude, latitudeDelta: 0.0045, longitudeDelta: 0.0045 },
         1100,
       );
     }, 600);
     return () => clearTimeout(t);
-  }, [hasLoc, latitude, longitude, destinationDetails]);
+  }, [hasLoc]);
 
   // Route polyline
   useEffect(() => {
@@ -441,14 +446,10 @@ export default function LiveMapScreen() {
         const pts = safeDecodePolyline(r?.polyline?.encodedPolyline);
         setRouteCoordinates(pts);
         setRouteSummary({ distanceText: r?.distanceMeters ? `${(r.distanceMeters / 1000).toFixed(1)} km` : '', durationText: r?.duration ? `${Math.max(1, Math.round(r.duration / 60))} min` : '' });
-        // একই গন্তব্যে একবারই fit (GPS jitter-এ বারবার zoom বন্ধ)। গন্তব্য
-        // বদলালে key বদলে আবার fit হবে।
-        const fitKey = `${destinationDetails.lat.toFixed(4)},${destinationDetails.lng.toFixed(4)}`;
-        if (lastFittedRoute.current !== fitKey) {
-          lastFittedRoute.current = fitKey;
-          didInitialCenter.current = true; // route fit-ই establishing shot; intro যেন আর না চলে।
-          mapRef.current?.fitToCoordinates(pts.length > 1 ? pts : [{ latitude: routeOrigin.lat, longitude: routeOrigin.lng }, { latitude: destinationDetails.lat, longitude: destinationDetails.lng }], { edgePadding: { top: 150, right: 40, bottom: 320, left: 40 }, animated: true });
-        }
+        // route শুধু polyline + destination marker হিসেবে আঁকা হয়; camera
+        // নাড়ানো হয় না। establishing shot হলো intro-র কাছের zoom (~450m)।
+        // আগে এখানে fitToCoordinates ছিল যা পুরো রুট দেখাতে zoom OUT করত —
+        // user-এর "কাছে দেখাও" চাওয়ার বিপরীত, তাই সরানো হলো।
       } catch {
         try {
           const fb = await directionsService.getRoute({ origin: { latitude: routeOrigin.lat, longitude: routeOrigin.lng }, destination: { latitude: destinationDetails.lat, longitude: destinationDetails.lng }, mode: 'driving' });

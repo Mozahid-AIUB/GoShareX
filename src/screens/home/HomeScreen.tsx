@@ -1348,6 +1348,10 @@ export default function HomeScreen() {
     name: partner.name,
     distance: partner.distanceMeters,
     destination: partner.destination,
+    // ride-এর গন্তব্যের coordinate — RideActiveScreen-এ Uber-style auto-
+    // complete geofence-এ লাগে (custom গন্তব্যেও কাজ করে)।
+    destLat: selectedDestDetails?.lat,
+    destLng: selectedDestDetails?.lng,
     pickupPoint: selectedPickupLabel,
     rating: partner.rating,
     badge: partner.badge,
@@ -1612,23 +1616,18 @@ export default function HomeScreen() {
                 </View>
               )}
 
-              {/* Find riders button — GPS resolve হওয়ার সময় spinner দেখায়
-                  আর disable থাকে (double-tap বন্ধ), যাতে user বোঝে কাজ হচ্ছে।
-                  আগে চুপচাপ আটকে থাকত বলে "tap কাজ করছে না" মনে হত। */}
+              {/* Find riders button — double-tap বন্ধ করতে resolve চলাকালীন
+                  disable, কিন্তু label/icon বদলায় না (pickup আগেই background-এ
+                  resolve থাকে, তাই "Getting your location…" দেখানো অপ্রয়োজনীয়/
+                  unprofessional ছিল)। */}
               <TouchableOpacity
-                style={[S.searchPassengersBtn, isResolvingCurrentLocation && { opacity: 0.7 }]}
+                style={[S.searchPassengersBtn, isResolvingCurrentLocation && { opacity: 0.85 }]}
                 activeOpacity={0.88}
                 disabled={isResolvingCurrentLocation}
                 onPress={() => { void handlePassengerSearch(); }}
               >
-                {isResolvingCurrentLocation ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <MaterialCommunityIcons name="account-search-outline" size={20} color="#FFF" />
-                )}
-                <Text style={S.searchPassengersText}>
-                  {isResolvingCurrentLocation ? 'Getting your location…' : 'Find riders going my way'}
-                </Text>
+                <MaterialCommunityIcons name="account-search-outline" size={20} color="#FFF" />
+                <Text style={S.searchPassengersText}>Find riders going my way</Text>
               </TouchableOpacity>
 
               {/* Secondary actions */}
