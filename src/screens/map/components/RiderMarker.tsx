@@ -139,6 +139,9 @@ const m = StyleSheet.create({
     width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 2,
+    // icon যেন round pin-এর border-এ clip না হয় (Android-এ borderRadius
+    // অনেক সময় child clip করে)।
+    overflow: 'visible',
     shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 5, shadowOffset: { width: 0, height: 3 },
     elevation: 7,
   },

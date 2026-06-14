@@ -98,7 +98,7 @@ const RickshawArt = ({ size, active, mono, monoColor }: { size: number; active: 
 export default function PremiumVehicleArt({ type, size = 40, active = false, mono = false, monoColor }: Props) {
   if (type === 'rickshaw') {
     return (
-      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
         <RickshawArt size={size} active={active} mono={mono} monoColor={monoColor} />
       </View>
     );
@@ -107,9 +107,19 @@ export default function PremiumVehicleArt({ type, size = 40, active = false, mon
   const color = mono
     ? (monoColor ?? '#FFFFFF')
     : active ? (type === 'bike' ? COLORS.bike : COLORS.cng) : IDLE_COLOR;
+  // KEY: MaterialCommunityIcons একটা icon-FONT। glyph তার font em-box ছাড়িয়ে
+  // ছাপায় — parent View ঠিক size×size-এ আটকালে glyph-এর নিচের অংশ (চাকা)
+  // box clip করে → icon নিচ থেকে কাটা দেখায় (rickshaw SVG-তে হয় না, তাই
+  // শুধু bike/cng কাটছিল)। সমাধান: glyph size একটু ছোট রাখি আর parent View
+  // glyph-এর চেয়ে বড় (size) — তাই glyph clip ছাড়াই পুরো ভিতরে বসে।
   return (
-    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-      <MaterialCommunityIcons name={glyph} size={size} color={color} />
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+      <MaterialCommunityIcons
+        name={glyph}
+        size={size * 0.82}
+        color={color}
+        style={{ width: size * 0.82, height: size * 0.82, textAlign: 'center', textAlignVertical: 'center', includeFontPadding: false, lineHeight: size * 0.82 }}
+      />
     </View>
   );
 }
