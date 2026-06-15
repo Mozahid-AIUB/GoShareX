@@ -22,8 +22,12 @@ module.exports = function (api) {
     plugins.push(['transform-remove-console', { exclude: ['error', 'warn'] }]);
   }
 
-  // reanimated plugin অবশ্যই সবার শেষে থাকতে হবে
-  plugins.push('react-native-reanimated/plugin');
+  // NOTE: reanimated/worklets babel plugin manually যোগ করা হয় না।
+  // Reanimated 4 (worklets 0.5.x) — plugin `react-native-worklets` package-এ
+  // সরে গেছে, আর Expo 54-এর `babel-preset-expo` নিজেই সেটা auto-inject করে
+  // (babel-preset-expo/build/index.js:284-291 দেখো)। আগে এখানে
+  // 'react-native-reanimated/plugin' (পুরোনো path) push করায় plugin দুবার
+  // register হতো → worklets init corrupt → production-এ splash freeze।
 
   return {
     presets: ['babel-preset-expo'],
