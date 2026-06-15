@@ -20,7 +20,7 @@ export default {
         android: {
             adaptiveIcon: {
                 foregroundImage: "./assets/images/adaptive-icon.png",
-                backgroundColor: "#6366F1"
+                backgroundColor: "#FFFFFF"
             },
             // keyboard খুললে view resize হয় (input keyboard-এর উপরে স্থির থাকে,
             // jump করে না) — chat screen-এর জন্য জরুরি।
