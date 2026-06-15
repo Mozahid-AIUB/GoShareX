@@ -81,3 +81,5 @@ coverage/
 .firebaserc.local
 functions/lib/
 functions/node_modules/
+
+supabase/.temp/
