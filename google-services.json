@@ -44,6 +44,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "612454425143-seb2toaj4mprh81tu54mfvnvb90d00c4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.gosharex.app",
+            "certificate_hash": "1a914e361f6786e40e30d0b7e6687ed07dd1f4a8"
+          }
+        },
+        {
           "client_id": "612454425143-d7n1p4th4huua4s2keprs8r0aocakh4a.apps.googleusercontent.com",
           "client_type": 3
         }

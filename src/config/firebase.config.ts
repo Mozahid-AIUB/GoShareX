@@ -35,14 +35,16 @@ const {
   FIREBASE_DATABASE_URL,
 } = extraConfig;
 
+// Supabase migration-এ Firebase keys optional — missing হলে warn করি কিন্তু crash করি না।
+// Firebase এখন শুধু Google Sign-In OAuth wrapper হিসেবে ব্যবহার হয়।
 if (!FIREBASE_API_KEY || !FIREBASE_AUTH_DOMAIN || !FIREBASE_PROJECT_ID) {
-  console.error('[firebase.config] Missing required Firebase env vars. Check your .env file.');
+  console.warn('[firebase.config] Firebase env vars missing — Google Sign-In may not work. Supabase auth unaffected.');
 }
 
 const firebaseConfig = {
-  apiKey: FIREBASE_API_KEY ?? '',
-  authDomain: FIREBASE_AUTH_DOMAIN ?? '',
-  projectId: FIREBASE_PROJECT_ID ?? '',
+  apiKey: FIREBASE_API_KEY ?? 'placeholder',
+  authDomain: FIREBASE_AUTH_DOMAIN ?? 'placeholder.firebaseapp.com',
+  projectId: FIREBASE_PROJECT_ID ?? 'placeholder',
   storageBucket: FIREBASE_STORAGE_BUCKET ?? '',
   messagingSenderId: FIREBASE_MESSAGING_SENDER_ID ?? '',
   appId: FIREBASE_APP_ID ?? '',
@@ -85,11 +87,12 @@ const auth: Auth = (() => {
 })();
 
 // Firestore must also be initialized only once on React Native.
+// experimentalForceLongPolling সরানো হয়েছে — app এখন Supabase-কেন্দ্রিক,
+// Firestore rarely ব্যবহার হয়; long polling timeout → splash freeze করত।
 const db: Firestore = (() => {
   try {
     return initializeFirestore(app, {
       cacheSizeBytes: CACHE_SIZE_UNLIMITED,
-      experimentalForceLongPolling: true,
     } as any);
   } catch {
     return getFirestore(app);

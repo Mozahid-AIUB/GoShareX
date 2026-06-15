@@ -277,13 +277,20 @@ const SplashScreen = () => {
     };
 
     // ---- Supabase auth mode ----
-    // Firebase onAuthStateChanged-এর বদলে Supabase session দেখি।
-    // suspension চেক এখন Supabase badgeService দিয়ে — RLS-এ কাজ করে
-    // (Firebase-এ permission_denied দিত, তাই আগে skip করা ছিল)।
     if (FEATURE_FLAGS.USE_SUPABASE_AUTH) {
       (async () => {
         if (resolved.current) return;
         resolved.current = true;
+
+        // Safety timeout: ১০ সেকেন্ডে auth শেষ না হলে force করে বেরিয়ে যাই।
+        // Firebase init hang বা network সমস্যায় app splash-এ stuck থাকে —
+        // এই timeout সেটা ঠেকায়।
+        const timeoutId = setTimeout(() => {
+          if (!resolved.current) return;
+          setUser(null);
+          finishLoading();
+        }, 10000);
+
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (session) {
@@ -294,6 +301,7 @@ const SplashScreen = () => {
                 await authService.logout();
                 setSuspension({ reason: suspension.reason, suspendedUntil: (userData as any).suspendedUntil });
                 setUser(null);
+                clearTimeout(timeoutId);
                 finishLoading();
                 return;
               }
@@ -305,6 +313,7 @@ const SplashScreen = () => {
         } catch {
           setUser(null);
         }
+        clearTimeout(timeoutId);
         finishLoading();
       })();
       return;
