@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import * as Notifications from 'expo-notifications';
 import { RootStackParamList } from './types';
 import { useAuthStore } from '@/store/authStore';
 import { startPresenceTracking, stopPresenceTracking } from '@/services/presenceService';
@@ -8,6 +9,12 @@ import { rideRequestService } from '@/services/supabase/rideRequestService';
 import { useRequestStore } from '@/store/requestStore';
 import IncomingRequestOverlay from '@/components/common/IncomingRequestOverlay';
 import { useUnratedRideReminder } from '@/hooks/useUnratedRideReminder';
+import { handleNotificationResponse } from '@/services/notifications/pushHandler';
+import { logger } from '@/utils/logger';
+
+// navigation ref — notification tap থেকে screen-এ navigate করতে (component-এর
+// বাইরে থেকেও ব্যবহারযোগ্য)।
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 import AuthNavigator from './AuthNavigator';
 import BottomTabNavigator from './BottomTabNavigator';
@@ -74,8 +81,34 @@ const AppNavigator = () => {
   // Check unrated ride reminders when app opens (every time focus)
   useUnratedRideReminder();
 
+  // Notification tap → ঠিক screen-এ নিয়ে যাই। আগে listener register-ই হত না
+  // (App.tsx শুধু Firebase configureNotificationHandler ডাকত) → tap-এ কিছু
+  // হত না। এখন: (a) app বন্ধ থাকা অবস্থায় tap করে খুললে শেষ response,
+  // (b) চলন্ত অবস্থায় tap — দুটোই handle করি। Expo Go-তে remote push নেই,
+  // তাই listener নিরীহভাবে কিছু পায় না (crash করে না)।
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // expo-notifications response → pushHandler যে shape চায় (data) সেভাবে
+    // route করি। data থাকে response.notification.request.content.data-তে।
+    const routeFrom = (response: Notifications.NotificationResponse | null) => {
+      if (!response || !navigationRef.isReady()) return;
+      const data = response.notification?.request?.content?.data ?? {};
+      handleNotificationResponse({ data }, navigationRef as any);
+    };
+
+    // app বন্ধ ছিল, notification tap করে খোলা হলো → শেষ response route করি।
+    Notifications.getLastNotificationResponseAsync()
+      .then(routeFrom)
+      .catch((e) => logger.warn('AppNavigator.lastNotif', String(e)));
+
+    // app চলন্ত অবস্থায় tap → সরাসরি route।
+    const sub = Notifications.addNotificationResponseReceivedListener(routeFrom);
+    return () => sub.remove();
+  }, [isAuthenticated]);
+
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator id={undefined} screenOptions={{ headerShown: false }}>
         {isLoading ? (
           <Stack.Screen name="Splash" component={SplashScreen} />

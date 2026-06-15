@@ -10,6 +10,7 @@ import ErrorBoundary from '@/components/common/ErrorBoundary';
 import OfflineBanner from '@/components/common/OfflineBanner';
 import BiometricGate from '@/components/common/BiometricGate';
 import { configureNotificationHandler } from '@/services/firebase/messaging';
+import { setupNotificationHandlers } from '@/services/notifications/notificationHandler';
 import { validateEnvironment } from '@/config/env';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
@@ -20,6 +21,9 @@ import { FEATURE_FLAGS } from '@/config/featureFlags';
 validateEnvironment();
 // Must run before the first render so foreground notifications are never dropped
 configureNotificationHandler();
+// Register notification received/tap listeners (toggle-gated display + routing).
+// Expo Go-তে নিরীহভাবে skip হয়; dev/production build-এ কাজ করে।
+setupNotificationHandlers();
 // Load user's saved map style preference
 void useUIStore.getState().loadMapStylePreference();
 // Load privacy preferences (chat typing/read/presence toggles)
