@@ -99,10 +99,10 @@ const REQUIRED_KEYS: (keyof EnvConfig)[] = [
 export const validateEnvironment = (): void => {
   const missing = REQUIRED_KEYS.filter((k) => !ENV[k]);
   if (missing.length > 0) {
+    // আগে production-এ throw করত → একটা env খালি হলেই app splash-এ crash
+    // করত (খুলত না)। এখন শুধু warn করি — app খোলে, শুধু সংশ্লিষ্ট feature
+    // ডিগ্রেড হতে পারে। (env পৌঁছানোর আসল সমস্যা আলাদাভাবে ঠিক করা হয়।)
     const msg = `[GoShareX] Missing required env vars: ${missing.join(', ')}`;
-    if (!__DEV__) {
-      throw new Error(msg);
-    }
     console.error(msg);
   } else if (__DEV__) {
     console.log(`[GoShareX] Env loaded — ${ENV.appEnv} v${ENV.appVersion}`);
