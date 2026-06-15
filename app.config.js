@@ -73,8 +73,7 @@ export default {
                     android: {
                         compileSdkVersion: 35,
                         targetSdkVersion: 35,
-                        buildToolsVersion: "35.0.0",
-                        newArchEnabled: false
+                        buildToolsVersion: "35.0.0"
                     }
                 }
             ]
