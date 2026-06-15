@@ -13,7 +13,7 @@ import {
 // দিয়ে আসে → dev-এ পুরো screen লাল LogBox — user-unfriendly আর অপ্রয়োজনীয়।
 // SDK-র নিজের logging বন্ধ করি; আমাদের নিজস্ব try/catch + logger যথেষ্ট।
 setFirestoreLogLevel('silent');
-import { getDatabase, Database } from 'firebase/database';
+import { getDatabase, Database, ref, goOffline } from 'firebase/database';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { getFunctions, Functions } from 'firebase/functions';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -99,7 +99,13 @@ const db: Firestore = (() => {
   }
 })();
 
+// RTDB initialize করি কিন্তু সাথে সাথে offline করে দিই —
+// app এখন Supabase presence ব্যবহার করে (USE_SUPABASE_CHAT: true)।
+// goOffline() না দিলে RTDB startup-এ connect করার চেষ্টা করে
+// JS thread block করে → "Timeout waiting for drawn" freeze।
 const realtimeDb: Database = getDatabase(app);
+goOffline(realtimeDb);
+
 const storage: FirebaseStorage = getStorage(app);
 const functions: Functions = getFunctions(app);
 
