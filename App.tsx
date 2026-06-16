@@ -1,3 +1,4 @@
+console.warn('[BOOT] 1 App.tsx eval start');
 import React, { useCallback, useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
@@ -17,15 +18,20 @@ import { useAuthStore } from '@/store/authStore';
 import { startPresenceTracking, stopPresenceTracking } from '@/services/firebase/presenceService';
 import { FEATURE_FLAGS } from '@/config/featureFlags';
 
+console.warn('[BOOT] 2 imports done, calling validateEnvironment');
 // Validate required env vars — throws in production if missing, logs in dev
 validateEnvironment();
+console.warn('[BOOT] 3 validateEnvironment done, calling configureNotificationHandler');
 // Must run before the first render so foreground notifications are never dropped
 configureNotificationHandler();
+console.warn('[BOOT] 4 configureNotificationHandler done, calling setupNotificationHandlers');
 // Register notification received/tap listeners (toggle-gated display + routing).
 // Expo Go-তে নিরীহভাবে skip হয়; dev/production build-এ কাজ করে।
 setupNotificationHandlers();
+console.warn('[BOOT] 5 setupNotificationHandlers done, loading stores');
 // Load user's saved map style preference
 void useUIStore.getState().loadMapStylePreference();
+console.warn('[BOOT] 6 all module-level init done — App component defined next');
 // Load privacy preferences (chat typing/read/presence toggles)
 import('@/store/privacyStore').then((m) => void m.usePrivacyStore.getState().load());
 // Load notification toggle preferences (Settings ride/chat alerts)
