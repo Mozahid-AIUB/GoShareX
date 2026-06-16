@@ -1,5 +1,4 @@
-console.warn('[BOOT] 1 App.tsx eval start');
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -18,20 +17,15 @@ import { useAuthStore } from '@/store/authStore';
 import { startPresenceTracking, stopPresenceTracking } from '@/services/firebase/presenceService';
 import { FEATURE_FLAGS } from '@/config/featureFlags';
 
-console.warn('[BOOT] 2 imports done, calling validateEnvironment');
 // Validate required env vars — throws in production if missing, logs in dev
 validateEnvironment();
-console.warn('[BOOT] 3 validateEnvironment done, calling configureNotificationHandler');
 // Must run before the first render so foreground notifications are never dropped
 configureNotificationHandler();
-console.warn('[BOOT] 4 configureNotificationHandler done, calling setupNotificationHandlers');
 // Register notification received/tap listeners (toggle-gated display + routing).
 // Expo Go-তে নিরীহভাবে skip হয়; dev/production build-এ কাজ করে।
 setupNotificationHandlers();
-console.warn('[BOOT] 5 setupNotificationHandlers done, loading stores');
 // Load user's saved map style preference
 void useUIStore.getState().loadMapStylePreference();
-console.warn('[BOOT] 6 all module-level init done — App component defined next');
 // Load privacy preferences (chat typing/read/presence toggles)
 import('@/store/privacyStore').then((m) => void m.usePrivacyStore.getState().load());
 // Load notification toggle preferences (Settings ride/chat alerts)
@@ -58,6 +52,18 @@ export default function App() {
     return () => clearTimeout(t);
   }, []);
 
+  // Hide the native splash as soon as the first RN frame is ready.
+  // আগে শুধু onLayout-এর ভেতরে hide করা হত, কিন্তু onLayout একবারই fire হয় —
+  // আর সেই মুহূর্তে `ready` তখনো false (200ms timeout বাকি)। ফলে hideAsync()
+  // কখনো call হত না → Android native splash কখনো সরত না → পুরো screen
+  // black/splash-এ আটকে থাকত ("Activity transferring splash screen timeout")।
+  // এখন `ready` true হওয়ার সাথে সাথেই hide করি — onLayout-এর race ছাড়াই।
+  useEffect(() => {
+    if (ready) {
+      void SplashScreen.hideAsync().catch(() => undefined);
+    }
+  }, [ready]);
+
   // Track presence when logged in.
   // Supabase auth mode-এ Firebase presence skip করি — কারণ ইউজার
   // Firebase-এ login করা নেই, তাই permission_denied warning আসে।
@@ -75,19 +81,16 @@ export default function App() {
     return unsub;
   }, []);
 
-  const onLayoutRootView = useCallback(async () => {
-    if (ready) {
-      await SplashScreen.hideAsync().catch(() => undefined);
-    }
-  }, [ready]);
-
   return (
     <SafeAreaProvider>
       <PaperProvider theme={theme}>
         <ErrorBoundary>
           <BiometricGate>
-            <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
-              <StatusBar style="dark" backgroundColor="transparent" translucent={false} />
+            {/* root-এ explicit dark background — edge-to-edge মোডে content
+                render হওয়ার আগে কোনো frame খালি থাকলেও পর্দা dark থাকে,
+                ফাঁকা black নয়। */}
+            <View style={{ flex: 1, backgroundColor: '#07090F' }}>
+              <StatusBar style="light" backgroundColor="transparent" translucent={false} />
               <AppNavigator />
               <OfflineBanner />
             </View>
