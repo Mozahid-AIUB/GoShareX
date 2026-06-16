@@ -3,6 +3,7 @@ import {
   Alert,
   Animated,
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Pressable,
   ScrollView,
@@ -570,7 +571,13 @@ const DestinationModal = ({
   const showHistory = query.trim().length < 2;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      {/* DestinationModal একটা <Modal> → Android-এ আলাদা window তৈরি করে, তাই
+          app-এর global adjustResize এখানে কাজ করে না; keyboard উঠলে search
+          input ঢেকে যেত। KeyboardAvoidingView (behavior=padding, JS-driven
+          keyboard height) overlay-এর নিচে padding দেয় → flex-end sheet
+          keyboard-এর ঠিক উপরে উঠে আসে, input সবসময় দৃশ্যমান থাকে। */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <View style={S.modalOverlay}>
         <TouchableOpacity style={S.modalBackdrop} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
         <View style={[S.modalSheet, { maxHeight: '88%' }]}>
@@ -695,6 +702,7 @@ const DestinationModal = ({
           </ScrollView>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
