@@ -95,7 +95,7 @@ export default function LiveMapScreen() {
   const longitude = snapped?.longitude ?? rawLongitude;
   const setLocation = useLocationStore((s) => s.setLocation);
   const setTracking = useLocationStore((s) => s.setTracking);
-  const { destination: storeDestination, customDestination, pickupPoint: storePickupPoint, routeSearchNonce, requestStates, vehicleType, setPartner, setStatus, setRequestState } = useRideStore();
+  const { destination: storeDestination, customDestination, pickupPoint: storePickupPoint, routeSearchNonce, requestStates, vehicleType, setPartner, setStatus, setRequestState, setPresenceEnabled } = useRideStore();
 
   const destination = routeParams?.destination ?? storeDestination;
   const pickupPoint = routeParams?.pickup ?? storePickupPoint;
@@ -312,25 +312,14 @@ export default function LiveMapScreen() {
             sanitizeSpeedKmh(cur.speedMps, cur.accuracy)
           );
         }
-        // গন্তব্যের lat/lng — geo-matching-এর জন্য (presence + find দুটোতেই)
+        // গন্তব্যের lat/lng — nearby query-র getLocation closure-এ লাগে।
         const destLat = destinationDetails?.lat;
         const destLng = destinationDetails?.lng;
-        await locationService.startWatching(
-          user.uid, routeDestinationKey, pickupPoint ?? 'Main Gate',
-          (loc) => {
-            if (mounted) {
-              setLocation(
-                loc.latitude,
-                loc.longitude,
-                loc.accuracy,
-                sanitizeSpeedKmh(loc.speedMps, loc.accuracy)
-              );
-            }
-          },
-          user.rating ?? 5, user.badge ?? 'New Rider', vehicleType ?? 'rickshaw',
-          user.name ?? 'Active Rider',
-          destLat, destLng,
-        );
+        // presence broadcast (active_riders-এ নিজেকে লেখা) এখন GLOBAL
+        // useLivePresence hook চালায় — single owner (singleton GPS sub একটাই)।
+        // Map খুললে শুধু "Go Live" on নিশ্চিত করি; broadcast + map dot-এর live
+        // GPS তখন global hook থেকে useLocationStore-এ আসে।
+        setPresenceEnabled(true);
         if (!mounted) return;
         setTracking(true);
         stopWatching = locationService.watchNearbyRiders(
@@ -360,12 +349,13 @@ export default function LiveMapScreen() {
 
     return () => {
       mounted = false;
-      locationService.stopWatching();
-      setTracking(false);
+      // NOTE: presence broadcast আর এখানে বন্ধ করি না — global useLivePresence
+      // hook সেটার মালিক (Map ছাড়লেও discoverable থাকা = আসল fix)। এখানে শুধু
+      // এই screen-এর nearby-read subscription বন্ধ করি।
       stopWatching?.();
       if (waitTimerRef.current) { clearTimeout(waitTimerRef.current); waitTimerRef.current = null; }
     };
-  }, [destination, pickupPoint, routeDestinationKey, destinationDetails?.lat, destinationDetails?.lng, routeSearchNonce, vehicleType, setLocation, setTracking, user?.uid]);
+  }, [destination, pickupPoint, routeDestinationKey, destinationDetails?.lat, destinationDetails?.lng, routeSearchNonce, vehicleType, setLocation, setTracking, setPresenceEnabled, user?.uid]);
 
   // Meetup route for selected rider
   useEffect(() => {

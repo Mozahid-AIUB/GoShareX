@@ -839,6 +839,12 @@ export default function HomeScreen() {
   // দুই জায়গায় বদলায়)। MATCH = একই গন্তব্য AND এই radius-এর ভিতরে।
   const zoneRadius = useRideStore(s => s.zoneRadius);
   const setZoneRadius = useRideStore(s => s.setZoneRadius);
+  // "Go Live" — গন্তব্য সেট + presenceEnabled হলে যেকোনো screen-এ discoverable
+  // (broadcast useLivePresence hook চালায়)। header pill এই অবস্থা দেখায় + toggle।
+  const presenceEnabled = useRideStore(s => s.presenceEnabled);
+  const setPresenceEnabled = useRideStore(s => s.setPresenceEnabled);
+  // গন্তব্য সেট থাকলে আর Go Live on থাকলে = এখন discoverable।
+  const isLive = presenceEnabled && (!!destination || !!customDestination);
 
   // ── Ride request handshake ──
   // incoming banner এখন GLOBAL (AppNavigator → IncomingRequestOverlay) — সব
@@ -1481,10 +1487,24 @@ export default function HomeScreen() {
                 </View>
               )}
             </TouchableOpacity>
-            <View style={S.livePillInline}>
-              <LiveDot />
-              <Text style={S.liveTextInline}>LIVE</Text>
-            </View>
+            {/* presence status pill — গন্তব্য সেট + Go Live হলে সবুজ "LIVE"
+                (অন্যরা খুঁজে পায়), নাহলে ধূসর "OFFLINE"। tap করে toggle। */}
+            <TouchableOpacity
+              style={[S.livePillInline, !isLive && S.livePillOffline]}
+              activeOpacity={0.8}
+              onPress={() => {
+                if (!destination && !customDestination) {
+                  Alert.alert('গন্তব্য দিন আগে', 'Live হতে হলে আগে "কোথায় যাবেন?" সেট করুন — তাহলেই অন্যরা আপনাকে খুঁজে পাবে।');
+                  return;
+                }
+                setPresenceEnabled(!presenceEnabled);
+              }}
+            >
+              {isLive ? <LiveDot /> : <View style={S.offlineDot} />}
+              <Text style={[S.liveTextInline, !isLive && S.liveTextOffline]}>
+                {isLive ? 'LIVE' : 'OFFLINE'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </Animated.View>
 
@@ -1938,6 +1958,12 @@ const S = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(13,148,136,0.25)',
   },
   liveTextInline: { fontSize: 9, fontWeight: '900', color: '#0D9488', letterSpacing: 1.5 },
+  livePillOffline: {
+    backgroundColor: 'rgba(148,148,168,0.10)',
+    borderColor: 'rgba(148,148,168,0.28)',
+  },
+  liveTextOffline: { color: '#9896A8' },
+  offlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#9896A8' },
 
   timeCtxRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
   timeCtxIconSm: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },

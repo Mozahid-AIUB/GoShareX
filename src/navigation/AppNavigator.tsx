@@ -9,6 +9,7 @@ import { rideRequestService } from '@/services/supabase/rideRequestService';
 import { useRequestStore } from '@/store/requestStore';
 import IncomingRequestOverlay from '@/components/common/IncomingRequestOverlay';
 import { useUnratedRideReminder } from '@/hooks/useUnratedRideReminder';
+import { useLivePresence } from '@/hooks/useLivePresence';
 import { handleNotificationResponse } from '@/services/notifications/pushHandler';
 import { logger } from '@/utils/logger';
 
@@ -80,6 +81,11 @@ const AppNavigator = () => {
 
   // Check unrated ride reminders when app opens (every time focus)
   useUnratedRideReminder();
+
+  // GLOBAL presence broadcaster — গন্তব্য সেট + "Go Live" on থাকলে যেকোনো
+  // screen থেকে নিজের location active_riders-এ broadcast করে (আগে শুধু Live Map
+  // screen-এ হত → দুজন Home-এ থাকলে কেউ কাউকে পেত না)। single owner।
+  useLivePresence();
 
   // Notification tap → ঠিক screen-এ নিয়ে যাই। আগে listener register-ই হত না
   // (App.tsx শুধু Firebase configureNotificationHandler ডাকত) → tap-এ কিছু
