@@ -117,6 +117,11 @@ class SupabasePresenceService {
           lng: Number(row.lng),
           vehicleType: row.vehicle_type ?? 'rickshaw',
           isMatch: !!row.is_match,
+          // premium smart-match signal (server PostGIS) — undefined-safe।
+          matchScore: row.match_score != null ? Number(row.match_score) : undefined,
+          headingDiffDeg: row.heading_diff_deg != null ? Number(row.heading_diff_deg) : undefined,
+          destGapM: row.dest_gap_m != null ? Number(row.dest_gap_m) : undefined,
+          corridorM: row.corridor_m != null ? Number(row.corridor_m) : undefined,
         } as NearbyRider));
       onUpdate(nearby);
     };
@@ -247,6 +252,9 @@ class SupabasePresenceService {
         vehicleType: r.vehicle_type ?? 'rickshaw',
         distanceM: Math.round(Number(r.distance_m ?? 0)),  // server distance
         isMatchDest: !!r.is_match,                          // server: গন্তব্য মেলে
+        // premium smart-match signal (server PostGIS) — Map ও Home একই উৎস।
+        matchScore: r.match_score != null ? Number(r.match_score) : undefined,
+        headingDiffDeg: r.heading_diff_deg != null ? Number(r.heading_diff_deg) : undefined,
         timestamp: Date.now(),
       }));
       callback(riders);

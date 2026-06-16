@@ -58,6 +58,11 @@ export interface NearbyRider {
   lat: number;
   lng: number;
   isMatch: boolean;
+  // premium smart-matching (server PostGIS nearby_riders RPC থেকে):
+  matchScore?: number;        // 0–100, দিক/পথ-সচেতন match quality
+  headingDiffDeg?: number;    // চলার দিকের পার্থক্য (0–180°; ছোট = একই দিক)
+  destGapM?: number;          // দুই গন্তব্যের দূরত্ব (মিটার)
+  corridorM?: number;         // আমার সোজা পথ থেকে তার দূরত্ব (মিটার)
   department?: string;
   vehicleType?: 'rickshaw' | 'cng' | 'bike';
 }

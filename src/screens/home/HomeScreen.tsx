@@ -1077,15 +1077,16 @@ export default function HomeScreen() {
             : api?.durationSeconds
               ? Math.max(1, Math.round(api.durationSeconds / 60))
               : 2,
-          // আসল match quality — কাছের rider বেশি %, দূরের কম। সবাই 100 না।
-          //  • meet distance (তুমি↔rider): 0m=60pt, zoneRadius-এ=10pt (যত কাছে তত ভালো)
-          //  • rating bonus: 5★=20pt, 3★=0pt
-          //  • একই pickup হলে +10 (হেঁটে মেলা সহজ)
-          // match হয়েছে মানেই গন্তব্য ≤500m, তাই dest gap আলাদা করে গুনি না।
+          // premium smart-match quality (0–100)। মূল ভিত্তি server-এর দিক/পথ-
+          // সচেতন score (matchScore — গন্তব্য মিল + একই দিক + আমার পথে + কত কাছে)।
+          // তার সাথে client-এর জানা rating ও একই-pickup nudge যোগ করি। migration
+          // আগে না চললে (score undefined) পুরোনো distance-ভিত্তিক হিসাবে fallback।
           matchScore: Math.min(100, Math.max(0, Math.round(
-            25 + (1 - Math.min(1, (r.distance ?? 0) / Math.max(1, zoneRadius))) * 55 +
-            Math.max(0, (r.rating - 3)) * 10 +
-            (r.pickupPoint === selectedPickupLabel ? 10 : 0)
+            r.matchScore != null
+              ? r.matchScore + Math.max(0, (r.rating - 3)) * 4 + (r.pickupPoint === selectedPickupLabel ? 6 : 0)
+              : 25 + (1 - Math.min(1, (r.distance ?? 0) / Math.max(1, zoneRadius))) * 55 +
+                Math.max(0, (r.rating - 3)) * 10 +
+                (r.pickupPoint === selectedPickupLabel ? 10 : 0)
           ))),
           lat: r.lat,
           lng: r.lng,
@@ -1093,7 +1094,8 @@ export default function HomeScreen() {
           vehicleType: r.vehicleType ?? 'rickshaw',
         };
       })
-      .sort((a, b) => a.distanceMeters - b.distanceMeters);
+      // premium: সেরা match আগে (score বেশি), সমান হলে কাছেরটা আগে।
+      .sort((a, b) => b.matchScore - a.matchScore || a.distanceMeters - b.distanceMeters);
   }, [destination, nearbyRiders, partnerDistances, selectedPickup, selectedPickupLabel, zoneRadius]);
 
   const refreshExactCurrentLocation = useCallback(async () => {
