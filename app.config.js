@@ -4,7 +4,7 @@ export default {
     expo: {
         name: "GoShareX",
         slug: "gosharex",
-        version: "1.0.0",
+        version: "1.0.1",
         scheme: "gosharex",
         orientation: "portrait",
         privacy: "unlisted",

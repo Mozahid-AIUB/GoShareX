@@ -5,7 +5,7 @@
 export const APP_NAME = 'GoShareX';
 export const APP_NAME_BN = 'GoShareX';
 export const APP_TAGLINE = 'Share rides, save money';
-export const VERSION = '1.0.0';
+export const VERSION = '1.0.1';
 export const BUILD_NUMBER = 1;
 
 export const SUPPORT_EMAIL = 'support@goshare.pro.bd';
