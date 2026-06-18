@@ -13,6 +13,8 @@ interface EnvConfig {
   googleRoutesApiKey: string;
   googleDirectionsApiKey: string;
   googleDistanceMatrixApiKey: string;
+  // ফ্রি routing — GraphHopper (card ছাড়া)। খালি হলে OSRM fallback।
+  graphHopperApiKey: string;
   appEnv: 'development' | 'staging' | 'production';
   appVersion: string;
   apiTimeout: number;
@@ -69,6 +71,7 @@ export const ENV: EnvConfig = {
   googleRoutesApiKey: getEnvVar('GOOGLE_ROUTES_API_KEY', getEnvVar('GOOGLE_MAPS_API_KEY')),
   googleDirectionsApiKey: getEnvVar('GOOGLE_DIRECTIONS_API_KEY', getEnvVar('GOOGLE_MAPS_API_KEY')),
   googleDistanceMatrixApiKey: getEnvVar('GOOGLE_DISTANCE_MATRIX_API_KEY', getEnvVar('GOOGLE_MAPS_API_KEY')),
+  graphHopperApiKey: getEnvVar('GRAPHHOPPER_API_KEY', ''),
   appEnv: getEnvVar('APP_ENV', 'development') as 'development' | 'staging' | 'production',
   appVersion: getEnvVar('APP_VERSION', '1.0.0'),
   apiTimeout: getNumberEnvVar('API_TIMEOUT', 30000),

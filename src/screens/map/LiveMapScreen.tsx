@@ -407,20 +407,44 @@ export default function LiveMapScreen() {
   useEffect(() => {
     if (!hasLoc || didInitialCenter.current) return;
     didInitialCenter.current = true;
-    // BUG ছিল: dependency-তে latitude/longitude থাকায় প্রতি GPS tick-এ effect
-    // re-run হত → cleanup আগের timer বাতিল করত, কিন্তু didInitialCenter
-    // প্রথম run-এই true হয়ে যেত → 600ms timer কখনো fire করত না → zoom হত না,
-    // map wide-এ আটকে থাকত। এখন dependency শুধু hasLoc (false→true একবারই),
-    // আর lat/lng store থেকে fire-এর সময়ে fresh পড়ি (closure stale নয়)।
-    const t = setTimeout(() => {
-      const loc = useLocationStore.getState();
-      if (loc.latitude == null || loc.longitude == null) return;
-      mapRef.current?.animateToRegion(
-        { latitude: loc.latitude, longitude: loc.longitude, latitudeDelta: 0.0045, longitudeDelta: 0.0045 },
-        1100,
-      );
-    }, 600);
-    return () => clearTimeout(t);
+    // Cinematic intro:
+    //  • destination থাকলে → আগে গন্তব্য একপলক (establishing, ~1s) দেখাই →
+    //    তারপর smooth glide করে my-location-এ কাছে zoom IN (আশেপাশের match/
+    //    unmatch pin স্পষ্ট)। দুই ধাপ animated → premium feel।
+    //  • destination না থাকলে → সরাসরি my-location-এ zoom (আগের behaviour)।
+    // BUG (আগে): dependency-তে lat/lng থাকায় প্রতি GPS tick-এ re-run হয়ে timer
+    // বাতিল হত → zoom হত না। তাই dependency শুধু hasLoc, lat/lng fire-এ fresh পড়ি।
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    const dest = destinationDetails;
+    if (dest) {
+      // ধাপ ১: গন্তব্যে আলতো center (একপলক দেখাই)
+      timers.push(setTimeout(() => {
+        mapRef.current?.animateToRegion(
+          { latitude: dest.lat, longitude: dest.lng, latitudeDelta: 0.012, longitudeDelta: 0.012 },
+          900,
+        );
+      }, 400));
+      // ধাপ ২: তারপর my-location-এ কাছে glide (close zoom)
+      timers.push(setTimeout(() => {
+        const loc = useLocationStore.getState();
+        if (loc.latitude == null || loc.longitude == null) return;
+        mapRef.current?.animateToRegion(
+          { latitude: loc.latitude, longitude: loc.longitude, latitudeDelta: 0.0045, longitudeDelta: 0.0045 },
+          1100,
+        );
+      }, 1700));
+    } else {
+      timers.push(setTimeout(() => {
+        const loc = useLocationStore.getState();
+        if (loc.latitude == null || loc.longitude == null) return;
+        mapRef.current?.animateToRegion(
+          { latitude: loc.latitude, longitude: loc.longitude, latitudeDelta: 0.0045, longitudeDelta: 0.0045 },
+          1100,
+        );
+      }, 600));
+    }
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasLoc]);
 
   // Route polyline

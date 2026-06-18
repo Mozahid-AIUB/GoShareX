@@ -63,8 +63,27 @@ const logger = {
     // (visible in Flipper / Crashlytics in production builds)
     console.error(format('ERROR', tag, [error]), sanitizeLogArg(error), sanitizeLogArg(context ?? ''));
 
-    // Placeholder for future crash reporter integration
+    // Crash reporter hook — Sentry/Crashlytics যোগ করলে এখানে forward হবে।
+    // setCrashReporter() দিয়ে রিপোর্টার সেট করা থাকলে (sanitized) error পাঠাই।
+    // এখন কিছু install করা নেই → no-op (নিরাপদ)। পরে শুধু reporter সেট করলেই চলবে।
+    if (crashReporter) {
+      try {
+        crashReporter(error, { tag, ...(context ?? {}) });
+      } catch {
+        /* reporter নিজে fail করলে app crash করাব না */
+      }
+    }
   },
 };
+
+// ── Crash reporter integration point (Sentry/Crashlytics-ready) ──
+// production-এ: app boot-এ Sentry.init(...) করে
+//   setCrashReporter((e, ctx) => Sentry.captureException(e, { extra: ctx }))
+// কল করলেই logger.error সব Sentry-তে পাঠাবে। কোনো install এখন লাগে না।
+type CrashReporter = (error: unknown, context?: Record<string, unknown>) => void;
+let crashReporter: CrashReporter | null = null;
+export function setCrashReporter(reporter: CrashReporter | null): void {
+  crashReporter = reporter;
+}
 
 export { logger };

@@ -3,7 +3,6 @@ import {
   Alert,
   Animated,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   Pressable,
   ScrollView,
@@ -511,6 +510,7 @@ const DestinationModal = ({
     }
   }, [visible]);
 
+
   useEffect(() => {
     if (!query.trim() || query.trim().length < 2) {
       setRemoteSuggestions([]); setError(''); setIsSearching(false); return;
@@ -571,20 +571,19 @@ const DestinationModal = ({
   const showHistory = query.trim().length < 2;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      {/* DestinationModal একটা <Modal> → Android-এ আলাদা window তৈরি করে, তাই
-          app-এর global adjustResize এখানে কাজ করে না; keyboard উঠলে search
-          input ঢেকে যেত। KeyboardAvoidingView (behavior=padding, JS-driven
-          keyboard height) overlay-এর নিচে padding দেয় → flex-end sheet
-          keyboard-এর ঠিক উপরে উঠে আসে, input সবসময় দৃশ্যমান থাকে। */}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-      <View style={S.modalOverlay}>
-        <TouchableOpacity style={S.modalBackdrop} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
-        <View style={[S.modalSheet, { maxHeight: '88%' }]}>
-          <View style={S.modalHandle} />
-          <Text style={S.modalTitle}>Where to?</Text>
-
-          <View style={S.searchWrap}>
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen">
+      {/* Full-screen search (Uber/Google Maps pattern) — bottom-sheet নয়।
+          Input উপরে fixed, list নিচে scroll। keyboard উঠলে input নড়ে না (উপরে
+          স্থির), শুধু নিচের list-এর জায়গা ছোট হয় → কোনো লাফ/float/gap নেই।
+          আগের bottom-sheet + KeyboardAvoiding/margin/padding সব বাদ — এটাই
+          Android-এ সবচেয়ে স্থিতিশীল। */}
+      <View style={S.searchScreen}>
+        {/* উপরে fixed header: back + search input (keyboard উঠলে এটা নড়ে না) */}
+        <View style={S.searchTopBar}>
+          <TouchableOpacity onPress={() => { Keyboard.dismiss(); onClose(); }} style={S.searchBackBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color="#1A1A2E" />
+          </TouchableOpacity>
+          <View style={[S.searchWrap, { flex: 1, marginBottom: 0 }]}>
             <MaterialCommunityIcons name="magnify" size={18} color={D.textMuted} />
             <TextInput
               ref={inputRef}
@@ -603,10 +602,12 @@ const DestinationModal = ({
                 </TouchableOpacity>
                 : null}
           </View>
+        </View>
 
+        <View style={S.searchBody}>
           {!!error && <Text style={{ color: COLORS.error, fontSize: 12, marginBottom: 8, fontWeight: '600' }}>{error}</Text>}
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 24 }}>
             {/* Popular / recent searches when no query */}
             {showHistory && popularSearches.length > 0 && (
               <>
@@ -702,7 +703,6 @@ const DestinationModal = ({
           </ScrollView>
         </View>
       </View>
-      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -2342,7 +2342,18 @@ const S = StyleSheet.create({
   badgeEliteText: { color: '#7C3AED' },
   badgeTrustedText: { color: '#0D9488' },
 
-  // ── Modal styles ──
+  // ── Full-screen search styles (Uber/Google Maps pattern) ──
+  // searchScreen: পুরো screen; header উপরে fixed, body নিচে scroll।
+  searchScreen: { flex: 1, backgroundColor: '#FFFFFF', paddingTop: 44 },
+  searchTopBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 16, paddingBottom: 12,
+    borderBottomWidth: 1, borderBottomColor: '#F0ECF8',
+  },
+  searchBackBtn: { padding: 4 },
+  searchBody: { flex: 1, paddingHorizontal: 20, paddingTop: 14 },
+
+  // ── Modal styles (bottom-sheet — অন্য modal-এ ব্যবহৃত) ──
   modalOverlay: { flex: 1, backgroundColor: 'rgba(26,26,46,0.4)', justifyContent: 'flex-end' },
   modalBackdrop: { flex: 1 },
   modalSheet: {

@@ -97,6 +97,9 @@ const BottomTabNavigator = () => {
         headerShown: false,
         tabBarHideOnKeyboard: true,
         lazy: true,
+        // tab বদলালে Apple-এর মতো মসৃণ transition (হঠাৎ jump নয়)।
+        // 'shift' — পাশের tab আলতো slide+fade হয়ে আসে (premium feel)।
+        animation: 'shift',
         // Library-native label rendering — handles vertical centering automatically
         tabBarShowLabel: true,
         tabBarActiveTintColor: C.active,

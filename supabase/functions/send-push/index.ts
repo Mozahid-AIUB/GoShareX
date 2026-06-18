@@ -15,6 +15,12 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, serviceKey);
 
+// shared secret — শুধু DB trigger (send_push_to) এই secret সহ ডাকতে পারে।
+// বাইরের কেউ function URL জানলেও secret ছাড়া push পাঠাতে পারবে না (spam/phishing রোধ)।
+// সেট করতে: Supabase → Edge Functions → Secrets → PUSH_HOOK_SECRET, এবং DB-তে
+// app.settings.push_hook_secret একই মান। দুটো না মিললে function 401 দেয়।
+const PUSH_HOOK_SECRET = Deno.env.get('PUSH_HOOK_SECRET') ?? '';
+
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
 // DB trigger (send_push_to) যা পাঠায়: { to_user_id, title, body, data }।
@@ -59,6 +65,16 @@ async function sendExpoPush(
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
+  }
+
+  // secret guard — DB trigger ছাড়া অন্য কেউ (বাইরের attacker) ডাকলে block।
+  // secret সেট থাকলে তবেই enforce করি (সেট না থাকলে পুরনো behaviour — deploy
+  // ভাঙবে না; কিন্তু production-এ অবশ্যই PUSH_HOOK_SECRET সেট করা উচিত)।
+  if (PUSH_HOOK_SECRET) {
+    const provided = req.headers.get('x-push-secret') ?? '';
+    if (provided !== PUSH_HOOK_SECRET) {
+      return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
+    }
   }
 
   try {

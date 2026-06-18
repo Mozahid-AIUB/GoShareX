@@ -8,6 +8,10 @@ import { supabase } from '@/config/supabase.config';
 import type { Post, PostStatus } from '@/types';
 import { logger } from '@/utils/logger';
 
+// post কতক্ষণ board-এ দেখাবে — মেয়াদ শেষ হলে board থেকে HIDE হয় (filter),
+// কিন্তু row DB-তে থেকে যায় (DELETE করি না — history/analytics সংরক্ষিত)।
+const POST_TTL_MS = 6 * 60 * 60 * 1000; // 6 ঘণ্টা
+
 export interface PostData {
   authorId: string;
   authorName: string;
@@ -68,7 +72,7 @@ export async function createPost(post: PostData): Promise<string> {
       status: 'open',
       interested: [],
       max_riders: Math.max(2, Math.min(4, post.maxRiders ?? 2)),
-      expires_at: new Date(now + 24 * 60 * 60 * 1000).toISOString(), // 24h
+      expires_at: new Date(now + POST_TTL_MS).toISOString(), // মেয়াদ (নিচে POST_TTL_MS)
     })
     .select('id')
     .single();
@@ -86,7 +90,11 @@ export async function getPostById(postId: string): Promise<Post | null> {
 }
 
 export async function getPosts(destination?: string): Promise<Post[]> {
-  let q = supabase.from('posts').select('*').eq('status', 'open');
+  let q = supabase
+    .from('posts')
+    .select('*')
+    .eq('status', 'open')
+    .gt('expires_at', new Date().toISOString()); // মেয়াদোত্তীর্ণ বাদ
   if (destination) q = q.eq('destination', destination);
   const { data } = await q.order('created_at', { ascending: false });
   return (data ?? []).map(rowToPost);
@@ -164,6 +172,7 @@ export function subscribeToOpenPosts(callback: (posts: Post[]) => void): () => v
       .from('posts')
       .select('*')
       .eq('status', 'open')
+      .gt('expires_at', new Date().toISOString()) // মেয়াদোত্তীর্ণ বাদ
       .order('created_at', { ascending: false });
     callback((data ?? []).map(rowToPost));
   };
@@ -191,6 +200,7 @@ export function subscribeToDestinationPosts(
       .select('*')
       .eq('status', 'open')
       .eq('destination', destination)
+      .gt('expires_at', new Date().toISOString()) // মেয়াদোত্তীর্ণ বাদ
       .order('created_at', { ascending: false });
     callback((data ?? []).map(rowToPost));
   };

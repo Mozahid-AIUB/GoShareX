@@ -18,6 +18,8 @@ import type { RootNavProp } from '@/navigation/types';
 import { useAuthStore } from '@/store/authStore';
 import authService from '@/services/authService';
 import googleAuthService from '@/services/googleAuthService';
+// privacy/terms URL — single source of truth (app.config.ts)
+import { PRIVACY_POLICY_URL as PRIVACY_URL, TERMS_URL } from '@/config/app.config';
 import { functions } from '@/config/firebase.config';
 import { httpsCallable } from 'firebase/functions';
 import { FEATURE_FLAGS } from '@/config/featureFlags';
@@ -47,8 +49,6 @@ const C = {
   purple: '#7C3AED',
 };
 
-const PRIVACY_URL = 'https://gosharex.app/privacy';
-const TERMS_URL   = 'https://gosharex.app/terms';
 
 // ─── SVG Icons ────────────────────────────────────────────────────────────────
 const IconBell    = ({ color = C.purple }: { color?: string }) => (

@@ -322,6 +322,8 @@ export default function PostBoardScreen() {
 
   const subscribe = useCallback(() => {
     if (unsubRef.current) unsubRef.current();
+    // post DELETE করি না (data DB-তে থাকে — history/analytics-এর জন্য)।
+    // board শুধু ৬ ঘণ্টার ভিতরের post দেখায় (subscribeToOpenPosts-এর filter)।
     unsubRef.current = subscribeToOpenPosts(setPosts);
   }, []);
 

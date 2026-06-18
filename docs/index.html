@@ -343,9 +343,9 @@
       <h2><span class="num">4</span> Data Sharing</h2>
       <p>We do not sell, trade, or rent your personal information. We share data only with:</p>
       <ul>
-        <li><strong>Google Firebase:</strong> Authentication, Firestore database, Realtime Database, Cloud Storage, and
-          push notifications (FCM)</li>
-        <li><strong>Google Maps Platform:</strong> Map display, routing, directions, and distance calculations</li>
+        <li><strong>Supabase:</strong> Authentication, database, realtime, and storage (our backend infrastructure)</li>
+        <li><strong>OpenStreetMap-based services (Photon, GraphHopper):</strong> Location search, routing, and
+          directions</li>
         <li><strong>Other GoShareX users:</strong> Only your display name, destination, pickup point, vehicle
           preference, and rating are visible to nearby riders</li>
       </ul>
@@ -372,9 +372,9 @@
       <p>We implement industry-standard security measures to protect your data:</p>
       <ul>
         <li>All data transmitted over HTTPS / TLS encryption</li>
-        <li>Firebase Security Rules enforce strict access control — users can only access their own data</li>
-        <li>Passwords are hashed by Firebase Authentication — we never store or see plaintext passwords</li>
-        <li>Sensitive tokens (FCM, auth) stored in device secure storage, not plain AsyncStorage</li>
+        <li>Row Level Security (RLS) enforces strict access control — users can only access their own data</li>
+        <li>Passwords are securely hashed — we never store or see plaintext passwords</li>
+        <li>Sensitive tokens (auth, push) stored in device secure storage, not plain AsyncStorage</li>
         <li>Email verification required before account activation</li>
         <li>Account suspension system for policy violations</li>
       </ul>
@@ -423,10 +423,11 @@
       <h2><span class="num">9</span> Third-Party Services</h2>
       <p>GoShareX uses the following third-party services, each governed by their own privacy policies:</p>
       <ul>
-        <li><a href="https://firebase.google.com/support/privacy" target="_blank" style="color:#7C3AED;">Google
-            Firebase</a> — Authentication, database, storage, notifications</li>
-        <li><a href="https://policies.google.com/privacy" target="_blank" style="color:#7C3AED;">Google Maps
-            Platform</a> — Maps, routing, location services</li>
+        <li><a href="https://supabase.com/privacy" target="_blank" style="color:#7C3AED;">Supabase</a> —
+            Authentication, database, realtime, storage</li>
+        <li><a href="https://www.openstreetmap.org/copyright" target="_blank" style="color:#7C3AED;">OpenStreetMap</a>
+            / <a href="https://www.graphhopper.com/privacy/" target="_blank" style="color:#7C3AED;">GraphHopper</a> —
+            Location search, routing, directions</li>
       </ul>
     </div>
 
@@ -452,7 +453,7 @@
   </div>
 
   <footer>
-    <p>© 2025 <strong>GoShareX</strong>. All rights reserved.</p>
+    <p>© 2026 <strong>GoShareX</strong>. All rights reserved.</p>
     <p style="margin-top:6px;">Built by — ভাড়া ভাগ করো, টাকা বাঁচাও 🛺</p>
   </footer>
 
