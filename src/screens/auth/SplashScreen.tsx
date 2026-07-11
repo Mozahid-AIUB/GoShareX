@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Dimensions, Easing, StyleSheet, View } from 'react-native';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import Svg, { Circle, Defs, LinearGradient, Path, Stop, G, Rect, Ellipse } from 'react-native-svg';
 
 import { auth } from '@/config/firebase.config';
 import { useAuthStore } from '@/store';
@@ -9,64 +8,13 @@ import authService from '@/services/authService';
 import { checkSuspension } from '@/services/badgeService';
 import { FEATURE_FLAGS } from '@/config/featureFlags';
 import { supabase } from '@/config/supabase.config';
+import SplashLogo from './SplashLogo';
 
 const { width: W, height: H } = Dimensions.get('window');
-const MIN_DISPLAY_MS = 2800;
-
-// ─── Logo SVG ─────────────────────────────────────────────────────────────────
-const LogoMark = ({ size = 96 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 96 96" fill="none">
-    <Defs>
-      <LinearGradient id="lg1" x1="0" y1="0" x2="1" y2="1">
-        <Stop offset="0" stopColor="#818CF8" />
-        <Stop offset="1" stopColor="#6366F1" />
-      </LinearGradient>
-      <LinearGradient id="lg2" x1="0" y1="0" x2="1" y2="1">
-        <Stop offset="0" stopColor="#34D399" />
-        <Stop offset="1" stopColor="#059669" />
-      </LinearGradient>
-      <LinearGradient id="lg3" x1="0" y1="0" x2="0" y2="1">
-        <Stop offset="0" stopColor="#1E2A50" />
-        <Stop offset="1" stopColor="#0A0F1E" />
-      </LinearGradient>
-    </Defs>
-    {/* Outer ring */}
-    <Circle cx="48" cy="48" r="46" stroke="url(#lg1)" strokeWidth="1.5" fill="rgba(99,102,241,0.06)" />
-    {/* Road */}
-    <Rect x="8" y="58" width="80" height="14" rx="7" fill="url(#lg3)" />
-    <Rect x="22" y="63" width="10" height="2.5" rx="1.2" fill="rgba(255,255,255,0.22)" />
-    <Rect x="42" y="63" width="10" height="2.5" rx="1.2" fill="rgba(255,255,255,0.22)" />
-    <Rect x="62" y="63" width="10" height="2.5" rx="1.2" fill="rgba(255,255,255,0.22)" />
-    {/* Car 1 — indigo */}
-    <G>
-      <Rect x="10" y="42" width="32" height="17" rx="5" fill="url(#lg1)" />
-      <Path d="M16 42 Q18 34 24 33 H34 Q40 34 40 42 Z" fill="#A5B4FC" opacity="0.85" />
-      <Rect x="19" y="35" width="8" height="7" rx="1.5" fill="#C7D2FE" opacity="0.55" />
-      <Rect x="29" y="35" width="8" height="7" rx="1.5" fill="#C7D2FE" opacity="0.55" />
-      <Circle cx="18" cy="59" r="4" fill="#0A0F1E" />
-      <Circle cx="18" cy="59" r="2" fill="#6366F1" />
-      <Circle cx="34" cy="59" r="4" fill="#0A0F1E" />
-      <Circle cx="34" cy="59" r="2" fill="#6366F1" />
-      <Ellipse cx="42" cy="49" rx="1.5" ry="2.5" fill="#FEF08A" opacity="0.9" />
-    </G>
-    {/* Car 2 — green */}
-    <G>
-      <Rect x="54" y="42" width="32" height="17" rx="5" fill="url(#lg2)" />
-      <Path d="M60 42 Q62 34 68 33 H78 Q84 34 84 42 Z" fill="#6EE7B7" opacity="0.85" />
-      <Rect x="63" y="35" width="8" height="7" rx="1.5" fill="#A7F3D0" opacity="0.55" />
-      <Rect x="73" y="35" width="8" height="7" rx="1.5" fill="#A7F3D0" opacity="0.55" />
-      <Circle cx="62" cy="59" r="4" fill="#0A0F1E" />
-      <Circle cx="62" cy="59" r="2" fill="#34D399" />
-      <Circle cx="78" cy="59" r="4" fill="#0A0F1E" />
-      <Circle cx="78" cy="59" r="2" fill="#34D399" />
-      <Rect x="54" y="47" width="1.5" height="5" rx="0.8" fill="#FCA5A5" opacity="0.9" />
-    </G>
-    {/* Connection arc + dot */}
-    <Path d="M42 46 Q48 36 54 46" stroke="url(#lg1)" strokeWidth="1.8" fill="none" strokeDasharray="3 2" strokeLinecap="round" />
-    <Circle cx="48" cy="36" r="3.5" fill="url(#lg1)" />
-    <Circle cx="48" cy="36" r="1.5" fill="#fff" opacity="0.9" />
-  </Svg>
-);
+// road draw(600)+delay(150) → car travel(800) → reveal(500) শেষ হয় ~2050ms-এ;
+// তারপরই brand text শুরু হয় (নিচের Phase 3-6 দেখো) — তাই স্ক্রিন কমপক্ষে এই
+// পুরো sequence + text দেখানোর মতো সময় থাকা দরকার।
+const MIN_DISPLAY_MS = 3400;
 
 // ─── Floating particle dot ─────────────────────────────────────────────────────
 const Particle = ({ x, y, size, color, delay }: { x: number; y: number; size: number; color: string; delay: number }) => {
@@ -124,15 +72,20 @@ const SplashScreen = () => {
   // Background
   const bgAnim = useRef(new Animated.Value(0)).current;
 
-  // Logo mark
-  const markOpacity = useRef(new Animated.Value(0)).current;
-  const markScale   = useRef(new Animated.Value(0.5)).current;
-  // logo "breathing" — entrance-এর পর আস্তে শ্বাস নেওয়ার মতো (premium feel)।
-  const markBreath  = useRef(new Animated.Value(0)).current;
+  // Logo mark — entrance opacity/scale (পুরো SplashLogo group-এর জন্য)।
+  const markOpacity = useRef(new Animated.Value(1)).current;
+  const markScale   = useRef(new Animated.Value(1)).current;
   // brand text-এর উপর দিয়ে চলে যাওয়া shine sweep।
   const shineX      = useRef(new Animated.Value(-120)).current;
   // shooting star — এক কোণ থেকে আরেক কোণে দ্রুত শাঁ করে যায় (0→1 progress)।
   const starProg    = useRef(new Animated.Value(0)).current;
+
+  // ── Signature sequence: road draws in → car travels road → G+X reveals ──
+  // (SplashLogo.tsx দেখো — icon.png-এর সাথে মেলানো নতুন SVG, PNG-তে অংশ
+  // আলাদা করে animate করা সম্ভব না বলে এই SVG বানানো হয়েছে)।
+  const roadDraw    = useRef(new Animated.Value(0)).current;
+  const carProg     = useRef(new Animated.Value(0)).current;
+  const markReveal  = useRef(new Animated.Value(0)).current;
 
   // Ring pulse around logo
   const ring1Scale   = useRef(new Animated.Value(1)).current;
@@ -175,19 +128,26 @@ const SplashScreen = () => {
   };
 
   useEffect(() => {
-    // Phase 1 (0ms) — bg lifts, logo mark pops in
+    // Phase 1 (0ms) — bg lifts
     Animated.timing(bgAnim, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
-    Animated.parallel([
-      Animated.spring(markScale,   { toValue: 1,   tension: 70, friction: 7,  useNativeDriver: true }),
-      Animated.timing(markOpacity, { toValue: 1,   duration: 500,              useNativeDriver: true }),
-    ]).start(() => {
-      // entrance শেষ → logo আস্তে শ্বাস নেওয়া শুরু (subtle 0↔1 loop)।
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(markBreath, { toValue: 1, duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(markBreath, { toValue: 0, duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        ])
-      ).start();
+
+    // ── Signature sequence (SplashLogo.tsx) ──
+    // ১. road draw-in (~600ms) → ২. car road ধরে ভ্রমণ করে (~800ms) →
+    // ৩. G+X shape reveal (~500ms)। SVG stroke/G-transform props — native
+    // driver অচল, তাই সবই false (হালকা, ৩ সেকেন্ডেই একবার চলে, লুপ নয়)।
+    Animated.timing(roadDraw, {
+      toValue: 1, duration: 600, delay: 150,
+      easing: Easing.out(Easing.cubic), useNativeDriver: false,
+    }).start(() => {
+      Animated.timing(carProg, {
+        toValue: 1, duration: 800,
+        easing: Easing.inOut(Easing.cubic), useNativeDriver: false,
+      }).start(() => {
+        Animated.timing(markReveal, {
+          toValue: 1, duration: 500,
+          easing: Easing.out(Easing.back(1.2)), useNativeDriver: false,
+        }).start();
+      });
     });
 
     // Phase 2 (500ms) — ring pulses
@@ -209,23 +169,23 @@ const SplashScreen = () => {
       pulse(ring2Scale, ring2Opacity, 500);
     }, 500);
 
-    // Phase 3 (700ms) — "Go" fades up
+    // Phase 3 (2150ms — road+car+reveal sequence শেষ হওয়ার পর) — "Go" fades up
     setTimeout(() => {
       Animated.parallel([
         Animated.timing(goOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
         Animated.spring(goY,       { toValue: 0, tension: 80, friction: 8, useNativeDriver: true }),
       ]).start();
-    }, 700);
+    }, 2150);
 
-    // Phase 4 (950ms) — "Share" fades up
+    // Phase 4 (2400ms) — "Share" fades up
     setTimeout(() => {
       Animated.parallel([
         Animated.timing(shareOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
         Animated.spring(shareY,       { toValue: 0, tension: 80, friction: 8, useNativeDriver: true }),
       ]).start();
-    }, 950);
+    }, 2400);
 
-    // Phase 5 (1150ms) — "X" pops, তারপর brand text-এর উপর shine sweep loop
+    // Phase 5 (2600ms) — "X" pops, তারপর brand text-এর উপর shine sweep loop
     setTimeout(() => {
       Animated.parallel([
         Animated.timing(xOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
@@ -239,9 +199,9 @@ const SplashScreen = () => {
           Animated.timing(shineX, { toValue: -120, duration: 0, useNativeDriver: true }),
         ])
       ).start();
-    }, 1150);
+    }, 2600);
 
-    // Phase 6 (1550ms) — tagline + bar
+    // Phase 6 (3000ms) — tagline + bar
     setTimeout(() => {
       Animated.parallel([
         Animated.timing(tagOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
@@ -255,7 +215,7 @@ const SplashScreen = () => {
           Animated.timing(shimmerX, { toValue: -80, duration: 0, useNativeDriver: false }),
         ])
       ).start();
-    }, 1550);
+    }, 3000);
 
     // Shooting star — মাঝে মাঝে এক কোণ থেকে আরেক কোণে দ্রুত শাঁ করে যায়।
     // fast (550ms) + লম্বা বিরতি (2.6s) → বিরল, premium "শুটিং স্টার" feel।
@@ -390,6 +350,31 @@ const SplashScreen = () => {
           ],
         }}
       />
+      {/* Trail — shooting star-এর ঠিক পিছনে ৩টা ছোট ম্লান বিন্দু (একই পথ,
+          সামান্য পিছিয়ে + ছোট + কম opacity) — motion আরও dynamic লাগে,
+          দূরের অন্য rider-দের গমনাগমনের subtle আভাস। */}
+      {[0.05, 0.09, 0.13].map((lag, i) => (
+        <Animated.View
+          key={i}
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: H * 0.16,
+            left: -60,
+            width: 5 - i, height: 5 - i,
+            borderRadius: 3,
+            backgroundColor: 'rgba(165,180,252,0.7)',
+            opacity: starProg.interpolate({
+              inputRange: [0, lag, lag + 0.1, 0.8, 1],
+              outputRange: [0, 0, 0.5 - i * 0.12, 0.5 - i * 0.12, 0],
+            }),
+            transform: [
+              { translateX: starProg.interpolate({ inputRange: [0, 1], outputRange: [0, (W * 0.95) * (1 - lag)] }) },
+              { translateY: starProg.interpolate({ inputRange: [0, 1], outputRange: [0, (H * 0.42) * (1 - lag)] }) },
+            ],
+          }}
+        />
+      ))}
 
       {/* ── Logo mark + pulse rings ── */}
       <View style={s.logoArea}>
@@ -398,15 +383,10 @@ const SplashScreen = () => {
         <Animated.View style={[s.ring, { transform: [{ scale: ring1Scale }], opacity: ring1Opacity }]} />
         <Animated.View style={[s.ring, { transform: [{ scale: ring2Scale }], opacity: ring2Opacity }]} />
 
-        {/* Logo mark — entrance scale + subtle breathing (0↔1 → 1↔1.045)। */}
-        <Animated.View style={{
-          opacity: markOpacity,
-          transform: [
-            { scale: markScale },
-            { scale: markBreath.interpolate({ inputRange: [0, 1], outputRange: [1, 1.045] }) },
-          ],
-        }}>
-          <LogoMark size={100} />
+        {/* Signature — road draws in → car travels road → G+X reveals
+            (icon.png-এর সাথে মেলানো SVG, SplashLogo.tsx দেখো)। */}
+        <Animated.View style={{ opacity: markOpacity, transform: [{ scale: markScale }] }}>
+          <SplashLogo size={140} roadDraw={roadDraw} carProg={carProg} markReveal={markReveal} />
         </Animated.View>
 
         {/* Brand name + shine sweep */}
@@ -475,6 +455,7 @@ const s = StyleSheet.create({
     width: 120, height: 120, borderRadius: 60,
     borderWidth: 1.5, borderColor: 'rgba(99,102,241,0.5)',
   },
+
 
   // Brand name
   brandRow: {
