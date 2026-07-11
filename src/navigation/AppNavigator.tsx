@@ -132,6 +132,12 @@ const AppNavigator = () => {
           <>
             <Stack.Screen name="Auth" component={AuthNavigator} />
             <Stack.Screen name="Suspension" component={SuspensionScreen} options={{ gestureEnabled: false }} />
+            {/* login screen-এর "Privacy Policy" লিংক আগে শুধু authenticated
+                block-এ registered ছিল — unauthenticated অবস্থায় navigate()
+                silently fail করত (কোনো matching route নেই)। sign-in-এর আগেই
+                policy পড়তে পারা দরকার, তাই এখানেও যোগ করা হলো। */}
+            <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Legal" component={LegalScreen} options={{ headerShown: false }} />
           </>
         ) : (
           <>

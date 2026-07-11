@@ -63,13 +63,17 @@ export default {
             [
                 "expo-splash-screen",
                 {
-                    image: "./assets/images/gosharex-matrix-splash.png",
-                    backgroundColor: "#07122B",
-                    imageWidth: 240,
+                    // পুরনো "matrix-phone" image সরানো হলো (দেখতে খারাপ লাগছিল)।
+                    // এখন clean GX road-logo (icon.png) — SplashScreen.tsx-এর
+                    // dark bg (#020408) এর সাথে মিলিয়ে রাখা, যাতে native→JS
+                    // splash transition-এ কোনো ঝাঁকুনি/রঙ-বদল চোখে না পড়ে।
+                    image: "./assets/images/icon.png",
+                    backgroundColor: "#020408",
+                    imageWidth: 160,
                     resizeMode: "contain",
                     dark: {
-                        image: "./assets/images/gosharex-matrix-splash.png",
-                        backgroundColor: "#07122B"
+                        image: "./assets/images/icon.png",
+                        backgroundColor: "#020408"
                     }
                 }
             ],

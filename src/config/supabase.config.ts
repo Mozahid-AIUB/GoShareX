@@ -7,6 +7,7 @@ import 'react-native-url-polyfill/auto'; // React Native-এ URL সাপোর
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 // Firebase-এর মতোই, key গুলো app.config.js -> extra থেকে আসবে (চ্যাটে না, .env-এ)
 const extraConfig =
@@ -28,8 +29,15 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 // ------------------------------------------------------------
 const CHUNK_SIZE = 2000; // 2048-এর নিচে নিরাপদ মার্জিন
 
+// web-এ expo-secure-store সাপোর্ট করে না (native-only hardware-backed
+// storage) — getValueWithKeyAsync missing থাকায় সরাসরি crash করত। web-এ
+// browser-এর localStorage ব্যবহার করি (dev-preview-এর জন্য যথেষ্ট);
+// Android/iOS-এ আগের SecureStore + chunk logic অপরিবর্তিত।
+const isWeb = Platform.OS === 'web';
+
 const SecureStoreAdapter = {
   getItem: async (key: string): Promise<string | null> => {
+    if (isWeb) return window.localStorage.getItem(key);
     // আগে দেখি কয় টুকরোয় রাখা আছে
     const meta = await SecureStore.getItemAsync(`${key}__chunks`);
     if (meta) {
@@ -47,6 +55,7 @@ const SecureStoreAdapter = {
   },
 
   setItem: async (key: string, value: string): Promise<void> => {
+    if (isWeb) { window.localStorage.setItem(key, value); return; }
     // পুরনো যা ছিল আগে মুছি (পরিষ্কার শুরু)
     await SecureStoreAdapter.removeItem(key);
 
@@ -64,6 +73,7 @@ const SecureStoreAdapter = {
   },
 
   removeItem: async (key: string): Promise<void> => {
+    if (isWeb) { window.localStorage.removeItem(key); return; }
     const meta = await SecureStore.getItemAsync(`${key}__chunks`);
     if (meta) {
       const count = parseInt(meta, 10);
