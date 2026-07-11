@@ -1,159 +1,143 @@
 // ============================================================
-// SplashLogo — GoShareX-এর আসল icon.png (GX road-logo)-এর সাথে মেলানো
-// নতুন SVG, যেটার প্রতিটা অংশ (G-arc, X-strokes, road, car) আলাদা করে
-// animate করা যায়। PNG-তে এটা সম্ভব না (flat pixel grid, অংশ আলাদা করা
-// যায় না) — তাই brand-এর shape হুবহু SVG দিয়ে পুনর্নির্মাণ করা হলো।
+// SplashLogo — GoShareX-এর logo shape (G-ring + R-leg + road)। road-এর
+// রঙ আসল gosharex-icon-3d.png-এর অ্যাসফাল্ট কালো→গাঢ় নেভি glossy টোনের
+// সাথে মিলিয়ে রাখা হয়েছে।
+// coordinate গুলো একটা পরিষ্কার, simple closed-shape trace থেকে নেওয়া
+// (viewBox 0 0 400 400) — আগের Figma raw-trace-এর জটিল self-intersecting
+// path-এর বদলে, তাই fill করলেও shape ভাঙে না।
+//
+// LOGO_SCALE = 120 / 400 = 0.3 (400×400-কে আমাদের 120×120 viewBox-এ ফিট করে)
 //
 // Cinematic sequence (App-এর SplashScreen.tsx থেকে চালিত):
-//   ০. G + X shape শুরু থেকেই muted/outline-এ দেখা যায় (icon.png-এর মতো
-//      কাঠামো আগে থেকে আছে — শুধু road অংশটা এখনো আঁকা হয়নি)
-//   ১. road তার ভিতর দিয়ে draw-in হয় (নিচ থেকে দূরত্বে মিলিয়ে যাওয়া পর্যন্ত)
-//   ২. car রাস্তা ধরে ভ্রমণ করে (scale+fade perspective সহ)
-//   ৩. car পৌঁছালে পুরো logo (G+X+road) পূর্ণ রঙে "জ্বলে ওঠে" (glow reveal)
-//   ৪. "GoShareX" ব্র্যান্ড-টেক্সট ভেসে ওঠে (বিদ্যমান SplashScreen.tsx-এর
-//      Go/Share/X word-animation ইতিমধ্যে আছে — এটা তার ঠিক পরে ট্রিগার হয়)
+//   ১. G-ring draw-in (stroke) → fill পূর্ণ রঙে
+//   ২. R-leg draw-in (stroke) → fill পূর্ণ রঙে
+//   ৩. road fade-in + lane-dash গুলো একে একে pop করে
+//   ৪. "GoShareX" ব্র্যান্ড-টেক্সট ভেসে ওঠে (SplashScreen.tsx-এর
+//      Go/Share/X word-animation — এটার ঠিক পরে ট্রিগার হয়)
 // ============================================================
 import React from 'react';
 import { Animated } from 'react-native';
-import Svg, { Circle, Defs, LinearGradient, Path, Stop, G } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Path, Stop, G } from 'react-native-svg';
+
+const LOGO_SCALE = 120 / 400;
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
-const AnimatedG = Animated.createAnimatedComponent(G);
 
-// road path-এর আনুমানিক দৈর্ঘ্য (viewBox unit-এ) — draw-in stroke-dasharray-এ লাগে।
-const ROAD_LEN = 130;
+// stroke draw-in-এর জন্য path-দৈর্ঘ্যের আনুমানিক মান (400-viewBox unit-এ)।
+const G_RING_LEN = 900;
+const R_LEG_LEN = 900;
+
+const G_RING_PATH =
+  'M 274.6 84.5 L 253.3 71.5 L 234.1 64.4 L 209.6 60.6 L 185.3 61.9 L 165.2 66.7 ' +
+  'L 143.5 76.2 L 123.4 90.3 L 104.6 110.0 L 90.9 131.1 L 81.3 153.4 L 75.9 176.7 ' +
+  'L 74.3 204.1 L 77.2 226.5 L 86.4 253.6 L 100.5 276.6 L 116.4 292.2 L 145.1 253.3 ' +
+  'L 131.4 228.4 L 125.7 201.9 L 128.9 175.4 L 133.7 163.0 L 142.6 148.0 L 155.7 134.0 ' +
+  'L 169.7 124.1 L 191.4 115.8 L 201.9 115.2 L 228.4 118.0 L 250.4 130.8 L 259.0 141.9 ' +
+  'L 306.5 142.6 L 310.4 131.7 L 303.7 117.7 L 290.6 99.5 Z';
+
+const R_LEG_PATH =
+  'M 330.1 157.9 L 209.6 161.1 L 179.6 166.2 L 164.6 174.2 L 150.2 195.5 L 156.3 203.8 ' +
+  'L 193.3 202.2 L 227.4 182.1 L 275.6 166.8 L 275.3 169.7 L 227.1 190.1 L 200.0 207.7 ' +
+  'L 202.9 219.8 L 210.2 213.7 L 214.7 214.0 L 201.6 230.0 L 193.3 227.8 L 174.5 237.0 ' +
+  'L 165.9 237.3 L 127.9 282.0 L 97.9 333.7 L 176.1 334.6 L 195.9 280.1 L 221.4 235.4 ' +
+  'L 254.9 198.1 L 291.2 172.6 L 294.1 175.4 L 255.8 204.8 L 224.6 242.1 L 238.3 231.6 ' +
+  'L 297.3 311.6 L 336.2 310.7 L 340.7 303.7 L 282.0 220.1 Z';
+
+const ROAD_PATH =
+  'M 328.5 157.9 L 297.0 160.1 L 249.1 170.3 L 213.4 183.4 L 192.3 196.2 L 153.7 196.8 ' +
+  'L 175.1 197.1 L 154.7 203.2 L 190.4 203.8 L 217.9 187.6 L 245.6 175.4 L 297.9 161.7 ' +
+  'L 259.0 175.1 L 230.0 188.5 L 206.1 203.2 L 180.5 223.3 L 152.2 251.4 L 130.1 278.8 ' +
+  'L 111.0 308.1 L 94.1 341.3 L 97.3 335.2 L 141.3 336.5 L 175.1 334.6 L 174.5 340.4 ' +
+  'L 185.0 306.2 L 200.0 271.5 L 214.4 245.9 L 235.4 217.5 L 256.5 196.8 L 280.7 178.9 ' +
+  'L 309.4 164.0 Z';
+
+const LANE_DASHES = [
+  'M 167.1 275.3 L 167.1 277.8 L 148.0 312.9 L 137.8 312.9 L 143.5 300.2 L 158.5 275.9 Z',
+  'M 192.0 240.2 L 192.0 241.5 L 177.0 261.9 L 169.1 261.6 L 169.1 260.0 L 185.0 239.9 Z',
+  'M 215.3 214.4 L 215.3 215.6 L 201.9 229.3 L 195.5 229.0 L 195.5 227.8 L 210.2 213.7 L 214.7 213.7 Z',
+  'M 238.6 195.5 L 238.0 197.4 L 227.1 205.7 L 222.0 205.7 L 222.0 204.5 L 234.8 195.2 L 237.6 194.9 Z',
+  'M 259.6 182.5 L 259.3 184.1 L 250.4 189.2 L 247.5 188.8 L 247.8 187.2 L 257.7 182.1 Z',
+  'M 267.6 166.5 L 267.3 168.1 L 240.2 177.0 L 237.6 176.7 L 238.3 174.2 L 255.8 168.7 Z',
+];
 
 export interface SplashLogoProps {
   size?: number;
-  /** 0→1 — road নিচ থেকে উপরের ভ্যানিশিং পয়েন্ট পর্যন্ত আঁকা হয়। */
-  roadDraw: Animated.Value;
-  /** 0→1 — car road বরাবর নিচ থেকে উপরে ভ্রমণ করে। */
-  carProg: Animated.Value;
-  /** 0→1 — G+X shape reveal (car পৌঁছানোর পর)। */
-  markReveal: Animated.Value;
+  /** 0→1 — G-ring stroke draw-in। */
+  gDraw: Animated.Value;
+  /** 0→1 — G-ring fill পূর্ণ রঙে আসা। */
+  gFill: Animated.Value;
+  /** 0→1 — R-leg stroke draw-in। */
+  rDraw: Animated.Value;
+  /** 0→1 — R-leg fill পূর্ণ রঙে আসা। */
+  rFill: Animated.Value;
+  /** 0→1 — road fade-in। */
+  roadFade: Animated.Value;
+  /** 0→1 — lane dash গুলো একে একে pop করে (৬টা ধাপে ভাগ করা)। */
+  dashPop: Animated.Value;
 }
 
-const SplashLogo = ({ size = 140, roadDraw, carProg, markReveal }: SplashLogoProps) => {
-  // car-এর position + scale — road-এর perspective অনুসরণ করে (নিচে বড়,
-  // উপরে দূরে ছোট হয়ে মিলিয়ে যায়)। quadratic-bezier-এর কাছাকাছি sample।
-  const carY = carProg.interpolate({
-    inputRange:  [0, 0.25, 0.5, 0.75, 1],
-    outputRange: [148, 122, 96, 74, 58],
-  });
-  const carX = carProg.interpolate({
-    inputRange:  [0, 0.25, 0.5, 0.75, 1],
-    outputRange: [46, 50, 56, 62, 66],
-  });
-  const carScale = carProg.interpolate({
-    inputRange:  [0, 0.7, 1],
-    outputRange: [1, 0.55, 0.32],
-  });
-  const carOpacity = carProg.interpolate({
-    inputRange:  [0, 0.05, 0.85, 1],
-    outputRange: [0, 1, 1, 0],
-  });
-
-  // logo-র মূল shape (G+X) শুরু থেকেই muted (~0.22) দেখা যায় — road শেষে
-  // full color-এ "জ্বলে ওঠে" (glow reveal, markReveal 0→1)।
-  const gxOpacity = markReveal.interpolate({ inputRange: [0, 1], outputRange: [0.22, 1] });
-  const glowOpacity = markReveal.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, 0.8, 0] });
+const SplashLogo = ({ size = 140, gDraw, gFill, rDraw, rFill, roadFade, dashPop }: SplashLogoProps) => {
+  const gDashoffset = gDraw.interpolate({ inputRange: [0, 1], outputRange: [G_RING_LEN, 0] });
+  const rDashoffset = rDraw.interpolate({ inputRange: [0, 1], outputRange: [R_LEG_LEN, 0] });
 
   return (
     <Svg width={size} height={size} viewBox="0 0 120 120" fill="none">
       <Defs>
-        {/* "G" — turquoise (উপরে) → নীল (নিচে) */}
-        <LinearGradient id="gGrad" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#2DD4BF" />
-          <Stop offset="1" stopColor="#2563EB" />
+        <LinearGradient id="gGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <Stop offset="0%" stopColor="#35D6E6" />
+          <Stop offset="55%" stopColor="#1F8FE0" />
+          <Stop offset="100%" stopColor="#1450C8" />
         </LinearGradient>
-        {/* "X" — নীল gradient */}
-        <LinearGradient id="xGrad" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0" stopColor="#38BDF8" />
-          <Stop offset="1" stopColor="#2563EB" />
-        </LinearGradient>
-        {/* Road — কালো (কাছে) → গাঢ় নেভি (দূরে) */}
-        <LinearGradient id="roadGrad" x1="0" y1="1" x2="0" y2="0">
-          <Stop offset="0" stopColor="#0A0F1E" />
-          <Stop offset="1" stopColor="#1E293B" />
+        {/* Road — আসল icon.png-এর অ্যাসফাল্ট টোন: গাঢ় কালচে-নেভি (দূরে) →
+            হালকা steel-blue glossy হাইলাইট (কাছে)। */}
+        <LinearGradient id="roadGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+          <Stop offset="0%" stopColor="#0A0E18" />
+          <Stop offset="45%" stopColor="#1C2740" />
+          <Stop offset="100%" stopColor="#4A5A78" />
         </LinearGradient>
       </Defs>
 
-      {/* ── Glow halo — car পৌঁছানোর মুহূর্তে G/X-এর পিছনে একটা soft radial
-          জ্বলে উঠে মিলিয়ে যায় (full-color reveal-কে জোর দেয়)। road/car-এর
-          নিচে (z-order-এ আগে) আঁকা, তাই ওদের উপর ছাপায় না। */}
-      <Circle cx="60" cy="55" r="40" fill="url(#gGrad)" opacity={glowOpacity as unknown as number} />
-
-      {/* ── G + X — শুরু থেকেই কাঠামো হিসেবে দেখা যায় (muted), road শেষে
-          পুরো রঙে জ্বলে ওঠে। icon.png-এর মতো — G/X সবসময় আছে, road তার
-          ভিতর দিয়ে "যাচ্ছে"। ── */}
-      <AnimatedG opacity={gxOpacity as unknown as number}>
-        {/* "G" — বড় গোলাকার arc, নিচে-বামে খোলা */}
-        <Path
-          d="M60 18
-             A38 38 0 1 0 96 62
-             L96 50
-             A26 26 0 1 1 60 30
-             Z"
-          fill="url(#gGrad)"
+      <G scale={LOGO_SCALE} origin="0,0">
+        {/* ── G-ring — fill (opacity দিয়ে ফেড-ইন) + stroke draw-in একসাথে ── */}
+        <AnimatedPath d={G_RING_PATH} fill="url(#gGrad)" opacity={gFill as unknown as number} />
+        <AnimatedPath
+          d={G_RING_PATH}
+          stroke="url(#gGrad)"
+          strokeWidth={3 / LOGO_SCALE}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          fill="none"
+          strokeDasharray={`${G_RING_LEN}`}
+          strokeDashoffset={gDashoffset}
         />
-        {/* "X" — দুই diagonal stroke, ডান পাশে */}
-        <Path
-          d="M78 42 L108 42 L90 60 L108 78 L78 78 L96 60 Z"
-          fill="url(#xGrad)"
+
+        {/* ── R-leg — G শেষ হওয়ার পর draw-in + fill ── */}
+        <AnimatedPath d={R_LEG_PATH} fill="url(#gGrad)" opacity={rFill as unknown as number} />
+        <AnimatedPath
+          d={R_LEG_PATH}
+          stroke="url(#gGrad)"
+          strokeWidth={3 / LOGO_SCALE}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          fill="none"
+          strokeDasharray={`${R_LEG_LEN}`}
+          strokeDashoffset={rDashoffset}
         />
-      </AnimatedG>
 
-      {/* ── Road — G/X-এর ভিতর দিয়ে নিচ থেকে দূরত্বে মিলিয়ে যাওয়া পর্যন্ত draw-in ── */}
-      <AnimatedPath
-        d="M40 118 C 42 100, 48 80, 60 58 C 64 51, 68 46, 72 42"
-        stroke="url(#roadGrad)"
-        strokeWidth="16"
-        strokeLinecap="round"
-        fill="none"
-        strokeDasharray={`${ROAD_LEN}`}
-        strokeDashoffset={roadDraw.interpolate({ inputRange: [0, 1], outputRange: [ROAD_LEN, 0] })}
-      />
-      {/* centerline dashes — road-এর সাথেই আঁকা হয় (একটু চিকন, ভিতরে) */}
-      <AnimatedPath
-        d="M40 118 C 42 100, 48 80, 60 58 C 64 51, 68 46, 72 42"
-        stroke="rgba(255,255,255,0.4)"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeDasharray="4 5"
-        fill="none"
-        opacity={roadDraw}
-      />
-
-      {/* ── Car — road বরাবর ভ্রমণ করে, দূরে যেতে যেতে ছোট হয়ে মিলিয়ে যায় ── */}
-      <AnimatedCarGroup carX={carX} carY={carY} carScale={carScale} carOpacity={carOpacity} />
+        {/* ── Road — fade-in, তারপর lane dash গুলো একে একে pop করে ── */}
+        <AnimatedPath d={ROAD_PATH} fill="url(#roadGrad)" opacity={roadFade as unknown as number} />
+        {LANE_DASHES.map((d, i) => {
+          const start = i / LANE_DASHES.length;
+          const end = (i + 1) / LANE_DASHES.length;
+          const dashOpacity = dashPop.interpolate({
+            inputRange: [0, start, end, 1],
+            outputRange: [0, 0, 1, 1],
+            extrapolate: 'clamp',
+          });
+          return <AnimatedPath key={i} d={d} fill="#FFFFFF" opacity={dashOpacity as unknown as number} />;
+        })}
+      </G>
     </Svg>
-  );
-};
-
-// car-কে ছোট আলাদা component হিসেবে রাখা হলো যাতে animated x/y/scale/opacity
-// props পরিষ্কারভাবে একসাথে group হয় (SVG <G>-এর animated transform)।
-const AnimatedCarGroup = ({
-  carX, carY, carScale, carOpacity,
-}: {
-  carX: Animated.AnimatedInterpolation<number>;
-  carY: Animated.AnimatedInterpolation<number>;
-  carScale: Animated.AnimatedInterpolation<number>;
-  carOpacity: Animated.AnimatedInterpolation<number>;
-}) => {
-  return (
-    <AnimatedG opacity={carOpacity as unknown as number}>
-      <AnimatedG
-        // react-native-svg-তে <G> translateX/Y/scale prop নেয় না সরাসরি;
-        // পরিবর্তে x/y offset নিজে বসাই ছোট car shape এঁকে।
-        x={carX as unknown as number}
-        y={carY as unknown as number}
-        scale={carScale as unknown as number}
-        origin="0,0"
-      >
-        <Circle cx="0" cy="0" r="3.5" fill="#FBBF24" />
-        <Path d="M-4 0 L4 0 L2.5 -3 L-2.5 -3 Z" fill="#F8FAFC" opacity="0.9" />
-      </AnimatedG>
-    </AnimatedG>
   );
 };
 

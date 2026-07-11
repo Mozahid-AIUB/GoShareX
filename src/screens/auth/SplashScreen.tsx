@@ -11,10 +11,10 @@ import { supabase } from '@/config/supabase.config';
 import SplashLogo from './SplashLogo';
 
 const { width: W, height: H } = Dimensions.get('window');
-// road draw(600)+delay(150) → car travel(800) → reveal(500) শেষ হয় ~2050ms-এ;
+// G-ring draw+fill → R-leg draw+fill → road fade+dash শেষ হয় ~2350ms-এ;
 // তারপরই brand text শুরু হয় (নিচের Phase 3-6 দেখো) — তাই স্ক্রিন কমপক্ষে এই
 // পুরো sequence + text দেখানোর মতো সময় থাকা দরকার।
-const MIN_DISPLAY_MS = 3400;
+const MIN_DISPLAY_MS = 3650;
 
 // ─── Floating particle dot ─────────────────────────────────────────────────────
 const Particle = ({ x, y, size, color, delay }: { x: number; y: number; size: number; color: string; delay: number }) => {
@@ -80,12 +80,14 @@ const SplashScreen = () => {
   // shooting star — এক কোণ থেকে আরেক কোণে দ্রুত শাঁ করে যায় (0→1 progress)।
   const starProg    = useRef(new Animated.Value(0)).current;
 
-  // ── Signature sequence: road draws in → car travels road → G+X reveals ──
-  // (SplashLogo.tsx দেখো — icon.png-এর সাথে মেলানো নতুন SVG, PNG-তে অংশ
-  // আলাদা করে animate করা সম্ভব না বলে এই SVG বানানো হয়েছে)।
-  const roadDraw    = useRef(new Animated.Value(0)).current;
-  const carProg     = useRef(new Animated.Value(0)).current;
-  const markReveal  = useRef(new Animated.Value(0)).current;
+  // ── Signature sequence: G-ring draw+fill → R-leg draw+fill → road fade
+  //    + lane-dash pop (SplashLogo.tsx দেখো — clean traced coordinate) ──
+  const gDraw    = useRef(new Animated.Value(0)).current;
+  const gFill    = useRef(new Animated.Value(0)).current;
+  const rDraw    = useRef(new Animated.Value(0)).current;
+  const rFill    = useRef(new Animated.Value(0)).current;
+  const roadFade = useRef(new Animated.Value(0)).current;
+  const dashPop  = useRef(new Animated.Value(0)).current;
 
   // Ring pulse around logo
   const ring1Scale   = useRef(new Animated.Value(1)).current;
@@ -132,21 +134,38 @@ const SplashScreen = () => {
     Animated.timing(bgAnim, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
 
     // ── Signature sequence (SplashLogo.tsx) ──
-    // ১. road draw-in (~600ms) → ২. car road ধরে ভ্রমণ করে (~800ms) →
-    // ৩. G+X shape reveal (~500ms)। SVG stroke/G-transform props — native
-    // driver অচল, তাই সবই false (হালকা, ৩ সেকেন্ডেই একবার চলে, লুপ নয়)।
-    Animated.timing(roadDraw, {
-      toValue: 1, duration: 600, delay: 150,
-      easing: Easing.out(Easing.cubic), useNativeDriver: false,
-    }).start(() => {
-      Animated.timing(carProg, {
-        toValue: 1, duration: 800,
-        easing: Easing.inOut(Easing.cubic), useNativeDriver: false,
-      }).start(() => {
-        Animated.timing(markReveal, {
-          toValue: 1, duration: 500,
-          easing: Easing.out(Easing.back(1.2)), useNativeDriver: false,
-        }).start();
+    // ১. G-ring + R-leg একসাথে draw-in (~650ms) → একসাথে fill (~250ms) →
+    // ২. road fade-in (~250ms) → lane-dash pop (~350ms)।
+    // SVG stroke props — native driver অচল, তাই সবই false।
+    Animated.parallel([
+      Animated.timing(gDraw, {
+        toValue: 1, duration: 650, delay: 100,
+        easing: Easing.out(Easing.cubic), useNativeDriver: false,
+      }),
+      Animated.timing(rDraw, {
+        toValue: 1, duration: 650, delay: 100,
+        easing: Easing.out(Easing.cubic), useNativeDriver: false,
+      }),
+    ]).start(() => {
+      Animated.parallel([
+        Animated.timing(gFill, {
+          toValue: 1, duration: 250,
+          easing: Easing.out(Easing.cubic), useNativeDriver: false,
+        }),
+        Animated.timing(rFill, {
+          toValue: 1, duration: 250,
+          easing: Easing.out(Easing.cubic), useNativeDriver: false,
+        }),
+      ]).start(() => {
+        Animated.timing(roadFade, {
+          toValue: 1, duration: 250,
+          easing: Easing.out(Easing.cubic), useNativeDriver: false,
+        }).start(() => {
+          Animated.timing(dashPop, {
+            toValue: 1, duration: 350,
+            easing: Easing.linear, useNativeDriver: false,
+          }).start();
+        });
       });
     });
 
@@ -169,23 +188,23 @@ const SplashScreen = () => {
       pulse(ring2Scale, ring2Opacity, 500);
     }, 500);
 
-    // Phase 3 (2150ms — road+car+reveal sequence শেষ হওয়ার পর) — "Go" fades up
+    // Phase 3 (2400ms — G-ring+R-leg+road sequence শেষ হওয়ার পর) — "Go" fades up
     setTimeout(() => {
       Animated.parallel([
         Animated.timing(goOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
         Animated.spring(goY,       { toValue: 0, tension: 80, friction: 8, useNativeDriver: true }),
       ]).start();
-    }, 2150);
+    }, 2400);
 
-    // Phase 4 (2400ms) — "Share" fades up
+    // Phase 4 (2650ms) — "Share" fades up
     setTimeout(() => {
       Animated.parallel([
         Animated.timing(shareOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
         Animated.spring(shareY,       { toValue: 0, tension: 80, friction: 8, useNativeDriver: true }),
       ]).start();
-    }, 2400);
+    }, 2650);
 
-    // Phase 5 (2600ms) — "X" pops, তারপর brand text-এর উপর shine sweep loop
+    // Phase 5 (2850ms) — "X" pops, তারপর brand text-এর উপর shine sweep loop
     setTimeout(() => {
       Animated.parallel([
         Animated.timing(xOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
@@ -199,9 +218,9 @@ const SplashScreen = () => {
           Animated.timing(shineX, { toValue: -120, duration: 0, useNativeDriver: true }),
         ])
       ).start();
-    }, 2600);
+    }, 2850);
 
-    // Phase 6 (3000ms) — tagline + bar
+    // Phase 6 (3250ms) — tagline + bar
     setTimeout(() => {
       Animated.parallel([
         Animated.timing(tagOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
@@ -215,7 +234,7 @@ const SplashScreen = () => {
           Animated.timing(shimmerX, { toValue: -80, duration: 0, useNativeDriver: false }),
         ])
       ).start();
-    }, 3000);
+    }, 3250);
 
     // Shooting star — মাঝে মাঝে এক কোণ থেকে আরেক কোণে দ্রুত শাঁ করে যায়।
     // fast (550ms) + লম্বা বিরতি (2.6s) → বিরল, premium "শুটিং স্টার" feel।
@@ -311,7 +330,7 @@ const SplashScreen = () => {
 
   const bgColor = bgAnim.interpolate({
     inputRange:  [0, 1],
-    outputRange: ['#020408', '#060C1A'],
+    outputRange: ['#FFFFFF', '#FAFBFF'],
   });
 
   return (
@@ -337,9 +356,9 @@ const SplashScreen = () => {
           width: 90,
           height: 2.5,
           borderRadius: 2,
-          backgroundColor: 'rgba(199,210,254,0.9)',
-          shadowColor: '#A5B4FC',
-          shadowOpacity: 0.9,
+          backgroundColor: 'rgba(37,99,235,0.85)',
+          shadowColor: '#2563EB',
+          shadowOpacity: 0.5,
           shadowRadius: 8,
           shadowOffset: { width: 0, height: 0 },
           opacity: starProg.interpolate({ inputRange: [0, 0.1, 0.85, 1], outputRange: [0, 1, 1, 0] }),
@@ -363,7 +382,7 @@ const SplashScreen = () => {
             left: -60,
             width: 5 - i, height: 5 - i,
             borderRadius: 3,
-            backgroundColor: 'rgba(165,180,252,0.7)',
+            backgroundColor: 'rgba(37,99,235,0.4)',
             opacity: starProg.interpolate({
               inputRange: [0, lag, lag + 0.1, 0.8, 1],
               outputRange: [0, 0, 0.5 - i * 0.12, 0.5 - i * 0.12, 0],
@@ -383,10 +402,10 @@ const SplashScreen = () => {
         <Animated.View style={[s.ring, { transform: [{ scale: ring1Scale }], opacity: ring1Opacity }]} />
         <Animated.View style={[s.ring, { transform: [{ scale: ring2Scale }], opacity: ring2Opacity }]} />
 
-        {/* Signature — road draws in → car travels road → G+X reveals
-            (icon.png-এর সাথে মেলানো SVG, SplashLogo.tsx দেখো)। */}
+        {/* Signature — G-ring draws in → R-leg draws in → road fades in
+            (clean traced coordinate, SplashLogo.tsx দেখো)। */}
         <Animated.View style={{ opacity: markOpacity, transform: [{ scale: markScale }] }}>
-          <SplashLogo size={140} roadDraw={roadDraw} carProg={carProg} markReveal={markReveal} />
+          <SplashLogo size={270} gDraw={gDraw} gFill={gFill} rDraw={rDraw} rFill={rFill} roadFade={roadFade} dashPop={dashPop} />
         </Animated.View>
 
         {/* Brand name + shine sweep */}
@@ -433,17 +452,17 @@ const s = StyleSheet.create({
   blobTR: {
     position: 'absolute', top: -120, right: -80,
     width: 380, height: 380, borderRadius: 190,
-    backgroundColor: 'rgba(99,102,241,0.13)',
+    backgroundColor: 'rgba(37,99,235,0.06)',
   },
   blobBL: {
     position: 'absolute', bottom: -140, left: -100,
     width: 340, height: 340, borderRadius: 170,
-    backgroundColor: 'rgba(52,211,153,0.08)',
+    backgroundColor: 'rgba(45,212,191,0.06)',
   },
   blobCenter: {
     position: 'absolute',
     width: 240, height: 240, borderRadius: 120,
-    backgroundColor: 'rgba(99,102,241,0.05)',
+    backgroundColor: 'rgba(37,99,235,0.04)',
   },
 
   // Logo area
@@ -452,8 +471,8 @@ const s = StyleSheet.create({
   // Pulse rings
   ring: {
     position: 'absolute',
-    width: 120, height: 120, borderRadius: 60,
-    borderWidth: 1.5, borderColor: 'rgba(99,102,241,0.5)',
+    width: 240, height: 240, borderRadius: 120,
+    borderWidth: 1.5, borderColor: 'rgba(37,99,235,0.35)',
   },
 
 
@@ -462,16 +481,16 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'baseline',
     marginTop: 24, gap: 2,
   },
-  brandGo:    { fontSize: 44, fontWeight: '900', color: '#FFFFFF',  letterSpacing: -2 },
-  brandShare: { fontSize: 44, fontWeight: '900', color: '#818CF8',  letterSpacing: -2 },
-  brandX:     { fontSize: 44, fontWeight: '900', color: '#34D399',  letterSpacing: -2 },
+  brandGo:    { fontSize: 44, fontWeight: '900', color: '#0F172A',  letterSpacing: -2 },
+  brandShare: { fontSize: 44, fontWeight: '900', color: '#2563EB',  letterSpacing: -2 },
+  brandX:     { fontSize: 44, fontWeight: '900', color: '#2DD4BF',  letterSpacing: -2 },
 
   // brand text-এর উপর দিয়ে যাওয়া তির্যক আলোর streak (premium shine)।
   shine: {
     position: 'absolute',
     top: -10, left: 0,
     width: 36, height: 80,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: 'rgba(37,99,235,0.12)',
     borderRadius: 18,
   },
 
@@ -479,14 +498,14 @@ const s = StyleSheet.create({
   tagline: {
     marginTop: 10,
     fontSize: 12.5, fontWeight: '500',
-    color: '#4A5A78', letterSpacing: 0.5,
+    color: '#64748B', letterSpacing: 0.5,
   },
 
   // Divider
   divider: {
     marginTop: 36,
     width: W * 0.18, height: 1,
-    backgroundColor: 'rgba(99,102,241,0.25)',
+    backgroundColor: 'rgba(37,99,235,0.2)',
     borderRadius: 1,
   },
 
@@ -495,30 +514,30 @@ const s = StyleSheet.create({
     marginTop: 16,
     width: W * 0.52, height: 2.5,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(37,99,235,0.08)',
     overflow: 'hidden',
   },
   barFill: {
     position: 'absolute', left: 0, top: 0,
     height: 2.5, borderRadius: 2,
-    backgroundColor: '#6366F1',
+    backgroundColor: '#2563EB',
   },
   barGlow: {
     position: 'absolute', left: 0, top: -4,
     height: 10, borderRadius: 5,
-    backgroundColor: 'rgba(99,102,241,0.22)',
+    backgroundColor: 'rgba(37,99,235,0.18)',
   },
   shimmer: {
     position: 'absolute', top: -1,
     width: 80, height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.6)',
   },
 
   // Version
   version: {
     position: 'absolute', bottom: 36,
-    fontSize: 10.5, color: '#1E2A3A',
+    fontSize: 10.5, color: '#94A3B8',
     fontWeight: '600', letterSpacing: 1.2,
   },
 });

@@ -23,11 +23,14 @@ export const useAuthStore = create<AuthStore>((set) => ({
   isLoading: true,
   suspension: null,
 
+  // isLoading এখানে false করা হয় না — SplashScreen.tsx-এর finishLoading()
+  // MIN_DISPLAY_MS পুরোটা অপেক্ষা করে তারপর setLoading(false) কল করে, যাতে
+  // auth session দ্রুত resolve হলেও splash animation মাঝপথে কেটে যেতে না
+  // পারে (আগে setUser নিজেই isLoading false করে দিত, animation বাইপাস হতো)।
   setUser: (user) =>
     set({
       user,
       isAuthenticated: !!user,
-      isLoading: false,
     }),
 
   setLoading: (loading) =>

@@ -8,7 +8,7 @@ export default {
         scheme: "gosharex",
         orientation: "portrait",
         privacy: "unlisted",
-        icon: "./assets/images/icon.png",
+        icon: "./assets/images/gosharex-icon-3d.png",
         userInterfaceStyle: "light",
         updates: {
             url: "https://u.expo.dev/cfddb17a-f7c5-4700-a526-85456ce48212",
@@ -63,17 +63,17 @@ export default {
             [
                 "expo-splash-screen",
                 {
-                    // পুরনো "matrix-phone" image সরানো হলো (দেখতে খারাপ লাগছিল)।
-                    // এখন high-res 3D GX road-logo — SplashScreen.tsx-এর dark
-                    // bg (#020408) এর সাথে মিলিয়ে রাখা, যাতে native→JS splash
-                    // transition-এ কোনো ঝাঁকুনি/রঙ-বদল চোখে না পড়ে।
+                    // high-res 3D GX road-logo — SplashScreen.tsx এখন সাদা
+                    // background-এ light-theme animation দেখায়, তাই native
+                    // splash-ও সাদা রাখা হলো (native→JS transition-এ কোনো
+                    // ঝাঁকুনি/রঙ-বদল চোখে না পড়ে)।
                     image: "./assets/images/gosharex-icon-3d.png",
-                    backgroundColor: "#020408",
-                    imageWidth: 200,
+                    backgroundColor: "#FFFFFF",
+                    imageWidth: 320,
                     resizeMode: "contain",
                     dark: {
                         image: "./assets/images/gosharex-icon-3d.png",
-                        backgroundColor: "#020408"
+                        backgroundColor: "#FFFFFF"
                     }
                 }
             ],
