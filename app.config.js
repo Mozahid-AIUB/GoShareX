@@ -17,6 +17,12 @@ export default {
         runtimeVersion: {
             policy: "appVersion"
         },
+        // CRITICAL: react-native-maps 1.20.1 New Architecture-এ Turbo Module
+        // init-এ hang করে (libturbomodulejsijni load-এর পর splash freeze —
+        // "on হয়েই off")। এটা আগে শুধু android/gradle.properties-এ ছিল, যেটা
+        // EAS clean-prebuild-এ হারিয়ে যেতে পারে। এখানে app.config.js-এ রাখলে
+        // EAS সবসময় এটা সম্মান করবে, local gradle.properties যাই থাকুক।
+        newArchEnabled: false,
         android: {
             adaptiveIcon: {
                 foregroundImage: "./assets/images/adaptive-icon.png",
