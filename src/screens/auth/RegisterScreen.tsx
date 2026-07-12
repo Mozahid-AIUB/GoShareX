@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Animated,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,7 +21,7 @@ import authService from '@/services/authService';
 import { isValidEmail, isValidGmail, isValidName } from '@/utils/validators';
 import { useAnimatedPress } from '@/hooks/useAnimatedPress';
 import { C } from '@/components/auth/authColors';
-import { LogoMark, IconEmail, IconLock, IconArrow, IconUser, IconBack } from '@/components/auth/AuthIcons';
+import { IconEmail, IconLock, IconArrow, IconUser, IconBack } from '@/components/auth/AuthIcons';
 import FormField from '@/components/auth/FormField';
 import { getErrorCode, getErrorMessage } from '@/utils/errorHandler';
 import { useScreenTracking } from '@/hooks/useScreenTracking';
@@ -109,7 +110,7 @@ export default function RegisterScreen() {
               <IconBack />
               <Text style={s.backLabel}>Back</Text>
             </TouchableOpacity>
-            <LogoMark size={40} />
+            <Image source={require('../../../assets/images/gosharex-icon-3d.png')} style={s.logoImg} resizeMode="contain" />
           </View>
 
           <View style={s.titleArea}>
@@ -162,6 +163,7 @@ const s = StyleSheet.create({
   radial2: { position: 'absolute', bottom: -50, left: -40, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(13,148,136,0.07)' },
   scroll: { flexGrow: 1, padding: 24, paddingBottom: 40 },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 },
+  logoImg: { width: 40, height: 40 },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backLabel: { fontSize: 13, fontWeight: '600', color: '#A5B4FC' },
   titleArea: { marginBottom: 24 },

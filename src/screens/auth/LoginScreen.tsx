@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Animated,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -24,7 +25,7 @@ import { FEATURE_FLAGS } from '@/config/featureFlags';
 import { isValidEmail } from '@/utils/validators';
 import { useAnimatedPress } from '@/hooks/useAnimatedPress';
 import { C, ONE_DAY_MS } from '@/components/auth/authColors';
-import { LogoMark, IconEmail, IconLock, IconArrow, IconGoogle } from '@/components/auth/AuthIcons';
+import { IconEmail, IconLock, IconArrow, IconGoogle } from '@/components/auth/AuthIcons';
 import FormField from '@/components/auth/FormField';
 import { useScreenTracking } from '@/hooks/useScreenTracking';
 import { trackEvent } from '@/services/analytics/analyticsService';
@@ -189,7 +190,7 @@ export default function LoginScreen() {
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
           <View style={s.logoArea}>
-            <LogoMark size={64} />
+            <Image source={require('../../../assets/images/gosharex-icon-3d.png')} style={s.logoImg} resizeMode="contain" />
             <View style={s.logoTextWrap}>
               <Text style={s.logoName}>Go<Text style={s.logoAccent}>Share</Text>X</Text>
               <Text style={s.logoSub}>Smart Ride Sharing</Text>
@@ -277,6 +278,7 @@ const s = StyleSheet.create({
   radial2: { position: 'absolute', bottom: -50, left: -40, width: 220, height: 220, borderRadius: 110, backgroundColor: 'rgba(13,148,136,0.07)' },
   scroll: { flexGrow: 1, padding: 24, justifyContent: 'center' },
   logoArea: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 32, alignSelf: 'center' },
+  logoImg: { width: 64, height: 64 },
   logoTextWrap: { gap: 2 },
   logoName: { fontSize: 28, fontWeight: '900', color: C.text, letterSpacing: -0.8 },
   logoAccent: { color: C.primary },
