@@ -88,9 +88,12 @@ class SupabaseAuthService {
         email: normalizedEmail,
         password: data.password,
         options: {
-          // verify link-এ click করলে ইউজারকে অ্যাপে ফেরত পাঠাবে
-          // (localhost-এর বদলে)। gosharex:// = app.config.js-এর scheme।
-          emailRedirectTo: 'gosharex://auth-callback',
+          // verify link-এ click করলে ব্রাউজারে একটা friendly "Email
+          // confirmed" page দেখায় (docs/email-confirmed.html, GitHub Pages)
+          // — raw gosharex:// scheme সরাসরি দিলে browser blank page দেখাত
+          // (custom scheme handle করতে না পারায়)। সেই page-এই একটা
+          // "Open GoShareX" বাটন আছে যেটা app-scheme try করে।
+          emailRedirectTo: 'https://mozahid-aiub.github.io/GoShareX/email-confirmed.html',
           data: {
             name: data.name.trim(),
             student_id: (data.studentId ?? '').trim(),
