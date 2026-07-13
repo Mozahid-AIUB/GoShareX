@@ -279,11 +279,11 @@ const PartnerCard = ({
             <VehicleIcon
               type={partner.vehicleType === 'bike' ? 'motorcycle' : partner.vehicleType === 'cng' ? 'cng' : 'rickshaw'}
               tone={partner.vehicleType === 'bike' ? 'indigo' : partner.vehicleType === 'cng' ? 'teal' : 'amber'}
-              size={28}
+              size={22}
             />
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <Text style={[S.partnerName, { flexShrink: 1 }]} numberOfLines={1}>
                 {partner.name}
               </Text>
@@ -291,12 +291,12 @@ const PartnerCard = ({
                 <TrustChip badge={partner.badge} confirmed={isConfirmed} />
               </View>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
-              <IconStar size={11} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 }}>
+              <IconStar size={10} />
               <Text style={S.partnerMeta}> {partner.rating?.toFixed(1)}</Text>
             </View>
           </View>
-          <View style={{ flexShrink: 0, marginLeft: 4 }}>
+          <View style={{ flexShrink: 0, marginLeft: 3 }}>
             <MatchRing score={partner.matchScore} />
           </View>
         </View>
@@ -304,24 +304,24 @@ const PartnerCard = ({
         {/* Info row */}
         <View style={S.partnerInfoRow}>
           <View style={S.partnerInfoItem}>
-            <IconMapPin size={14} color1="#8E9DC0" color2="#4B5A7A" />
+            <IconMapPin size={12} color1="#8E9DC0" color2="#4B5A7A" />
             <Text style={S.partnerInfoVal}>{fmtDist(partner.distanceMeters)} away</Text>
           </View>
           <View style={S.partnerInfoDivider} />
           <View style={S.partnerInfoItem}>
-            <IconClock size={14} />
+            <IconClock size={12} />
             <Text style={S.partnerInfoVal}>ETA {partner.etaMinutes} min</Text>
           </View>
           <View style={S.partnerInfoDivider} />
           <View style={S.partnerInfoItem}>
-            <IconCash size={14} />
+            <IconCash size={12} />
             <Text style={[S.partnerInfoVal, { color: D.green, fontWeight: '700' }]}>BDT {partner.splitFare}</Text>
           </View>
         </View>
 
         {/* Destination */}
         <View style={S.partnerDest}>
-          <IconNavigation size={13} />
+          <IconNavigation size={11} />
           <Text style={S.partnerDestText}>Going to {partner.destinationName}</Text>
         </View>
 
@@ -341,7 +341,7 @@ const PartnerCard = ({
           >
             <MaterialCommunityIcons
               name={isConfirmed ? 'check' : isPending ? 'clock-outline' : 'hand-wave-outline'}
-              size={16}
+              size={14}
               color="#FFF"
             />
             <Text style={S.btnRequestText}>
@@ -2287,49 +2287,49 @@ const S = StyleSheet.create({
 
   // ── Partner card ──
   partnerCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 20,
-    padding: 14, marginBottom: 12,
+    backgroundColor: '#FFFFFF', borderRadius: 16,
+    padding: 10, marginBottom: 9,
     borderWidth: 1, borderColor: '#EDE8F5',
-    elevation: 3, shadowColor: '#6366F1', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
+    elevation: 2, shadowColor: '#6366F1', shadowOpacity: 0.07, shadowRadius: 7, shadowOffset: { width: 0, height: 3 },
   },
-  partnerHeader: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 10 },
+  partnerHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 },
   partnerAvatar: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: '#EEF0FF', borderWidth: 1.5, borderColor: '#DDE0FF',
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: '#EEF0FF', borderWidth: 1.2, borderColor: '#DDE0FF',
     alignItems: 'center', justifyContent: 'center',
   },
-  partnerAvatarText: { fontSize: 20, fontWeight: '900', color: '#6366F1' },
-  partnerName: { fontSize: 16, fontWeight: '800', color: '#1A1A2E', letterSpacing: -0.2 },
-  partnerMeta: { fontSize: 12, color: '#9896A8', marginTop: 2, fontWeight: '600' },
+  partnerAvatarText: { fontSize: 16, fontWeight: '900', color: '#6366F1' },
+  partnerName: { fontSize: 13.5, fontWeight: '800', color: '#1A1A2E', letterSpacing: -0.2 },
+  partnerMeta: { fontSize: 10.5, color: '#9896A8', marginTop: 1, fontWeight: '600' },
 
   partnerInfoRow: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#FAF8FF', borderRadius: 12,
-    paddingVertical: 10, paddingHorizontal: 8, marginBottom: 8,
+    backgroundColor: '#FAF8FF', borderRadius: 10,
+    paddingVertical: 6, paddingHorizontal: 6, marginBottom: 6,
     borderWidth: 1, borderColor: '#EFEAF7',
   },
-  partnerInfoItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5, justifyContent: 'center' },
-  partnerInfoVal: { fontSize: 13, fontWeight: '700', color: '#1A1A2E', letterSpacing: 0.2 },
-  partnerInfoDivider: { width: 1, height: 16, backgroundColor: '#EDE8F5' },
+  partnerInfoItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'center' },
+  partnerInfoVal: { fontSize: 11, fontWeight: '700', color: '#1A1A2E', letterSpacing: 0.1 },
+  partnerInfoDivider: { width: 1, height: 13, backgroundColor: '#EDE8F5' },
 
   partnerDest: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 2, paddingVertical: 2, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 2, paddingVertical: 1, marginBottom: 7,
   },
-  partnerDestText: { fontSize: 13, fontWeight: '600', color: '#6B6980' },
+  partnerDestText: { fontSize: 11, fontWeight: '600', color: '#6B6980' },
 
   partnerActions: {
-    flexDirection: 'row', gap: 8,
+    flexDirection: 'row', gap: 6,
     borderTopWidth: 1, borderTopColor: '#F3F0FC',
-    paddingTop: 11,
+    paddingTop: 8,
   },
   btnRequest: {
-    flex: 1, height: 44, borderRadius: 14, backgroundColor: '#6366F1',
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    flex: 1, height: 36, borderRadius: 11, backgroundColor: '#6366F1',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
   },
-  btnRequestText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  btnRequestText: { color: '#FFFFFF', fontSize: 12.5, fontWeight: '800' },
   btnChat: {
-    width: 44, height: 44, borderRadius: 14,
+    width: 36, height: 36, borderRadius: 11,
     backgroundColor: '#F3F0FC', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: '#E0D8F8',
   },

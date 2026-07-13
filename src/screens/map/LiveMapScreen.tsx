@@ -15,7 +15,6 @@ import {
 import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Avatar } from 'react-native-paper';
 import { useNavigation, useRoute, useIsFocused, useFocusEffect } from '@react-navigation/native';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle as SvgCircle, G } from 'react-native-svg';
 
@@ -78,7 +77,11 @@ const C = {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function LiveMapScreen() {
   useScreenFocusTracking('LiveMap');
-  useSystemBars(C.bg, 'light');
+  // System nav bar এই screen-এর নিজের গাঢ় background-এর উপর না, বরং সব
+  // tab-এ শেয়ার করা সাদা tab bar-এর padding-এর উপর বসে (edge-to-edge) —
+  // তাই 'light' (সাদা icon) সাদার উপর অদৃশ্য হয়ে যেত। 'dark' icon ব্যবহার
+  // করি, HomeScreen (একই tab bar-এর উপরে) যেমন করে।
+  useSystemBars(C.bg, 'dark');
   // Home (হালকা থিম) থেকে Map (গাঢ় থিম)-এ tab বদলানোর সময় tab-transition-এর
   // মাঝপথে দুই screen সংক্ষিপ্তভাবে overlap করে — বিশাল রঙ-বৈসাদৃশ্যের কারণে
   // এটা flash-এর মতো লাগত। Map-এর নিজস্ব গাঢ় থিম না বদলিয়ে, বরং screen
@@ -100,7 +103,6 @@ export default function LiveMapScreen() {
   const routeParams = route?.params as { destination?: string; pickup?: string } | undefined;
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
   const { user } = useAuthStore();
   const mapStyle = useUIStore((s) => s.mapStyle);
   const rawLatitude = useLocationStore((s) => s.latitude);
@@ -614,7 +616,7 @@ export default function LiveMapScreen() {
 
         showsUserLocation={false}
         showsMyLocationButton={false}
-        mapPadding={{ top: 0, right: 0, bottom: tabBarHeight + 20, left: 0 }}
+        mapPadding={{ top: 0, right: 0, bottom: 20, left: 0 }}
       >
         {routeOrigin && (
           <Marker coordinate={{ latitude: routeOrigin.lat, longitude: routeOrigin.lng }} pinColor={C.primary} title={routeOrigin.label} description="Pickup" />
@@ -760,7 +762,7 @@ export default function LiveMapScreen() {
       </View>
 
       {!showNoRidersSheet ? (
-        <View style={[s.scanChip, { bottom: selectedRider ? 165 : 8 }]}>
+        <View style={[s.scanChip, { bottom: selectedRider ? 120 : 8 }]}>
           <Animated.View style={[s.scanDot, {
             opacity: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.2, 1] }),
             transform: [{ scale: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.6, 1] }) }],
@@ -775,12 +777,12 @@ export default function LiveMapScreen() {
         </View>
       ) : null}
 
-      <View style={{ position: 'absolute', bottom: selectedRider ? 210 + tabBarHeight : 8 + tabBarHeight, right: 12, zIndex: 10 }}>
+      <View style={{ position: 'absolute', bottom: selectedRider ? 185 : 8, right: 12, zIndex: 10 }}>
         <Speedometer speedKmh={hasLoc ? (speedKmh ?? 0) : null} />
       </View>
 
       {selectedRider ? (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 8 + tabBarHeight }}>
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 8 }}>
           <SelectedSheet
             rider={selectedRider}
             meetupRoute={meetupRoute}
@@ -792,7 +794,7 @@ export default function LiveMapScreen() {
       ) : null}
 
       {showNoRidersSheet && !selectedRider ? (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 12 + tabBarHeight, zIndex: 50, elevation: 50 }}>
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 12, zIndex: 50, elevation: 50 }}>
           <NoRidersSheet
             scanSecs={scanSecs}
             zoneIdx={zoneIdx}

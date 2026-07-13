@@ -65,7 +65,10 @@ const C = {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ChatListScreen() {
   useScreenFocusTracking('ChatList');
-  useSystemBars(C.bg, 'light');
+  // System nav bar এই screen-এর নিজের background-এর উপর না, বরং শেয়ার করা
+  // সাদা tab bar-এর padding-এর উপর বসে (edge-to-edge) — তাই 'dark' icon
+  // ব্যবহার করি (HomeScreen-এর মতো), 'light' সাদার উপর অদৃশ্য হয়ে যেত।
+  useSystemBars(C.bg, 'dark');
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { user } = useAuthStore();

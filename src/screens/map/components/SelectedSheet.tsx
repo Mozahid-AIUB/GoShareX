@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { StyleSheet, Text as RNText, TouchableOpacity, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle as SvgCircle } from 'react-native-svg';
 
 import type { RiderMatch } from '@/services/firebase/matchingService';
@@ -11,16 +12,25 @@ import type { RiderMatch } from '@/services/firebase/matchingService';
 import { IconChat, IconClose, IconStar } from './MapIcons';
 
 const C = {
-  surface: '#0A1022',
-  cardBorder: 'rgba(192,132,252,0.12)',
+  surface: '#FFFFFF',
+  cardBorder: '#EDE8F5',
   primary: '#C084FC',
-  text: '#EEF2FF',
-  textSub: '#8892A4',
-  textMuted: '#4A5568',
-  teal: '#34D399',
+  primaryDeep: '#9333EA',
+  text: '#1A1A2E',
+  textSub: '#6B6980',
+  textMuted: '#9896A8',
+  teal: '#0D9488',
   white: '#FFFFFF',
-  matchGreen: '#34D399',
+  matchGreen: '#0D9488',
+  matchGreenDeep: '#0B7A70',
   nearbyOrange: '#FB923C',
+  nearbyOrangeDeep: '#EA7C1C',
+};
+
+const BTN_GRADIENTS: Record<'idle' | 'pending' | 'confirmed', [string, string]> = {
+  idle: [C.primaryDeep, C.primary],
+  pending: [C.nearbyOrangeDeep, C.nearbyOrange],
+  confirmed: [C.matchGreenDeep, C.matchGreen],
 };
 
 type Props = {
@@ -37,6 +47,7 @@ export const SelectedSheet = ({ rider, meetupRoute, requestState, onOffer, onClo
   const confirmed = requestState === 'confirmed';
   const pending = requestState === 'pending';
   const btnLabel = confirmed ? 'Open Chat' : pending ? 'Request Sent · Waiting' : 'Send Request';
+  const btnState: 'idle' | 'pending' | 'confirmed' = confirmed ? 'confirmed' : pending ? 'pending' : 'idle';
   return (
     <View style={ss.wrap}>
       <View style={ss.handle} />
@@ -85,34 +96,39 @@ export const SelectedSheet = ({ rider, meetupRoute, requestState, onOffer, onClo
         </TouchableOpacity>
       </View>
 
-      {/* ── Walk pill (only if route known) ── */}
-      {meetupRoute ? (
-        <View style={ss.walkPill}>
-          <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
-            <Path
-              d="M13 4a1 1 0 10-2 0 1 1 0 002 0zM7 20l3-8 2 3 3-5 2 10"
-              stroke={C.teal}
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </Svg>
-          <RNText style={ss.walk}>
-            {meetupRoute.distanceText} walk · ~{meetupRoute.durationText}
-          </RNText>
-        </View>
-      ) : null}
-
-      {/* ── Action: request flow → pending → chat (same logic as Home) ── */}
+      {/* ── Action row: walk pill (left) + request button (right, gradient) ── */}
       <View style={ss.actions}>
+        {meetupRoute ? (
+          <View style={ss.walkPill}>
+            <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M13 4a1 1 0 10-2 0 1 1 0 002 0zM7 20l3-8 2 3 3-5 2 10"
+                stroke={C.teal}
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+            <RNText style={ss.walk} numberOfLines={1}>
+              {meetupRoute.distanceText} · ~{meetupRoute.durationText}
+            </RNText>
+          </View>
+        ) : null}
         <TouchableOpacity
-          style={[ss.chatBtn, confirmed ? ss.btnConfirmed : pending ? ss.btnPending : null]}
+          style={ss.chatBtnTouchable}
           onPress={() => onOffer(rider)}
           activeOpacity={0.85}
           disabled={pending}
         >
-          {confirmed && <IconChat />}
-          <RNText style={ss.chatText}>{btnLabel}</RNText>
+          <LinearGradient
+            colors={BTN_GRADIENTS[btnState]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={ss.chatBtn}
+          >
+            {confirmed && <IconChat />}
+            <RNText style={ss.chatText}>{btnLabel}</RNText>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </View>
@@ -122,39 +138,39 @@ export const SelectedSheet = ({ rider, meetupRoute, requestState, onOffer, onClo
 const ss = StyleSheet.create({
   wrap: {
     marginHorizontal: 10,
-    backgroundColor: '#0E1430',
-    borderRadius: 22,
+    backgroundColor: C.surface,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(192,132,252,0.22)',
-    paddingHorizontal: 13,
-    paddingTop: 8,
-    paddingBottom: 11,
+    borderColor: C.cardBorder,
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    paddingBottom: 8,
     overflow: 'hidden',
-    elevation: 18,
-    shadowColor: C.primary,
-    shadowOpacity: 0.4,
-    shadowRadius: 18,
+    elevation: 14,
+    shadowColor: '#3A2E5C',
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
     shadowOffset: { width: 0, height: -4 },
   },
   handle: {
-    width: 32,
-    height: 3.5,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    width: 30,
+    height: 3,
+    backgroundColor: '#E4E0F0',
     borderRadius: 2,
     alignSelf: 'center',
-    marginBottom: 9,
+    marginBottom: 6,
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   avatar: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'rgba(192,132,252,0.15)',
+    backgroundColor: '#F3E8FF',
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { fontSize: 16, fontWeight: '900', color: C.text },
+  avatarText: { fontSize: 16, fontWeight: '900', color: C.primaryDeep },
   statusDot: {
     position: 'absolute',
     right: -1,
@@ -163,17 +179,17 @@ const ss = StyleSheet.create({
     height: 11,
     borderRadius: 5.5,
     borderWidth: 2,
-    borderColor: '#0E1430',
+    borderColor: C.surface,
   },
   info: { flex: 1 },
   name: { fontSize: 15, fontWeight: '800', color: C.text, letterSpacing: -0.3, flexShrink: 1 },
   matchBadge: {
-    backgroundColor: 'rgba(52,211,153,0.15)',
+    backgroundColor: 'rgba(13,148,136,0.1)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 5,
     borderWidth: 0.8,
-    borderColor: 'rgba(52,211,153,0.35)',
+    borderColor: 'rgba(13,148,136,0.3)',
   },
   matchText: { fontSize: 8, color: C.matchGreen, fontWeight: '800', letterSpacing: 0.3 },
   metaLine: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
@@ -189,42 +205,41 @@ const ss = StyleSheet.create({
   walkPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(52,211,153,0.1)',
+    gap: 4,
+    backgroundColor: 'rgba(13,148,136,0.08)',
     borderWidth: 0.8,
-    borderColor: 'rgba(52,211,153,0.25)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginTop: 8,
+    borderColor: 'rgba(13,148,136,0.22)',
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    borderRadius: 10,
   },
-  walk: { fontSize: 10.5, color: C.teal, fontWeight: '700' },
+  walk: { fontSize: 10, color: C.teal, fontWeight: '700' },
   close: {
-    width: 30,
-    height: 30,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 15,
+    backgroundColor: '#F5F3FA',
+    borderRadius: 14,
   },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  actions: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginTop: 8 },
+  chatBtnTouchable: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    elevation: 6,
+    shadowColor: C.primaryDeep,
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+  },
   chatBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: C.primary,
-    borderRadius: 13,
-    paddingVertical: 11,
-    elevation: 6,
-    shadowColor: C.primary,
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
+    paddingVertical: 9,
   },
-  btnPending: { backgroundColor: C.nearbyOrange, shadowColor: C.nearbyOrange },
-  btnConfirmed: { backgroundColor: C.matchGreen, shadowColor: C.matchGreen },
-  chatText: { color: C.white, fontSize: 14, fontWeight: '800', letterSpacing: -0.2 },
+  chatText: { color: C.white, fontSize: 13.5, fontWeight: '800', letterSpacing: -0.2 },
 });
