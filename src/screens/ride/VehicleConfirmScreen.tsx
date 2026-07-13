@@ -26,6 +26,7 @@ import { useAuthStore } from '@/store/authStore';
 import rideService from '@/services/rideService';
 import { getFare } from '@/constants/fareTable';
 import PremiumVehicleArt from '@/components/vehicles/PremiumVehicleArt';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 // ─── Design Tokens ─────────────────────────────────────────────────────────
 const C = {
@@ -179,6 +180,7 @@ const IconCheck = () => (
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function VehicleConfirmScreen() {
+    useSystemBars(C.bg, 'light');
     const route = useRoute<any>();
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();

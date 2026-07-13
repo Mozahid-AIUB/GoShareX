@@ -7,10 +7,12 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { AuthStackParamList, RootNavProp } from '@/navigation/types';
 import authService from '@/services/authService';
 import { C } from '@/components/auth/authColors';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 // ForgotPassword → এখানে আসে। ইউজার email-এ পাওয়া ৬-digit code +
 // নতুন password দেয়। সব অ্যাপের ভেতরে (OTP flow, deep link লাগে না)।
 export default function ResetPasswordScreen() {
+  useSystemBars(C.bg, 'dark');
   const navigation = useNavigation<RootNavProp>();
   const route = useRoute<RouteProp<AuthStackParamList, 'ResetPassword'>>();
   const email = route.params.email;

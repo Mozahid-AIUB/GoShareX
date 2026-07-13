@@ -22,6 +22,7 @@ import PremiumIcon from '@/components/common/PremiumIcon';
 import badgePenaltyService from '@/services/user/badgePenaltyService';
 import authService from '@/services/authService';
 import { useAuthStore } from '@/store';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 // ─── Countdown timer hook ────────────────────────────────────────────────────
 
@@ -52,6 +53,7 @@ function useCountdown(suspendedUntil: number) {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function SuspensionScreen() {
+  useSystemBars('#F5F5F5', 'dark');
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { user, logout } = useAuthStore();

@@ -4,6 +4,7 @@ import { Text } from 'react-native-paper';
 import rideService from '@/services/rideService';
 import { useAuthStore } from '@/store/authStore';
 import PremiumIcon from '@/components/common/PremiumIcon';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 const PAGE_SIZE = 20;
 
@@ -20,6 +21,7 @@ interface RideRecord {
 }
 
 export default function RideHistoryScreen() {
+  useSystemBars('#FAF8FF', 'dark');
   const { user } = useAuthStore();
   const [rides, setRides] = useState<RideRecord[]>([]);
   const [loading, setLoading] = useState(true);

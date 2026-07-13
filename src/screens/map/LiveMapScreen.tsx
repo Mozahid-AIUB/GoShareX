@@ -2,10 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
   Alert,
+  Easing,
   FlatList,
   Platform,
   Pressable,
-  StatusBar,
   StyleSheet,
   Text as RNText,
   TouchableOpacity,
@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Avatar } from 'react-native-paper';
-import { useNavigation, useRoute, useIsFocused } from '@react-navigation/native';
+import { useNavigation, useRoute, useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle as SvgCircle, G } from 'react-native-svg';
@@ -47,6 +47,7 @@ import {
 } from './utils/mapHelpers';
 import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
 import { useSnappedLocation } from '@/hooks/useSnappedLocation';
+import { useSystemBars } from '@/hooks/useSystemBars';
 import { useUIStore } from '@/store/uiStore';
 import { MAP_STYLES } from '@/config/mapStyles';
 
@@ -77,6 +78,24 @@ const C = {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function LiveMapScreen() {
   useScreenFocusTracking('LiveMap');
+  useSystemBars(C.bg, 'light');
+  // Home (হালকা থিম) থেকে Map (গাঢ় থিম)-এ tab বদলানোর সময় tab-transition-এর
+  // মাঝপথে দুই screen সংক্ষিপ্তভাবে overlap করে — বিশাল রঙ-বৈসাদৃশ্যের কারণে
+  // এটা flash-এর মতো লাগত। Map-এর নিজস্ব গাঢ় থিম না বদলিয়ে, বরং screen
+  // focus হওয়ার সাথে সাথেই একটা হালকা overlay ধীরে fade-out করি — এতে
+  // transition চোখে softer লাগে, কোনো tab-navigator animation-এ হাত পড়ে না।
+  const entryFade = useRef(new Animated.Value(1)).current;
+  useFocusEffect(
+    useCallback(() => {
+      entryFade.setValue(1);
+      Animated.timing(entryFade, {
+        toValue: 0,
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    }, [entryFade]),
+  );
   const route = useRoute<any>();
   const routeParams = route?.params as { destination?: string; pickup?: string } | undefined;
   const navigation = useNavigation<any>();
@@ -585,7 +604,6 @@ export default function LiveMapScreen() {
 
   return (
     <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
       {/* ── Map ── */}
       <MapView
         ref={mapRef}
@@ -757,12 +775,12 @@ export default function LiveMapScreen() {
         </View>
       ) : null}
 
-      <View style={{ position: 'absolute', bottom: selectedRider ? 210 : 8, right: 12, zIndex: 10 }}>
+      <View style={{ position: 'absolute', bottom: selectedRider ? 210 + tabBarHeight : 8 + tabBarHeight, right: 12, zIndex: 10 }}>
         <Speedometer speedKmh={hasLoc ? (speedKmh ?? 0) : null} />
       </View>
 
       {selectedRider ? (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 8 }}>
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 8 + tabBarHeight }}>
           <SelectedSheet
             rider={selectedRider}
             meetupRoute={meetupRoute}
@@ -774,7 +792,7 @@ export default function LiveMapScreen() {
       ) : null}
 
       {showNoRidersSheet && !selectedRider ? (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 12, zIndex: 50, elevation: 50 }}>
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 12 + tabBarHeight, zIndex: 50, elevation: 50 }}>
           <NoRidersSheet
             scanSecs={scanSecs}
             zoneIdx={zoneIdx}
@@ -786,6 +804,14 @@ export default function LiveMapScreen() {
         </View>
       ) : null}
 
+      {/* Home (হালকা থিম) থেকে tab-transition-এর flash softer করতে entry fade */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFillObject,
+          { backgroundColor: '#FAF8FF', opacity: entryFade, zIndex: 999 },
+        ]}
+      />
     </View>
   );
 }

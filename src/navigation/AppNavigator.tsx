@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, createNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import * as Notifications from 'expo-notifications';
 import { RootStackParamList } from './types';
@@ -38,6 +38,19 @@ import VehicleConfirmScreen from '@/screens/ride/VehicleConfirmScreen';
 import PrivacyPolicyScreen from '@/screens/legal/PrivacyPolicyScreen';
 import LegalScreen from '@/screens/legal/LegalScreen';
 
+// NavigationContainer-এ explicit theme না দিলে phone system dark mode-এ
+// থাকলে React Navigation নিজে থেকেই DarkTheme (কালো background) ধরে নেয় —
+// Stack transition/tab-transition-এর মাঝে সেই কালো card background bleed
+// করে "কালো layer flash" দেখাত। App সবসময় নিজের হালকা থিমেই থাকবে, phone
+// dark mode-এ থাকুক বা না থাকুক — তাই এখানে fix করে দেওয়া হলো।
+const APP_NAV_THEME = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: '#FAF8FF',
+  },
+};
+
 const DARK_HEADER = {
   backgroundColor: '#07090F',
   elevation: 0,
@@ -48,6 +61,25 @@ const DARK_HEADER = {
 
 const DARK_HEADER_TITLE = {
   color: '#EEF2FF',
+  fontWeight: '800' as const,
+  fontSize: 16,
+  letterSpacing: -0.3,
+};
+
+// EditProfile/RideHistory/Settings — এই screen-গুলো নিজেই হালকা থিম
+// (#FAF8FF family), কিন্তু আগে DARK_HEADER ব্যবহার করত — header কালো,
+// নিচের পুরো body সাদা, স্পষ্ট mismatch দেখাত। এই screen-গুলোর জন্য
+// আলাদা হালকা header।
+const LIGHT_HEADER = {
+  backgroundColor: '#FAF8FF',
+  elevation: 0,
+  shadowOpacity: 0,
+  borderBottomWidth: 1,
+  borderBottomColor: '#EDE8F5',
+} as const;
+
+const LIGHT_HEADER_TITLE = {
+  color: '#1A1A2E',
   fontWeight: '800' as const,
   fontSize: 16,
   letterSpacing: -0.3,
@@ -114,7 +146,7 @@ const AppNavigator = () => {
   }, [isAuthenticated]);
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} theme={APP_NAV_THEME}>
       <Stack.Navigator id={undefined} screenOptions={{ headerShown: false }}>
         {isLoading ? (
           <Stack.Screen name="Splash" component={SplashScreen} />
@@ -150,12 +182,12 @@ const AppNavigator = () => {
             <Stack.Screen
               name="RideHistory"
               component={RideHistoryScreen}
-              options={{ headerShown: true, title: 'Ride History', headerStyle: DARK_HEADER, headerTitleStyle: DARK_HEADER_TITLE, headerTintColor: '#A5B4FC' }}
+              options={{ headerShown: true, title: 'Ride History', headerStyle: LIGHT_HEADER, headerTitleStyle: LIGHT_HEADER_TITLE, headerTintColor: '#6366F1' }}
             />
             <Stack.Screen
               name="Settings"
               component={SettingsScreen}
-              options={{ headerShown: true, title: 'Settings', headerStyle: DARK_HEADER, headerTitleStyle: DARK_HEADER_TITLE, headerTintColor: '#A5B4FC' }}
+              options={{ headerShown: true, title: 'Settings', headerStyle: LIGHT_HEADER, headerTitleStyle: LIGHT_HEADER_TITLE, headerTintColor: '#6366F1' }}
             />
             <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ headerShown: false }} />
             <Stack.Screen name="LiveMap" component={LiveMapScreen} options={{ headerShown: false }} />
@@ -172,7 +204,7 @@ const AppNavigator = () => {
             <Stack.Screen
               name="EditProfile"
               component={EditProfileScreen}
-              options={{ headerShown: true, title: 'Edit Profile', headerStyle: DARK_HEADER, headerTitleStyle: DARK_HEADER_TITLE, headerTintColor: '#A5B4FC' }}
+              options={{ headerShown: true, title: 'Edit Profile', headerStyle: LIGHT_HEADER, headerTitleStyle: LIGHT_HEADER_TITLE, headerTintColor: '#6366F1' }}
             />
             <Stack.Screen name="PostBoard" component={PostBoardScreen} options={{ headerShown: false }} />
             <Stack.Screen name="CreatePost" component={CreatePostScreen} options={{ headerShown: false }} />

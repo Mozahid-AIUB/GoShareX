@@ -24,6 +24,7 @@ import { createPost } from '@/services/postService';
 import placesService, { PlaceSuggestion } from '@/services/google/placesService';
 import { getErrorMessage } from '@/utils/errorHandler';
 import { trackEvent } from '@/services/analytics/analyticsService';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 const C = {
   bg: '#FAF8FF',
@@ -238,6 +239,7 @@ const RIDE_TYPES = [
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function CreatePostScreen() {
+  useSystemBars(C.bg, 'dark');
   const navigation = useNavigation<RootNavProp>();
   const { user } = useAuthStore();
 

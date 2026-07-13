@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StatusBar,
   StyleSheet,
   TextInput,
   TouchableOpacity,
@@ -41,6 +40,7 @@ import {
 import { LiveDot, MiniAvatar } from './components/ChatBadges';
 import { QUICK_REPLIES, formatCountdown } from './utils/chatHelpers';
 import { useScreenTracking } from '@/hooks/useScreenTracking';
+import { useSystemBars } from '@/hooks/useSystemBars';
 import { getRoutePreviewUrl } from '@/services/google/staticMapService';
 import { getDestinationByName, getDestinationById } from '@/constants/destinations';
 import { getPickupPointById } from '@/constants/pickupPoints';
@@ -83,6 +83,7 @@ const dateSeparatorLabel = (ts: number): string => {
 
 export default function ChatScreen() {
   useScreenTracking('Chat');
+  useSystemBars(C.bg, 'light');
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
@@ -613,7 +614,6 @@ export default function ChatScreen() {
 
   return (
     <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
       {/* Header — WhatsApp-style: back | avatar | name+status (left) | action */}
       <View style={[s.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity style={s.headerBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>

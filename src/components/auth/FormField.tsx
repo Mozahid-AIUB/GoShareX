@@ -16,11 +16,12 @@ interface Props {
   autoCapitalize?: any;
   placeholder?: string;
   error?: string;
+  hint?: string;
 }
 
 export default function FormField({
   label, value, onChangeText, icon, rightLabel, secure, onToggleSecure,
-  keyboardType, autoCapitalize, placeholder, error,
+  keyboardType, autoCapitalize, placeholder, error, hint,
 }: Props) {
   const [focused, setFocused] = useState(false);
   return (
@@ -49,7 +50,7 @@ export default function FormField({
           </TouchableOpacity>
         )}
       </View>
-      {!!error && <Text style={f.errorText}>{error}</Text>}
+      {error ? <Text style={f.errorText}>{error}</Text> : hint ? <Text style={f.hintText}>{hint}</Text> : null}
     </View>
   );
 }
@@ -69,4 +70,5 @@ const f = StyleSheet.create({
   input: { flex: 1, fontSize: 15, color: C.text, paddingRight: 12 },
   eyeBtn: { paddingHorizontal: 14, height: '100%', alignItems: 'center', justifyContent: 'center' },
   errorText: { fontSize: 11, color: C.error, marginTop: 4, marginLeft: 4 },
+  hintText: { fontSize: 11, color: C.textSub, marginTop: 4, marginLeft: 4 },
 });

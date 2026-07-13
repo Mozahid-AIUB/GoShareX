@@ -17,6 +17,7 @@ import { useAuthStore } from '@/store/authStore';
 import type { Post } from '@/types/post.types';
 import { getErrorMessage } from '@/utils/errorHandler';
 import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 const C = {
   bg: '#F5F5FA', card: '#FFFFFF', border: '#E8E4F4',
@@ -308,6 +309,7 @@ const cd = StyleSheet.create({
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function PostBoardScreen() {
   useScreenFocusTracking('PostBoard');
+  useSystemBars(C.bg, 'dark');
   const navigation = useNavigation<RootNavProp>();
   const tabBarH = useBottomTabBarHeight();
   const { user } = useAuthStore();

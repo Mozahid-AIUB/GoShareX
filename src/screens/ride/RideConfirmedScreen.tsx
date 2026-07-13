@@ -23,6 +23,7 @@ import { buildRideRoutePreview } from '@/services/ride/routePreviewService';
 import type { RideRoutePreview } from '@/types/ride.types';
 import { logger } from '@/utils/logger';
 import { startMovementDetection } from '@/services/location/movementDetector';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 const C = {
   bg: '#07090F',
@@ -99,6 +100,7 @@ const IconPerson = ({ color }: { color: string }) => (
 );
 
 export default function RideConfirmedScreen() {
+  useSystemBars(C.bg, 'light');
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();

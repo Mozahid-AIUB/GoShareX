@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider as PaperProvider } from 'react-native-paper';
@@ -86,11 +85,15 @@ export default function App() {
       <PaperProvider theme={theme}>
         <ErrorBoundary>
           <BiometricGate>
-            {/* root-এ explicit dark background — edge-to-edge মোডে content
-                render হওয়ার আগে কোনো frame খালি থাকলেও পর্দা dark থাকে,
-                ফাঁকা black নয়। */}
-            <View style={{ flex: 1, backgroundColor: '#07090F' }}>
-              <StatusBar style="light" backgroundColor="transparent" translucent={false} />
+            {/* root background — আগে dark (#07090F) ছিল, কিন্তু tab
+                transition-এর মাঝপথে (screen-গুলো slide/superimpose হওয়ার
+                সময়) এই dark রঙ bleed করে হালকা-থিম screen (Home, Login
+                ইত্যাদি) থেকে যাওয়ার সময় একটা "কালো flash layer" দেখাত।
+                App-এর অধিকাংশ screen হালকা থিম, তাই root-ও হালকা রাখা হলো —
+                bleed করলেও এখন সেটা লক্ষ্যণীয় flash তৈরি করে না। status
+                bar/nav bar প্রতিটা screen নিজেই useSystemBars() দিয়ে control
+                করে (@/hooks/useSystemBars) — এখানে সেটা নিয়ে touch করিনি। */}
+            <View style={{ flex: 1, backgroundColor: '#FAF8FF' }}>
               <AppNavigator />
               <OfflineBanner />
             </View>

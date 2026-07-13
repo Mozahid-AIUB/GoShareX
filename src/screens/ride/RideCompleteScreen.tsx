@@ -11,6 +11,7 @@ import { submitRating, RATING_CATEGORIES, type CategoryId } from '@/services/rat
 import { supabase } from '@/config/supabase.config';
 import { logger } from '@/utils/logger';
 import type { RideRoutePreview } from '@/types/ride.types';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 const C = {
@@ -70,6 +71,7 @@ const StatCard = ({ label, value, color }: { label: string; value: string; color
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function RideCompleteScreen() {
+  useSystemBars(C.bg, 'light');
   const route     = useRoute<any>();
   const navigation = useNavigation<any>();
   const { clearRide } = useRideStore();

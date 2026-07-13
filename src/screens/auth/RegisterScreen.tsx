@@ -25,10 +25,12 @@ import { IconEmail, IconLock, IconArrow, IconUser, IconBack } from '@/components
 import FormField from '@/components/auth/FormField';
 import { getErrorCode, getErrorMessage } from '@/utils/errorHandler';
 import { useScreenTracking } from '@/hooks/useScreenTracking';
+import { useSystemBars } from '@/hooks/useSystemBars';
 import { trackEvent } from '@/services/analytics/analyticsService';
 
 export default function RegisterScreen() {
   useScreenTracking('Register');
+  useSystemBars(C.bg, 'dark');
   const navigation = useNavigation<RootNavProp>();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -110,7 +112,7 @@ export default function RegisterScreen() {
               <IconBack />
               <Text style={s.backLabel}>Back</Text>
             </TouchableOpacity>
-            <Image source={require('../../../assets/images/gosharex-icon-3d.png')} style={s.logoImg} resizeMode="contain" />
+            <Image source={require('../../../assets/images/gosharex-logo-transparent.png')} style={s.logoImg} resizeMode="contain" />
           </View>
 
           <View style={s.titleArea}>
@@ -126,7 +128,8 @@ export default function RegisterScreen() {
               icon={<IconEmail />} keyboardType="email-address" error={errors.email} />
             <FormField label="Password" value={password} onChangeText={setPassword}
               icon={<IconLock />} secure={!showPassword}
-              onToggleSecure={() => setShowPassword(v => !v)} error={errors.password} />
+              onToggleSecure={() => setShowPassword(v => !v)} error={errors.password}
+              hint={password.length < 8 ? 'At least 8 characters' : undefined} />
             <FormField label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword}
               icon={<IconLock />} secure={!showPassword} error={errors.confirmPassword} />
 

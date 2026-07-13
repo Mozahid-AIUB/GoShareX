@@ -8,6 +8,7 @@ import authService from '@/services/authService';
 import { checkSuspension } from '@/services/badgeService';
 import { FEATURE_FLAGS } from '@/config/featureFlags';
 import { supabase } from '@/config/supabase.config';
+import { useSystemBars } from '@/hooks/useSystemBars';
 import SplashLogo from './SplashLogo';
 
 const { width: W, height: H } = Dimensions.get('window');
@@ -66,6 +67,7 @@ const PARTICLES = [
 
 // ─── Main Splash ──────────────────────────────────────────────────────────────
 const SplashScreen = () => {
+  useSystemBars('#FFFFFF', 'dark');
   const { setUser, setLoading, setSuspension } = useAuthStore();
   const resolved = useRef(false);
 

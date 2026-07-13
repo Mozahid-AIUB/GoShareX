@@ -4,6 +4,7 @@ import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 const IconBack = () => (
   <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
@@ -19,6 +20,7 @@ const Section = ({ title, children }: { title: string; children: string }) => (
 );
 
 export default function PrivacyPolicyScreen() {
+  useSystemBars('#F8F7FF', 'dark');
   const navigation = useNavigation();
 
   return (

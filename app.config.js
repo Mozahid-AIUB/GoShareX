@@ -60,19 +60,40 @@ export default {
             "expo-secure-store",
             "expo-updates",
             "@react-native-google-signin/google-signin",
+            // SDK 54-এ Android edge-to-edge default enabled — এই মোডে
+            // নিচের navigation bar-এর কোনো স্বতন্ত্র solid রঙ থাকে না
+            // (transparent, content এর নিচ পর্যন্ত extend হয়)। পুরনো
+            // expo-navigation-bar/expo-status-bar imperative API এই
+            // মোডে no-op — icon color (light/dark) নিয়ন্ত্রণ করতে হয়
+            // react-native-edge-to-edge-এর SystemBars component দিয়ে।
+            // প্লাগিন explicit options সহ বসানো হলো (plain string আগে ছিল) —
+            // enforceNavigationBarContrast: false না দিলে Android নিজে
+            // থেকে nav bar-এ একটা আলাদা contrast overlay বসিয়ে দেয়, যেটা
+            // tab bar background-এর সাথে না মিলে আলাদা "layer" এর মতো লাগে।
+            [
+                "react-native-edge-to-edge",
+                {
+                    android: {
+                        parentTheme: "Default",
+                        enforceNavigationBarContrast: false
+                    }
+                }
+            ],
             [
                 "expo-splash-screen",
                 {
-                    // high-res 3D GX road-logo — SplashScreen.tsx এখন সাদা
-                    // background-এ light-theme animation দেখায়, তাই native
-                    // splash-ও সাদা রাখা হলো (native→JS transition-এ কোনো
-                    // ঝাঁকুনি/রঙ-বদল চোখে না পড়ে)।
-                    image: "./assets/images/gosharex-icon-3d.png",
+                    // Android 12+ SplashScreen API icon-কে একটা ছোট round
+                    // container-এ বসায় (adaptive icon-এর মতোই সীমাবদ্ধতা) —
+                    // আগের gosharex-icon-3d.png প্রায় পুরো ফ্রেম জুড়ে থাকায়
+                    // সেই round mask-এ কেটে যাচ্ছিল। gosharex-splash-icon.png
+                    // logo-কে ছোট করে (৫০% fit-zone) padding সহ কেন্দ্রে
+                    // বসানো — এখন mask-এ কোনো অংশ কাটে না।
+                    image: "./assets/images/gosharex-splash-icon.png",
                     backgroundColor: "#FFFFFF",
-                    imageWidth: 320,
+                    imageWidth: 200,
                     resizeMode: "contain",
                     dark: {
-                        image: "./assets/images/gosharex-icon-3d.png",
+                        image: "./assets/images/gosharex-splash-icon.png",
                         backgroundColor: "#FFFFFF"
                     }
                 }

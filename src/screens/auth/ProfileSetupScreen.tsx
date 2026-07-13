@@ -25,8 +25,10 @@ import { C } from '@/components/auth/authColors';
 import { IconUser, IconPhone, IconBack } from '@/components/auth/AuthIcons';
 import { getErrorMessage } from '@/utils/errorHandler';
 import FormField from '@/components/auth/FormField';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 export default function ProfileSetupScreen() {
+  useSystemBars(C.bg, 'dark');
   const navigation = useNavigation<RootNavProp>();
   const { setUser } = useAuthStore();
 

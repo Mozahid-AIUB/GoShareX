@@ -1,5 +1,6 @@
 import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Easing } from 'react-native';
+import { createBottomTabNavigator, TransitionPresets } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
@@ -19,6 +20,22 @@ const C = {
   active: '#6366F1',
   inactive: '#B0AACC',
 };
+
+// ─── Custom tab transition ────────────────────────────────────────────────────
+// Library-এর নিজস্ব 'shift' preset-এর sceneStyleInterpolator অপরিবর্তিত রেখে
+// (ওটাই verified কাজ করে) শুধু duration/easing টিউন করা হলো — built-in
+// 150ms এবং 240ms দুটোই "snappy/হঠাৎ jump" এর মতো লেগেছিল। এখন 340ms +
+// symmetric ease-in-out (শুরু ধীরে, মাঝে দ্রুত, শেষে ধীরে থামে) — এটাই
+// iOS/Android-এর নিজস্ব native screen-transition timing-এর কাছাকাছি,
+// premium/মসৃণ লাগে।
+const tabTransitionSpec = {
+  ...TransitionPresets.ShiftTransition.transitionSpec,
+  config: {
+    ...TransitionPresets.ShiftTransition.transitionSpec?.config,
+    duration: 340,
+    easing: Easing.inOut(Easing.cubic),
+  },
+} as typeof TransitionPresets.ShiftTransition.transitionSpec;
 
 // ─── Pure SVG tab icons (zero dependencies) ───────────────────────────────────
 const IconHome = ({ active }: { active: boolean }) => (
@@ -99,7 +116,9 @@ const BottomTabNavigator = () => {
         lazy: true,
         // tab বদলালে Apple-এর মতো মসৃণ transition (হঠাৎ jump নয়)।
         // 'shift' — পাশের tab আলতো slide+fade হয়ে আসে (premium feel)।
+        // built-in duration (150ms) দ্রুত/jerk লাগছিল, তাই শুধু timing override।
         animation: 'shift',
+        transitionSpec: tabTransitionSpec,
         // Library-native label rendering — handles vertical centering automatically
         tabBarShowLabel: true,
         tabBarActiveTintColor: C.active,

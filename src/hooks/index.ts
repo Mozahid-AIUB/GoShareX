@@ -29,3 +29,4 @@ export { useAuth } from './useAuth';
 export { useRating } from './useRating';
 export { useScreenTracking, useScreenFocusTracking } from './useScreenTracking';
 export { useSnappedLocation } from './useSnappedLocation';
+export { useSystemBars } from './useSystemBars';

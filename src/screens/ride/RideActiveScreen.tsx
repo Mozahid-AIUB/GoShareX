@@ -16,6 +16,7 @@ import { shareRide } from '@/services/ride/shareRideService';
 import { getDestinationByName, getDestinationById } from '@/constants/destinations';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useLocationStore } from '@/store/locationStore';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 // ─── Tokens ──────────────────────────────────────────────────────────────────
 const C = {
@@ -152,6 +153,7 @@ const InfoRow = ({
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function RideActiveScreen() {
+  useSystemBars(C.bg, 'light');
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { setStatus } = useRideStore();

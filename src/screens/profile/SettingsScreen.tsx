@@ -31,6 +31,7 @@ import { useUIStore } from '@/store/uiStore';
 import { usePrivacyStore } from '@/store/privacyStore';
 import { useNotificationPrefsStore } from '@/store/notificationPrefsStore';
 import { MAP_STYLE_LABELS, type MapStyleId } from '@/config/mapStyles';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 // ─── Light theme — matches Home tab ──────────────────────────────────────────
 const C = {
@@ -138,6 +139,7 @@ const LinkRow = ({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
+  useSystemBars(C.bg, 'dark');
   const navigation = useNavigation<RootNavProp>();
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuthStore();

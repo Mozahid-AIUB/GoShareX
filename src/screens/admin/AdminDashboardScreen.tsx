@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAdminStats, type AdminStats } from '@/hooks/useAdminStats';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 const C = {
   bg: '#FAF8FF',
@@ -72,6 +73,7 @@ const MiniChart = ({ data }: { data: AdminStats['daily'] }) => {
 };
 
 export default function AdminDashboardScreen() {
+  useSystemBars(C.bg, 'dark');
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { stats, loading, error, refresh } = useAdminStats();

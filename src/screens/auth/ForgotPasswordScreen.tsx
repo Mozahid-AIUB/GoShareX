@@ -9,8 +9,10 @@ import { AuthStackParamList, RootNavProp } from '@/navigation/types';
 import authService from '@/services/authService';
 import { isValidEmail, isValidGmail } from '@/utils/validators';
 import { C } from '@/components/auth/authColors';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 export default function ForgotPasswordScreen() {
+  useSystemBars(C.bg, 'dark');
   const navigation = useNavigation<RootNavProp>();
   const route = useRoute<RouteProp<AuthStackParamList, 'ForgotPassword'>>();
   const initialEmail = route.params?.email ?? '';
