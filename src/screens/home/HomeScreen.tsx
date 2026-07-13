@@ -16,7 +16,7 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { ActivityIndicator, Text } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Stop, Circle, Path, Rect } from 'react-native-svg';
 import PremiumIcon from '@/components/common/PremiumIcon';
 
@@ -99,6 +99,7 @@ import {
   type AppNotification,
 } from './utils/homeHelpers';
 import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 // জোন স্তর (মিটার) — segmented pill-এ দেখায়, কতদূরের rider "match"।
 // LiveMapScreen-এর ZONE_LEVELS এর সমান রাখা — দুই screen consistent।
@@ -369,12 +370,13 @@ const PickupModal = ({
   const [gpsLoading, setGpsLoading] = React.useState(false);
   // IDs of pickup points that appear in frequent list (to avoid duplicate in full list)
   const frequentIds = new Set(frequentPickups.map(f => f.id));
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={S.modalOverlay}>
         <TouchableOpacity style={S.modalBackdrop} activeOpacity={1} onPress={onClose} />
-        <View style={[S.modalSheet, { maxHeight: '90%' }]}>
+        <View style={[S.modalSheet, { maxHeight: '90%', paddingBottom: 20 + insets.bottom }]}>
           <View style={S.modalHandle} />
           <Text style={S.modalTitle}>Where are you boarding from?</Text>
 
@@ -538,11 +540,18 @@ const DestinationModal = ({
   }, [query, currentLocation]);
 
   const handleSelectHistory = (entry: SearchEntry) => {
-    recordSearch({ id: entry.id, name: entry.name, lat: entry.lat, lng: entry.lng, placeId: entry.placeId }).catch(() => { });
     // Custom Places entries (lat/lng present) need customDestination set — not just destination id
     if (entry.lat && entry.lng) {
+      recordSearch({ id: entry.id, name: entry.name, lat: entry.lat, lng: entry.lng, placeId: entry.placeId }).catch(() => { });
       onSelectCustomHistory(entry);
+    } else if (entry.placeId) {
+      // পুরনো (আগের bug-এ তৈরি হওয়া) entry — lat/lng ছাড়াই সেভ হয়ে গিয়েছিল।
+      // placeId থাকলে সেটা preset destination না, Google Place — details
+      // fetch করে (onSelectSuggestion, handleSuggestionSelect) সঠিক
+      // lat/lng-সহ নতুন করে destination set করি, "self-heal" করে।
+      onSelectSuggestion({ placeId: entry.placeId, primaryText: entry.name, secondaryText: entry.subtitle ?? '', description: entry.name });
     } else {
+      recordSearch({ id: entry.id, name: entry.name, lat: entry.lat, lng: entry.lng, placeId: entry.placeId }).catch(() => { });
       const dest: RouteDestination = {
         id: entry.id,
         name: entry.name,
@@ -557,13 +566,11 @@ const DestinationModal = ({
   };
 
   const handleRemote = (s: PlaceSuggestion) => {
-    recordSearch({
-      id: s.placeId,
-      name: s.primaryText,
-      subtitle: s.secondaryText,
-      placeId: s.placeId,
-    }).catch(() => { });
-
+    // এখানে recordSearch() ডাকা হতো raw placeId দিয়ে, lat/lng ছাড়াই —
+    // onSelectSuggestion (handleSuggestionSelect) নিজেই সঠিক custom_
+    // prefix + lat/lng সহ recordSearch করে। দুটো call একই destination-এর
+    // জন্য দুইটা আলাদা (একটা ভাঙা, lat/lng-বিহীন) history entry বানাত —
+    // পরে সেই ভাঙা entry-টায় click করলে destination select "কাজ করত না"।
     onSelectSuggestion(s);
     onClose();
   };
@@ -710,8 +717,13 @@ const DestinationModal = ({
 // ─── MAIN SCREEN ─────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   useScreenFocusTracking('Home');
+  useSystemBars('#FAF8FF', 'dark');
   const navigation = useNavigation<MainTabNavProp>();
   const tabBarHeight = useBottomTabBarHeight();
+  // edge-to-edge মোডে bottom sheet modal device-এর নিচের navigation bar-এর
+  // একদম গায়ে গিয়ে ঠেকছিল (root SafeAreaView-এ edges={['top']} শুধু, bottom
+  // safe-area handle হয় না) — তাই modal-এর নিজস্ব bottom padding-এ এই inset যোগ করি।
+  const insets = useSafeAreaInsets();
   const {
     destination, customDestination, pickupPoint, setDestination, setCustomDestination, setPickupPoint,
     setPartner, setStatus, requestStates,
@@ -1175,14 +1187,12 @@ export default function HomeScreen() {
     // Load frequent pickups for PickupModal suggestion list
     getFrequentPickups(5).then(setFrequentPickups).catch(() => { });
 
-    // Contextual permission: অ্যাপ খোলার সময় location permission চাইব না।
-    // আগে থেকে permission দেওয়া থাকলেই শুধু silent-ভাবে location নিই;
-    // নাহলে কিছু করি না — ইউজার "current location"-এ ট্যাপ করলে তখন চাইবে।
-    void locationService.hasPermission().then((granted) => {
-      if (granted) {
-        void refreshExactCurrentLocation().catch(() => setCurrentLocation(null));
-      }
-    });
+    // Contextual permission: permission granted থাকলেও অ্যাপ খোলার সাথে
+    // সাথেই silent GPS fetch করতাম না — কিন্তু high-accuracy fetch নিজেই
+    // Android-এর "Location Accuracy" system dialog popup করে ফেলত, যেটা
+    // user-এর কাছে permission-prompt-এর মতোই বিরক্তিকর লাগছিল। তাই এখন
+    // location একদমই fetch করি না এখানে — ইউজার "current location"-এ
+    // ট্যাপ করলে (PickupModal-এর onSelectGPS) তখনই fetch হবে।
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshExactCurrentLocation]);
 
@@ -1813,7 +1823,7 @@ export default function HomeScreen() {
             activeOpacity={1}
             onPress={() => { if (pendingPartner) clearRequestState(pendingPartner.id); setPendingPartner(null); }}
           />
-          <View style={S.modalSheet}>
+          <View style={[S.modalSheet, { paddingBottom: 20 + insets.bottom }]}>
             <View style={S.modalHandle} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
               <View style={[S.partnerAvatar, { width: 52, height: 52, borderRadius: 26 }]}>
@@ -1881,7 +1891,7 @@ export default function HomeScreen() {
       <Modal visible={showNotifModal} transparent animationType="slide" onRequestClose={() => setShowNotifModal(false)}>
         <View style={S.modalOverlay}>
           <TouchableOpacity style={S.modalBackdrop} activeOpacity={1} onPress={() => setShowNotifModal(false)} />
-          <View style={[S.modalSheet, { backgroundColor: '#0C1128', maxHeight: '80%' }]}>
+          <View style={[S.modalSheet, { backgroundColor: '#0C1128', maxHeight: '80%', paddingBottom: 20 + insets.bottom }]}>
             <View style={[S.modalHandle, { backgroundColor: 'rgba(192,132,252,0.3)' }]} />
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <Text style={{ fontSize: 20, fontWeight: '900', color: '#EEF2FF', letterSpacing: -0.3 }}>Notifications</Text>
