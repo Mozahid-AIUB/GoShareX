@@ -2,10 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
   Alert,
+  Easing,
   FlatList,
   Platform,
   Pressable,
-  StatusBar,
   StyleSheet,
   Text as RNText,
   TouchableOpacity,
@@ -14,11 +14,9 @@ import {
 } from 'react-native';
 import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Avatar } from 'react-native-paper';
-import { useNavigation, useRoute, useIsFocused } from '@react-navigation/native';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useNavigation, useRoute, useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle as SvgCircle, G } from 'react-native-svg';
-import VehicleIcon from '@/components/common/VehicleIcon';
 
 import { getDestinationById } from '@/constants/destinations';
 import { getPickupPointById } from '@/constants/pickupPoints';
@@ -27,8 +25,8 @@ import routesService from '@/services/google/routesService';
 import { useAuthStore } from '@/store/authStore';
 import { useLocationStore } from '@/store/locationStore';
 import { useRideStore, VEHICLE_CONFIG, VehicleType } from '@/store/rideStore';
-import locationService from '@/services/firebase/locationService';
-import matchingService, { RiderMatch, getSearchRadius } from '@/services/firebase/matchingService';
+import locationService from '@/services/locationService';
+import { RiderMatch, getSearchRadius, SAME_DESTINATION_RADIUS_M } from '@/services/firebase/matchingService';
 import { calculateDistance } from '@/utils/haversine';
 import { sanitizeSpeedKmh } from '@/utils/locationSpeed';
 
@@ -36,6 +34,8 @@ import { IconBack, IconCenter } from './components/MapIcons';
 import { Speedometer } from './components/Speedometer';
 import { LiveBadge } from './components/LiveBadge';
 import { RiderCard } from './components/RiderCard';
+import PulseRing from './components/PulseRing';
+import RiderMarker from './components/RiderMarker';
 import { SelectedSheet } from './components/SelectedSheet';
 import { NoRidersSheet } from './components/NoRidersSheet';
 import {
@@ -46,6 +46,7 @@ import {
 } from './utils/mapHelpers';
 import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
 import { useSnappedLocation } from '@/hooks/useSnappedLocation';
+import { useSystemBars } from '@/hooks/useSystemBars';
 import { useUIStore } from '@/store/uiStore';
 import { MAP_STYLES } from '@/config/mapStyles';
 
@@ -76,11 +77,89 @@ const C = {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function LiveMapScreen() {
   useScreenFocusTracking('LiveMap');
+  // System nav bar এই screen-এর নিজের গাঢ় background-এর উপর না, বরং সব
+  // tab-এ শেয়ার করা সাদা tab bar-এর padding-এর উপর বসে (edge-to-edge) —
+  // তাই 'light' (সাদা icon) সাদার উপর অদৃশ্য হয়ে যেত। 'dark' icon ব্যবহার
+  // করি, HomeScreen (একই tab bar-এর উপরে) যেমন করে।
+  useSystemBars(C.bg, 'dark');
+  // Home (হালকা থিম) থেকে Map (গাঢ় থিম)-এ tab বদলানোর সময় tab-transition-এর
+  // মাঝপথে দুই screen সংক্ষিপ্তভাবে overlap করে — বিশাল রঙ-বৈসাদৃশ্যের কারণে
+  // এটা flash-এর মতো লাগত। Map-এর নিজস্ব গাঢ় থিম না বদলিয়ে, বরং screen
+  // focus হওয়ার সাথে সাথেই একটা হালকা overlay ধীরে fade-out করি — এতে
+  // transition চোখে softer লাগে, কোনো tab-navigator animation-এ হাত পড়ে না।
+  //
+  // BUG (আগে): fade fixed 320ms পর শেষ হয়ে যেত, MapView আসলে ready কিনা
+  // তা দেখত না। native GoogleMap surface tile আঁকার আগে নিজে থেকেই কালো
+  // থাকে (react-native-maps-এর নিজস্ব behaviour) — cold start ধীর হলে
+  // 320ms-এর মধ্যে map ready না হয়েই overlay সরে যেত, তখন এই raw কালো
+  // surface দেখা যেত ("black layer")। এখন overlay MapView-এর onMapLoaded
+  // event পর্যন্ত থাকে + একটা settle window (নিচে দেখুন)।
+  const entryFade = useRef(new Animated.Value(1)).current;
+  // BUG (আসল, log দিয়ে verify করা): onMapLoaded প্রথমবার আসতেই ৪৮৮-৭৫০ms
+  // লাগে, minTimer (320ms) তার আগেই fire করে fade-out শুরু করে দিত →
+  // overlay সরে যাচ্ছিল map আসলে load হওয়ার আগেই — এটাই "black" flash।
+  // fix: hasLoadedOnceEverRef দিয়ে শুধু সত্যিকারের onMapLoaded event
+  // ট্র্যাক করি, fade-out তখনই শুরু হয় যখন load-এর প্রমাণ আছে + ১৫০ms
+  // settle window (double-render ধরার জন্য, react-native-maps#4631)।
+  //
+  // BUG #2: bottom-tab screen unmount হয় না, তাই native MapView একবারই
+  // তৈরি হয় → onMapLoaded জীবনে একবারই fire করে (প্রথম visit-এ)। কিন্তু
+  // hasLoadedRef আগে প্রতি focus-এ reset হত (hasLoadedRef.current = false)
+  // — তাই দ্বিতীয়/পরের visit-এ onMapLoaded আর কখনো না এসে overlay ২.৫s
+  // maxTimer পর্যন্ত আটকে থাকত ("onno screen theke Map-এ আসলে load হতে
+  // সময় নিচ্ছে")। hasLoadedOnceEverRef কখনো reset হয় না (session-lifetime)
+  // — দ্বিতীয় visit থেকে সাথে সাথেই জানি map আগেই loaded, fade instant শুরু।
+  const hasLoadedOnceEverRef = useRef(false);
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startEntryFadeOut = useCallback(() => {
+    Animated.timing(entryFade, {
+      toValue: 0,
+      duration: 320,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [entryFade]);
+  const scheduleSettleFadeOut = useCallback(() => {
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = setTimeout(() => {
+      settleTimerRef.current = null;
+      startEntryFadeOut();
+    }, 150);
+  }, [startEntryFadeOut]);
+  const handleMapLoaded = useCallback(() => {
+    hasLoadedOnceEverRef.current = true;
+    if (maxTimerRef.current) { clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
+    scheduleSettleFadeOut();
+  }, [scheduleSettleFadeOut]);
+  useFocusEffect(
+    useCallback(() => {
+      entryFade.setValue(1);
+      // ইতিমধ্যে (আগের কোনো visit-এ) একবার loaded হয়ে থাকলে — আর অপেক্ষা
+      // না করে সাথে সাথেই fade-out শুরু করি, onMapLoaded আবার আসার জন্য
+      // অপেক্ষা করি না (আসবেই না, native map remount হয় না)।
+      if (hasLoadedOnceEverRef.current) {
+        startEntryFadeOut();
+        return;
+      }
+      // Safety net — প্রথম visit-এ onMapLoaded কোনো কারণে না এলে
+      // (platform/provider quirk) overlay চিরকাল আটকে থাকবে না, 2.5s পর
+      // জোর করেই সরাই।
+      maxTimerRef.current = setTimeout(() => {
+        maxTimerRef.current = null;
+        if (settleTimerRef.current) { clearTimeout(settleTimerRef.current); settleTimerRef.current = null; }
+        startEntryFadeOut();
+      }, 2500);
+      return () => {
+        if (maxTimerRef.current) { clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
+        if (settleTimerRef.current) { clearTimeout(settleTimerRef.current); settleTimerRef.current = null; }
+      };
+    }, [entryFade, startEntryFadeOut]),
+  );
   const route = useRoute<any>();
   const routeParams = route?.params as { destination?: string; pickup?: string } | undefined;
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
   const { user } = useAuthStore();
   const mapStyle = useUIStore((s) => s.mapStyle);
   const rawLatitude = useLocationStore((s) => s.latitude);
@@ -94,12 +173,15 @@ export default function LiveMapScreen() {
   const longitude = snapped?.longitude ?? rawLongitude;
   const setLocation = useLocationStore((s) => s.setLocation);
   const setTracking = useLocationStore((s) => s.setTracking);
-  const { destination: storeDestination, customDestination, pickupPoint: storePickupPoint, routeSearchNonce, requestStates, setPartner, setStatus, setRequestState } = useRideStore();
+  const { destination: storeDestination, customDestination, pickupPoint: storePickupPoint, routeSearchNonce, requestStates, vehicleType, setPartner, setStatus, setRequestState, setPresenceEnabled } = useRideStore();
 
   const destination = routeParams?.destination ?? storeDestination;
   const pickupPoint = routeParams?.pickup ?? storePickupPoint;
 
-  const [nearbyRiders, setNearbyRiders] = useState<RiderMatch[]>([]);
+  // raw = Supabase থেকে আসা filter-না-করা rider তালিকা।
+  // nearbyRiders (filter করা) এর থেকে useMemo দিয়ে বের হয় — তাই zone radius
+  // বা গন্তব্য বদলালে subscription আবার না করেই list real-time re-filter হয়।
+  const [rawRiders, setRawRiders] = useState<any[]>([]);
   const [selectedRider, setSelectedRider] = useState<RiderMatch | null>(null);
   const lastOfferTimeRef = useRef<Record<string, number>>({});
 
@@ -108,18 +190,49 @@ export default function LiveMapScreen() {
   const [scanSecs, setScanSecs] = useState(0);
   const [zoneIdx, setZoneIdx] = useState(0);
   const [showNoRidersSheet, setShowNoRidersSheet] = useState(false);
-  const [manualZoneRadius, setManualZoneRadius] = useState<number | null>(null);
+  // জোন radius — Home ও Map শেয়ার করা store state।
+  const zoneRadius = useRideStore(s => s.zoneRadius);
+  const setZoneRadius = useRideStore(s => s.setZoneRadius);
   const [dismissed, setDismissed] = useState(false);
   const waitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([]);
   const [selectedRiderRouteCoordinates, setSelectedRiderRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([]);
   const [routeSummary, setRouteSummary] = useState<{ distanceText: string; durationText: string } | null>(null);
   const [meetupRoute, setMeetupRoute] = useState<{ distanceText: string; durationText: string; summary: string } | null>(null);
+  // route process (search) শেষ হলে true → map + rider list/card একসাথে দেখাই।
+  // গন্তব্য না থাকলে gate লাগে না (true)। গন্তব্য থাকলে route compute শেষ না
+  // হওয়া পর্যন্ত list চাপা থাকে → "আগেই list দেখাচ্ছে" সমস্যা শেষ।
+  const [routeReady, setRouteReady] = useState(false);
   const mapRef = useRef<MapView>(null);
+  // প্রথম GPS fix-এ একবারই center করি — পরে user যেভাবে zoom/pan করে রাখে
+  // সেভাবেই থাকে (প্রতি GPS tick-এ map লাফায় না)। rider select করলেও map
+  // নড়ে না — দুটোই premium/professional behaviour।
+  const didInitialCenter = useRef(false);
+  // user নিজে pin tap করলে true → map ওই rider-এ আলতো focus (premium zoom in)।
+  // auto-select (list বদলে প্রথম rider) হলে false → map নড়ে না (লাফায় না)।
+  const userTappedRider = useRef(false);
   const scanAnim = useRef(new Animated.Value(0)).current;
+  // selectedRider null → value হলে (auto-select বা tap) SelectedSheet card
+  // আগে সরাসরি mount হয়ে যেত — কোনো transition ছাড়া হঠাৎ পপ করত, একই
+  // সাথে scanChip/Speedometer-এর bottom offset instant snap করত (8 → 120/
+  // 185) — দুটো মিলিয়ে screen "১ সেকেন্ডে ২ বার লাফায়" এমন লাগত (route
+  // ready হলেই auto-select হয়, যা mount-এর প্রায় সাথে সাথেই ঘটে)। এই
+  // animated value দিয়ে card slide-up+fade করে ঢোকে/বেরোয়, আর offset-ও
+  // smooth glide করে — কোনো hard snap থাকে না।
+  const cardPresence = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(cardPresence, {
+      toValue: selectedRider ? 1 : 0,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [selectedRider, cardPresence]);
+  // map wide (দূর থেকে) শুরু হয় → intro effect-এ smooth zoom in হয়ে user-এর
+  // location-এ settle করে (cinematic establishing shot)।
   const initialRegion = useRef({
     latitude: latitude ?? 23.7749, longitude: longitude ?? 90.3990,
-    latitudeDelta: 0.003, longitudeDelta: 0.003,
+    latitudeDelta: 0.025, longitudeDelta: 0.025,
   }).current;
 
   useEffect(() => {
@@ -146,29 +259,11 @@ export default function LiveMapScreen() {
     prevDestRef.current = destination;
     setScanSecs(0);
     setZoneIdx(0);
-    setManualZoneRadius(ZONE_LEVELS[0]);
+    // zoneRadius reset করি না — ইউজারের পছন্দ (Home-এর সাথে শেয়ার) রাখি।
     setShowNoRidersSheet(false);
     setDismissed(false);
   }, [destination]);
 
-  useEffect(() => {
-    if (dismissed || nearbyRiders.length > 0 || !destination || scanSecs === 0) return;
-    // Auto-expand zone every 3s — only while not at max
-    if (scanSecs % 3 === 0) {
-      setZoneIdx(prev => {
-        if (prev >= ZONE_LEVELS.length - 1) return prev;
-        const next = prev + 1;
-        setManualZoneRadius(ZONE_LEVELS[next]);
-        return next;
-      });
-    }
-    // Show sheet after 15s
-    if (scanSecs >= 15) setShowNoRidersSheet(true);
-  }, [scanSecs, nearbyRiders.length, destination, dismissed]);
-
-  useEffect(() => {
-    if (nearbyRiders.length > 0) setShowNoRidersSheet(false);
-  }, [nearbyRiders.length]);
 
   const hasLoc = latitude != null && longitude != null;
   const pickupDetails = pickupPoint ? getPickupPointById(pickupPoint) : null;
@@ -189,22 +284,96 @@ export default function LiveMapScreen() {
     longitude: longitude ?? routeOrigin?.lng ?? 90.3990,
   }), [latitude, longitude, routeOrigin?.lat, routeOrigin?.lng]);
   const gpsTier = useMemo(() => getSearchRadius(accuracy), [accuracy]);
-  const userAccuracyRadius = manualZoneRadius ?? gpsTier.searchRadius;
-  const routeDestinationKey = customDestination?.name ?? destination ?? '';
+  // জোন radius = ইউজার-নির্বাচিত (store, Home-এর সাথে শেয়ার)।
+  const userAccuracyRadius = zoneRadius;
+  // rider active হলে এই নামটাই DB-তে যায় (presence) → অন্যদের map-এ
+  // pin-এর নিচে দেখায়। আগে এটা ছিল `customDestination?.name ?? destination`
+  // — preset গন্তব্যে `destination` একটা ID (যেমন "kuril_flyover"), নাম নয়,
+  // তাই preset rider-দের label খালি/অপাঠ্য থাকত (শুধু custom-search rider-দের
+  // নাম দেখাত)। এখন destinationDetails.name ব্যবহার করি — custom ও preset
+  // দুটোতেই পাঠযোগ্য নাম দেয়।
+  const routeDestinationKey = destinationDetails?.name ?? customDestination?.name ?? destination ?? '';
+
+  // rawRiders এখন server (PostGIS RPC) থেকে আসে — distanceM (server-হিসাবকৃত)
+  // + isMatchDest (গন্তব্য ≤500m) সহ। এখানে শুধু RiderMatch shape-এ map করি
+  // আর জোন চেক যোগ করি: MATCH (সবুজ) = একই গন্তব্য AND জোনের ভিতরে — দুটোই।
+  // server distance ব্যবহার → Map ও Home একই সংখ্যা (125m/135m অসঙ্গতি শেষ)।
+  // rawRiders/জোন বদলালে এটা আবার চলে → list real-time।
+  const nearbyRiders = useMemo<RiderMatch[]>(() => {
+    return rawRiders
+      // valid coordinate ছাড়া rider বাদ (null/0/NaN হলে pin (0,0)-তে চলে যেত →
+      // map-এ দেখা যেত না, কিন্তু count-এ থাকত → "3 match, 2 icon" সমস্যা)।
+      .filter((r: any) =>
+        typeof r.lat === 'number' && typeof r.lng === 'number' &&
+        !Number.isNaN(r.lat) && !Number.isNaN(r.lng) &&
+        Math.abs(r.lat) > 0.0001 && Math.abs(r.lng) > 0.0001)
+      .map((r: any) => ({
+      userId: r.id,
+      name: (r.name && r.name.trim()) || 'Rider',
+      distance: r.distanceM ?? 0,
+      destination: (r.destination && r.destination.trim()) || '',
+      pickupPoint: r.pickupPoint ?? '',
+      rating: r.rating ?? 5,
+      badge: r.badge ?? 'New Rider',
+      vehicleType: r.vehicleType ?? 'rickshaw',
+      lat: r.lat,
+      lng: r.lng,
+      // সবুজ MATCH = গন্তব্য মেলে (server) AND জোনের ভিতরে।
+      isMatch: !!r.isMatchDest && (r.distanceM ?? 0) <= userAccuracyRadius,
+    }))
+    .sort((a, b) => {
+      if (a.isMatch !== b.isMatch) return a.isMatch ? -1 : 1;
+      return a.distance - b.distance;
+    });
+  }, [rawRiders, userAccuracyRadius]);
+
+  // scan টাইমার চলাকালে rider না পেলে প্রতি 3s-এ zone বাড়াই, 15s-এ sheet দেখাই।
+  useEffect(() => {
+    if (dismissed || nearbyRiders.length > 0 || !destination || scanSecs === 0) return;
+    if (scanSecs % 3 === 0 && zoneIdx < ZONE_LEVELS.length - 1) {
+      // setZoneRadius (store) updater-এর বাইরে ডাকি — React state updater
+      // function-এর ভিতরে অন্য store update করা "Cannot update component while
+      // rendering" warning দেয়। তাই zoneIdx আর store দুটো আলাদা set করি।
+      const next = zoneIdx + 1;
+      setZoneIdx(next);
+      setZoneRadius(ZONE_LEVELS[next]);
+    }
+    if (scanSecs >= 15) setShowNoRidersSheet(true);
+  }, [scanSecs, nearbyRiders.length, destination, dismissed, zoneIdx, setZoneRadius]);
+
+  // rider পাওয়া গেলে "no riders" sheet লুকাই।
+  useEffect(() => {
+    if (nearbyRiders.length > 0) setShowNoRidersSheet(false);
+  }, [nearbyRiders.length]);
+
+  // selected rider যদি আর match না করে (জোন কমালে বাইরে চলে গেছে, বা গন্তব্য
+  // বদলেছে), তাহলে কার্ড বন্ধ করি — নাহলে জোনের বাইরের rider-এর কার্ড আটকে থাকে।
+  useEffect(() => {
+    if (!selectedRider) return;
+    const fresh = nearbyRiders.find((r) => r.userId === selectedRider.userId);
+    if (!fresh || !fresh.isMatch) setSelectedRider(null);
+  }, [nearbyRiders, selectedRider]);
 
   const routeRiders = useMemo(() => nearbyRiders.filter((r) => {
     const sp = matchesPickup(r.pickupPoint, pickupPoint, routeOrigin?.label);
     const nr = routeCoordinates.length > 1 && distanceToRoute({ latitude: r.lat, longitude: r.lng }, routeCoordinates) <= 120;
-    const sd = !destination || r.destination === destination || r.destination === destinationDetails?.name;
+    // same-destination = geo-match (r.isMatch, matchingService-এ coordinate
+    // দিয়ে হিসাব করা)। আগে text compare ছিল — তাই "Merul Badda Bridge" vs
+    // "Merul Badda" stats-এ 0 Match দেখাত যদিও কার্ডে MATCH ছিল।
+    const sd = !destination || r.isMatch;
     return sp && (nr || sd);
-  }), [destination, destinationDetails?.name, nearbyRiders, pickupPoint, routeCoordinates, routeOrigin?.label]);
+  }), [destination, nearbyRiders, pickupPoint, routeCoordinates, routeOrigin?.label]);
 
   const sortedRiders = useMemo(() => [...nearbyRiders].sort((a, b) => {
     if (a.isMatch !== b.isMatch) return a.isMatch ? -1 : 1;
     return a.distance - b.distance;
   }), [nearbyRiders]);
 
-  const matchCount = useMemo(() => routeRiders.filter((r) => r.isMatch).length, [routeRiders]);
+  // Match = একই গন্তব্য (geo-match, ≤700m) + nearby radius-এর ভিতরে।
+  // pickup point মেলার দরকার নেই — দুজন তো ইতিমধ্যে কাছাকাছি, হেঁটে মিলে
+  // একসাথে যেতে পারে। তাই পুরো nearbyRiders-এর isMatch গুনি (routeRiders না,
+  // কারণ routeRiders-এ pickup filter আছে → আগে count 0 দেখাত যদিও badge ছিল)।
+  const matchCount = useMemo(() => nearbyRiders.filter((r) => r.isMatch).length, [nearbyRiders]);
 
   const prioritizedRiders = useMemo(() => {
     const ids = new Set(routeRiders.map((r) => r.userId));
@@ -212,6 +381,13 @@ export default function LiveMapScreen() {
   }, [routeRiders, sortedRiders]);
 
   // Location + RTDB watching
+  // routeOrigin ref — getLocation fallback-এ fresh মান পড়তে। dependency-তে
+  // routeOrigin?.lat/lng রাখা যাবে না: ওটা live GPS থেকে আসে, প্রতি GPS tick-এ
+  // বদলায় → effect restart → GPS watch বন্ধ-চালু loop (location icon on/off
+  // ঝিকঝিক করত)। ref রাখলে effect স্থির থাকে, মান তাজা থাকে।
+  const routeOriginRef = useRef(routeOrigin);
+  useEffect(() => { routeOriginRef.current = routeOrigin; }, [routeOrigin]);
+
   useEffect(() => {
     if (!user?.uid || !destination) return;
     let stopWatching: (() => void) | null = null;
@@ -230,24 +406,34 @@ export default function LiveMapScreen() {
             sanitizeSpeedKmh(cur.speedMps, cur.accuracy)
           );
         }
-        await locationService.startWatching(user.uid, routeDestinationKey, pickupPoint ?? 'Main Gate', (loc) => {
-          if (mounted) {
-            setLocation(
-              loc.latitude,
-              loc.longitude,
-              loc.accuracy,
-              sanitizeSpeedKmh(loc.speedMps, loc.accuracy)
-            );
-          }
-        });
+        // গন্তব্যের lat/lng — nearby query-র getLocation closure-এ লাগে।
+        const destLat = destinationDetails?.lat;
+        const destLng = destinationDetails?.lng;
+        // presence broadcast (active_riders-এ নিজেকে লেখা) এখন GLOBAL
+        // useLivePresence hook চালায় — single owner (singleton GPS sub একটাই)।
+        // Map খুললে শুধু "Go Live" on নিশ্চিত করি; broadcast + map dot-এর live
+        // GPS তখন global hook থেকে useLocationStore-এ আসে।
+        setPresenceEnabled(true);
         if (!mounted) return;
         setTracking(true);
-        stopWatching = locationService.watchNearbyRiders((all) => {
-          if (!mounted) return;
-          const filtered = all.filter((r: any) => r.id !== user.uid);
-          const s = useLocationStore.getState();
-          setNearbyRiders(matchingService.findNearbyRiders(s.latitude ?? routeOrigin?.lat ?? 23.7749, s.longitude ?? routeOrigin?.lng ?? 90.3990, routeDestinationKey, filtered, s.accuracy ?? undefined));
-        });
+        stopWatching = locationService.watchNearbyRiders(
+          // getLocation — প্রতি load-এ সর্বশেষ GPS+গন্তব্য দেয় (নড়লে নতুন query)।
+          () => {
+            const s = useLocationStore.getState();
+            const lat = s.latitude ?? routeOriginRef.current?.lat;
+            const lng = s.longitude ?? routeOriginRef.current?.lng;
+            if (lat == null || lng == null) return null;
+            return { lat, lng, destLat, destLng };
+          },
+          (all) => {
+            if (!mounted) return;
+            // server (RPC) থেকে distance+isMatchDest সহ আসে; নিজেকে বাদ দিই।
+            // জোন চেক + map useMemo-তে হয় → radius বদলালে real-time।
+            setRawRiders(all.filter((r: any) => r.id !== user.uid));
+          },
+          1000,                          // visible radius (map খালি না)
+          SAME_DESTINATION_RADIUS_M,     // একই গন্তব্য সীমা (500m)
+        );
       } catch {
         if (!mounted) return;
         setTracking(false);
@@ -257,12 +443,13 @@ export default function LiveMapScreen() {
 
     return () => {
       mounted = false;
-      locationService.stopWatching();
-      setTracking(false);
+      // NOTE: presence broadcast আর এখানে বন্ধ করি না — global useLivePresence
+      // hook সেটার মালিক (Map ছাড়লেও discoverable থাকা = আসল fix)। এখানে শুধু
+      // এই screen-এর nearby-read subscription বন্ধ করি।
       stopWatching?.();
       if (waitTimerRef.current) { clearTimeout(waitTimerRef.current); waitTimerRef.current = null; }
     };
-  }, [destination, pickupPoint, routeDestinationKey, routeOrigin?.lat, routeOrigin?.lng, routeSearchNonce, setLocation, setTracking, user?.uid]);
+  }, [destination, pickupPoint, routeDestinationKey, destinationDetails?.lat, destinationDetails?.lng, routeSearchNonce, vehicleType, setLocation, setTracking, setPresenceEnabled, user?.uid]);
 
   // Meetup route for selected rider
   useEffect(() => {
@@ -277,32 +464,89 @@ export default function LiveMapScreen() {
     return () => { cancelled = true; };
   }, [selectedRider, latitude, longitude, routeOrigin?.lat, routeOrigin?.lng]);
 
-  // Auto-select first rider
+  // Auto-select first rider — শুধু route process শেষ হলে (routeReady)। এতে
+  // map + rider list/card একসাথে দেখায় (search চলাকালীন "আগেই list" আসে না)।
   useEffect(() => {
+    if (!routeReady) return;
     if (!prioritizedRiders.length) { setSelectedRider(null); return; }
     setSelectedRider((cur) => cur && prioritizedRiders.some((r) => r.userId === cur.userId) ? cur : prioritizedRiders[0]);
-  }, [prioritizedRiders]);
+  }, [prioritizedRiders, routeReady]);
 
-  // Fit map to selected rider
+  // rider-এ focus — শুধু user নিজে pin tap করলে (auto-select-এ নয়)। আগে
+  // fitToCoordinates দিয়ে origin+rider+dest সব দেখাতে map zoom OUT করত →
+  // প্রতি tap-এ লাফাত। এখন শুধু ওই rider-এ আলতো center + হালকা zoom IN
+  // (smooth glide, ~0.0045 delta) → premium focus feel, লাফ নয়।
   useEffect(() => {
-    if (!selectedRider) return;
-    const pts = [{ latitude: selectedRider.lat, longitude: selectedRider.lng }];
-    if (routeOrigin) pts.unshift({ latitude: routeOrigin.lat, longitude: routeOrigin.lng });
-    if (destinationDetails) pts.push({ latitude: destinationDetails.lat, longitude: destinationDetails.lng });
-    if (pts.length > 1) { mapRef.current?.fitToCoordinates(pts, { edgePadding: { top: 160, right: 60, bottom: 320, left: 60 }, animated: true }); return; }
-    mapRef.current?.animateToRegion({ latitude: selectedRider.lat, longitude: selectedRider.lng, latitudeDelta: 0.004, longitudeDelta: 0.004 }, 450);
-  }, [destinationDetails, routeOrigin, selectedRider]);
+    if (!selectedRider || !userTappedRider.current) return;
+    userTappedRider.current = false;
+    mapRef.current?.animateToRegion(
+      {
+        latitude: selectedRider.lat,
+        longitude: selectedRider.lng,
+        latitudeDelta: 0.0045,
+        longitudeDelta: 0.0045,
+      },
+      500,
+    );
+  }, [selectedRider]);
 
-  // Center on first GPS fix
+  // Cinematic intro — একবারই (didInitialCenter ref)। map wide (দূর থেকে,
+  // initialRegion delta 0.025 ≈ 2.5km) শুরু হয় → সব rider এক পলক দেখা যায় →
+  // GPS fix এলে animated হয়ে user-এর location-এ একদম কাছে (~450m view,
+  // delta 0.0045) zoom IN হয় → কাছের round pin স্পষ্ট।
+  //
+  // গন্তব্য থাকুক বা না থাকুক — সবসময় এই কাছের zoom-ই establishing shot।
+  // route-এর fitToCoordinates (যা পুরো রুট দেখাতে zoom OUT করত) আর camera
+  // নাড়ায় না; route শুধু polyline + destination marker হিসেবে আঁকে।
   useEffect(() => {
-    if (!hasLoc) return;
-    mapRef.current?.animateToRegion({ latitude: latitude!, longitude: longitude!, latitudeDelta: 0.002, longitudeDelta: 0.002 }, 600);
-  }, [hasLoc, latitude, longitude]);
+    if (!hasLoc || didInitialCenter.current) return;
+    didInitialCenter.current = true;
+    // Cinematic intro:
+    //  • destination থাকলে → আগে গন্তব্য একপলক (establishing, ~1s) দেখাই →
+    //    তারপর smooth glide করে my-location-এ কাছে zoom IN (আশেপাশের match/
+    //    unmatch pin স্পষ্ট)। দুই ধাপ animated → premium feel।
+    //  • destination না থাকলে → সরাসরি my-location-এ zoom (আগের behaviour)।
+    // BUG (আগে): dependency-তে lat/lng থাকায় প্রতি GPS tick-এ re-run হয়ে timer
+    // বাতিল হত → zoom হত না। তাই dependency শুধু hasLoc, lat/lng fire-এ fresh পড়ি।
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    const dest = destinationDetails;
+    if (dest) {
+      // ধাপ ১: গন্তব্যে আলতো center (একপলক দেখাই)
+      timers.push(setTimeout(() => {
+        mapRef.current?.animateToRegion(
+          { latitude: dest.lat, longitude: dest.lng, latitudeDelta: 0.012, longitudeDelta: 0.012 },
+          900,
+        );
+      }, 400));
+      // ধাপ ২: তারপর my-location-এ কাছে glide (close zoom)
+      timers.push(setTimeout(() => {
+        const loc = useLocationStore.getState();
+        if (loc.latitude == null || loc.longitude == null) return;
+        mapRef.current?.animateToRegion(
+          { latitude: loc.latitude, longitude: loc.longitude, latitudeDelta: 0.0045, longitudeDelta: 0.0045 },
+          1100,
+        );
+      }, 1700));
+    } else {
+      timers.push(setTimeout(() => {
+        const loc = useLocationStore.getState();
+        if (loc.latitude == null || loc.longitude == null) return;
+        mapRef.current?.animateToRegion(
+          { latitude: loc.latitude, longitude: loc.longitude, latitudeDelta: 0.0045, longitudeDelta: 0.0045 },
+          1100,
+        );
+      }, 600));
+    }
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasLoc]);
 
   // Route polyline
   useEffect(() => {
-    if (!routeOrigin || !destinationDetails) { setRouteCoordinates([]); setRouteSummary(null); return; }
+    // গন্তব্য নেই → route gate লাগে না, list সরাসরি দেখাই।
+    if (!routeOrigin || !destinationDetails) { setRouteCoordinates([]); setRouteSummary(null); setRouteReady(true); return; }
     let cancelled = false;
+    setRouteReady(false); // নতুন গন্তব্য → route compute শেষ না হওয়া পর্যন্ত list চাপা।
     (async () => {
       try {
         const r = await routesService.computeRoute({ origin: { location: { latLng: { latitude: routeOrigin.lat, longitude: routeOrigin.lng } } }, destination: { location: { latLng: { latitude: destinationDetails.lat, longitude: destinationDetails.lng } } }, travelMode: 'DRIVE', routingPreference: 'TRAFFIC_AWARE', computeAlternativeRoutes: false });
@@ -310,7 +554,10 @@ export default function LiveMapScreen() {
         const pts = safeDecodePolyline(r?.polyline?.encodedPolyline);
         setRouteCoordinates(pts);
         setRouteSummary({ distanceText: r?.distanceMeters ? `${(r.distanceMeters / 1000).toFixed(1)} km` : '', durationText: r?.duration ? `${Math.max(1, Math.round(r.duration / 60))} min` : '' });
-        mapRef.current?.fitToCoordinates(pts.length > 1 ? pts : [{ latitude: routeOrigin.lat, longitude: routeOrigin.lng }, { latitude: destinationDetails.lat, longitude: destinationDetails.lng }], { edgePadding: { top: 150, right: 40, bottom: 320, left: 40 }, animated: true });
+        // route শুধু polyline + destination marker হিসেবে আঁকা হয়; camera
+        // নাড়ানো হয় না। establishing shot হলো intro-র কাছের zoom (~450m)।
+        // আগে এখানে fitToCoordinates ছিল যা পুরো রুট দেখাতে zoom OUT করত —
+        // user-এর "কাছে দেখাও" চাওয়ার বিপরীত, তাই সরানো হলো।
       } catch {
         try {
           const fb = await directionsService.getRoute({ origin: { latitude: routeOrigin.lat, longitude: routeOrigin.lng }, destination: { latitude: destinationDetails.lat, longitude: destinationDetails.lng }, mode: 'driving' });
@@ -319,25 +566,76 @@ export default function LiveMapScreen() {
           setRouteCoordinates(pts);
           setRouteSummary({ distanceText: fb.distanceText, durationText: fb.durationText });
         } catch { if (!cancelled) { setRouteCoordinates([]); setRouteSummary(null); } }
+      } finally {
+        // route compute শেষ (সফল/ব্যর্থ যাই হোক) → list+card দেখানোর gate খুলি।
+        if (!cancelled) setRouteReady(true);
       }
     })();
     return () => { cancelled = true; };
   }, [destinationDetails, routeOrigin, routeSearchNonce]);
 
-  const centerMap = useCallback(() => {
-    mapRef.current?.animateToRegion({ latitude: mapCenter.latitude, longitude: mapCenter.longitude, latitudeDelta: 0.002, longitudeDelta: 0.002 }, 500);
-  }, [mapCenter.latitude, mapCenter.longitude]);
+  const centerMap = useCallback(async () => {
+    // location আগে থেকে থাকলে — সরাসরি সেখানে যাই।
+    if (hasLoc) {
+      mapRef.current?.animateToRegion(
+        { latitude: latitude!, longitude: longitude!, latitudeDelta: 0.002, longitudeDelta: 0.002 },
+        500,
+      );
+      return;
+    }
+    // নাহলে — এখানেই (ইউজার ট্যাপ করায়) permission চাই + GPS নিই
+    // (contextual permission — অ্যাপ খোলার সময় নয়, এই ট্যাপে)।
+    try {
+      const ok = await locationService.requestPermissions();
+      if (!ok) {
+        Alert.alert(
+          'Location needed',
+          'Allow location access so we can show your position and find nearby riders.',
+        );
+        return;
+      }
+      const cur = await locationService.getCurrentLocation();
+      if (cur) {
+        setLocation(cur.latitude, cur.longitude, cur.accuracy ?? undefined);
+        mapRef.current?.animateToRegion(
+          { latitude: cur.latitude, longitude: cur.longitude, latitudeDelta: 0.002, longitudeDelta: 0.002 },
+          600,
+        );
+      } else {
+        Alert.alert('Location unavailable', 'Please turn on GPS and try again.');
+      }
+    } catch {
+      Alert.alert('Location error', 'Could not get your location. Please try again.');
+    }
+  }, [hasLoc, latitude, longitude, setLocation]);
 
 
   const openChat = useCallback((rider: RiderMatch) => {
     navigation.navigate('Chat', { rider, partnerName: rider.name });
   }, [navigation]);
 
+  // Map একটা tab হতে পারে (back করার আগের screen নেই) — তখন goBack()
+  // "GO_BACK was not handled" error দেয়। তাই canGoBack চেক করি, না পারলে
+  // Home-এ navigate করি। LiveMapScreen দুই জায়গায় চলে: Tab "Map" (Home একই
+  // tab navigator-এ) ও Stack "LiveMap" (Home nested MainApp-এর ভিতরে)। তাই
+  // আগে সরাসরি 'Home' চেষ্টা করি, ব্যর্থ হলে nested MainApp→Home target দিই।
+  const goBackSafe = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    try {
+      navigation.navigate('Home' as never);
+    } catch {
+      navigation.navigate('MainApp' as never, { screen: 'Home' } as never);
+    }
+  }, [navigation]);
+
   const handleExpandZone = useCallback(() => {
     // At max zone — cycle back to 150m and restart scan
     if (zoneIdx >= ZONE_LEVELS.length - 1) {
       setZoneIdx(0);
-      setManualZoneRadius(ZONE_LEVELS[0]);
+      setZoneRadius(ZONE_LEVELS[0]);
       setScanSecs(0);
       setShowNoRidersSheet(false);
       setDismissed(false);
@@ -345,9 +643,9 @@ export default function LiveMapScreen() {
     }
     const nextIdx = zoneIdx + 1;
     setZoneIdx(nextIdx);
-    setManualZoneRadius(ZONE_LEVELS[nextIdx]);
+    setZoneRadius(ZONE_LEVELS[nextIdx]);
     setShowNoRidersSheet(false);
-  }, [zoneIdx]);
+  }, [zoneIdx, setZoneRadius]);
 
   const handlePostForLater = useCallback(() => {
     setShowNoRidersSheet(false);
@@ -381,7 +679,6 @@ export default function LiveMapScreen() {
 
   return (
     <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
       {/* ── Map ── */}
       <MapView
         ref={mapRef}
@@ -392,7 +689,8 @@ export default function LiveMapScreen() {
 
         showsUserLocation={false}
         showsMyLocationButton={false}
-        mapPadding={{ top: 0, right: 0, bottom: tabBarHeight + 20, left: 0 }}
+        mapPadding={{ top: 0, right: 0, bottom: 20, left: 0 }}
+        onMapLoaded={handleMapLoaded}
       >
         {routeOrigin && (
           <Marker coordinate={{ latitude: routeOrigin.lat, longitude: routeOrigin.lng }} pinColor={C.primary} title={routeOrigin.label} description="Pickup" />
@@ -404,7 +702,9 @@ export default function LiveMapScreen() {
           <Polyline coordinates={routeCoordinates} strokeColor="#818CF8" strokeWidth={5} lineCap="round" lineJoin="round" />
         )}
         {selectedRiderRouteCoordinates.length > 1 && (
-          <Polyline coordinates={selectedRiderRouteCoordinates} strokeColor={C.amber} strokeWidth={3} lineDashPattern={[8, 5]} lineCap="round" />
+          // হাঁটার পথ — teal ডটেড (card-এর "walk" pill-এর রঙের সাথে মেলে;
+          // কমলা pin-এর সাথে মেশে না)। কঠিন লাইন = গাড়ির route, ডটেড = হাঁটা।
+          <Polyline coordinates={selectedRiderRouteCoordinates} strokeColor={C.teal} strokeWidth={3} lineDashPattern={[8, 5]} lineCap="round" />
         )}
         {hasLoc && (
           <>
@@ -421,45 +721,63 @@ export default function LiveMapScreen() {
               tracksViewChanges={false}
             >
               <View style={userDot.wrap}>
+                {/* radar wave — অ্যাপ আশেপাশে "খুঁজছে" এই অনুভূতি দেয় */}
+                <PulseRing color={C.primary} size={100} />
                 <View style={userDot.ring} />
                 <View style={userDot.core} />
+                {/* নিজের নাম dot-এর নিচে — absolute, যাতে dot center-এ থাকে। */}
+                <View style={userDot.nameChip}>
+                  <RNText style={userDot.nameText} numberOfLines={1}>
+                    {(user?.name && user.name.trim()) || 'You'}
+                  </RNText>
+                </View>
               </View>
             </Marker>
           </>
         )}
-        {prioritizedRiders.map((rider) => {
-          const isMatch = rider.isMatch;
-          const isInsideZone = rider.distance <= userAccuracyRadius;
-          const bg = isInsideZone ? C.matchGreen : C.nearbyOrange;
-          const distLabel = rider.distance < 1000
-            ? `${rider.distance}m`
-            : `${(rider.distance / 1000).toFixed(1)}km`;
-          return (
-            <Marker key={rider.userId} coordinate={{ latitude: rider.lat, longitude: rider.lng }} onPress={() => setSelectedRider(rider)}>
-              <View style={m.wrap}>
-                <View style={[m.bubble, { backgroundColor: bg }]}>
-                  <VehicleIcon
-                    type={((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'bike' ? 'motorcycle' : ((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'cng' ? 'cng' : 'rickshaw'}
-                    tone={((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'bike' ? 'indigo' : ((rider.vehicleType as VehicleType) ?? 'rickshaw') === 'cng' ? 'teal' : 'amber'}
-                    size={24}
-                  />
-                  <RNText style={m.name} numberOfLines={1}>{rider.name}</RNText>
-                  <RNText style={m.dist}>{distLabel}</RNText>
-                </View>
-                <View style={[m.tail, { borderTopColor: bg }]} />
-              </View>
-            </Marker>
-          );
-        })}
+        {/* render order: কমলা আগে, সবুজ (match) পরে, selected সবার শেষে →
+            শেষে আঁকা pin উপরে থাকে (Android-এ zIndex অনির্ভরযোগ্য, তাই render
+            order দিয়েই stacking ঠিক করি)। প্রতিটা RiderMarker নিজে নিজে
+            tracksViewChanges manage করে → icon ছোট/hide হওয়ার সমস্যা শেষ। */}
+        {(routeReady ? [...prioritizedRiders] : [])
+          .sort((a, b) => {
+            const rank = (r: RiderMatch) =>
+              selectedRider?.userId === r.userId ? 2 : r.isMatch ? 1 : 0;
+            return rank(a) - rank(b);
+          })
+          .map((rider) => (
+            <RiderMarker
+              key={rider.userId}
+              rider={rider}
+              isSelected={selectedRider?.userId === rider.userId}
+              matchColor={C.matchGreen}
+              nearbyColor={C.nearbyOrange}
+              // শুধু MATCH (সবুজ) rider tap করা যাবে → কার্ড আসবে। কমলা marker
+              // আশেপাশে কে আছে দেখায়, কিন্তু tap-এ কার্ড আসে না।
+              // user নিজে tap করল → flag on (পরের effect ওই rider-এ আলতো focus
+              // করবে — premium feel)। auto-select-এ map নড়ে না।
+              onPress={(r) => {
+                if (!r.isMatch) return;
+                userTappedRider.current = true;
+                setSelectedRider(r as RiderMatch);
+              }}
+            />
+          ))}
       </MapView>
 
       {/* ── Top bar — single row: back | destination+meta | live | center ── */}
       <View style={[s.topBar, { top: insets.top + 8 }]}>
-        <TouchableOpacity style={s.iconBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+        <TouchableOpacity style={s.iconBtn} onPress={goBackSafe} activeOpacity={0.8}>
           <IconBack />
         </TouchableOpacity>
 
-        <View style={s.routeBar}>
+        {/* ট্যাপ করলে Home-এ ফিরে যায় — সেখানে destination সেট করা যায়
+            (Map screen-এ সরাসরি সেট করার ইনপুট নেই)। */}
+        <TouchableOpacity
+          style={s.routeBar}
+          activeOpacity={0.85}
+          onPress={goBackSafe}
+        >
           <View style={s.routeInfo}>
             {destinationDetails ? (
               <View style={s.routeBlock}>
@@ -478,7 +796,7 @@ export default function LiveMapScreen() {
             )}
           </View>
           <LiveBadge />
-        </View>
+        </TouchableOpacity>
 
         <TouchableOpacity style={s.iconBtn} onPress={centerMap} activeOpacity={0.8}>
           <IconCenter />
@@ -486,7 +804,7 @@ export default function LiveMapScreen() {
       </View>
 
       {/* ── Stats row — single compact bar below top bar ── */}
-      <View style={[s.statsRow, { top: insets.top + 72 }]}>
+      <View style={[s.statsRow, { top: insets.top + 58 }]}>
         <View style={s.statPill}>
           <RNText style={s.statPillNum}>{prioritizedRiders.length}</RNText>
           <RNText style={s.statPillLbl}> Nearby</RNText>
@@ -495,12 +813,14 @@ export default function LiveMapScreen() {
           <RNText style={[s.statPillNum, matchCount > 0 && { color: C.matchGreen }]}>{matchCount}</RNText>
           <RNText style={s.statPillLbl}> Match</RNText>
         </View>
-        <View style={s.statPill}>
-          <RNText style={s.statPillNum}>{routeRiders.length}</RNText>
-          <RNText style={s.statPillLbl}> On Route</RNText>
-        </View>
+        {routeRiders.length > 0 ? (
+          <View style={s.statPill}>
+            <RNText style={s.statPillNum}>{routeRiders.length}</RNText>
+            <RNText style={s.statPillLbl}> On Route</RNText>
+          </View>
+        ) : null}
         <TouchableOpacity style={[s.statPill, s.statPillGps]} onPress={handleExpandZone} activeOpacity={0.75}>
-          <RNText style={[s.statPillNum, { fontSize: 11, color: C.amber }]}>
+          <RNText style={[s.statPillNum, { fontSize: 13, color: C.amber }]}>
             {hasLoc ? `${userAccuracyRadius}m` : '…'}
           </RNText>
           <RNText style={s.statPillLbl}>{zoneIdx >= ZONE_LEVELS.length - 1 ? ' ↺' : ' ↑'}</RNText>
@@ -516,7 +836,12 @@ export default function LiveMapScreen() {
       </View>
 
       {!showNoRidersSheet ? (
-        <View style={[s.scanChip, { bottom: selectedRider ? 210 : 8 }]}>
+        <Animated.View style={[s.scanChip, {
+          bottom: 8,
+          transform: [{
+            translateY: cardPresence.interpolate({ inputRange: [0, 1], outputRange: [0, -112] }),
+          }],
+        }]}>
           <Animated.View style={[s.scanDot, {
             opacity: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.2, 1] }),
             transform: [{ scale: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.6, 1] }) }],
@@ -528,21 +853,43 @@ export default function LiveMapScreen() {
                 : `Searching within ${userAccuracyRadius}m…`
               : 'Getting your location…'}
           </RNText>
-        </View>
+        </Animated.View>
       ) : null}
 
-      <View style={{ position: 'absolute', bottom: selectedRider ? 210 : 8, right: 12, zIndex: 10 }}>
+      <Animated.View style={{
+        position: 'absolute',
+        bottom: 8,
+        right: 12,
+        zIndex: 10,
+        transform: [{
+          translateY: cardPresence.interpolate({ inputRange: [0, 1], outputRange: [0, -177] }),
+        }],
+      }}>
         <Speedometer speedKmh={hasLoc ? (speedKmh ?? 0) : null} />
-      </View>
+      </Animated.View>
 
       {selectedRider ? (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 8 }}>
-          <SelectedSheet rider={selectedRider} meetupRoute={meetupRoute} onChat={openChat} onClose={() => setSelectedRider(null)} />
-        </View>
+        <Animated.View
+          style={{
+            position: 'absolute', left: 0, right: 0, bottom: 8,
+            opacity: cardPresence,
+            transform: [{
+              translateY: cardPresence.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }),
+            }],
+          }}
+        >
+          <SelectedSheet
+            rider={selectedRider}
+            meetupRoute={meetupRoute}
+            requestState={requestStates[selectedRider.userId] ?? 'idle'}
+            onOffer={handleOffer}
+            onClose={() => setSelectedRider(null)}
+          />
+        </Animated.View>
       ) : null}
 
       {showNoRidersSheet && !selectedRider ? (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 50, elevation: 50 }}>
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 12, zIndex: 50, elevation: 50 }}>
           <NoRidersSheet
             scanSecs={scanSecs}
             zoneIdx={zoneIdx}
@@ -554,39 +901,64 @@ export default function LiveMapScreen() {
         </View>
       ) : null}
 
+      {/* Home (হালকা থিম) থেকে tab-transition-এর flash softer করতে entry fade */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFillObject,
+          { backgroundColor: '#FAF8FF', opacity: entryFade, zIndex: 999 },
+        ]}
+      />
     </View>
   );
 }
 
 // ─── Marker styles ─────────────────────────────────────────────────────────────
 const userDot = StyleSheet.create({
-  wrap: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  wrap: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
   ring: {
-    position: 'absolute', width: 24, height: 24, borderRadius: 12,
-    borderWidth: 2, borderColor: '#C084FC',
+    position: 'absolute', width: 30, height: 30, borderRadius: 15,
+    borderWidth: 2.5, borderColor: '#C084FC',
     backgroundColor: 'rgba(192,132,252,0.18)',
   },
+  // core = তোমার EXACT GPS পয়েন্ট (circle শুধু search zone, এই dot-ই আসল)।
   core: {
-    width: 10, height: 10, borderRadius: 5,
+    width: 14, height: 14, borderRadius: 7,
     backgroundColor: '#C084FC',
-    borderWidth: 2, borderColor: '#FFFFFF',
-    shadowColor: '#C084FC', shadowOpacity: 0.8, shadowRadius: 6, shadowOffset: { width: 0, height: 0 },
+    borderWidth: 2.5, borderColor: '#FFFFFF',
+    shadowColor: '#C084FC', shadowOpacity: 0.9, shadowRadius: 7, shadowOffset: { width: 0, height: 0 },
     elevation: 6,
+  },
+  // নিজের নাম — dot-এর ঠিক নিচে, absolute (dot-এর position না নড়াতে)।
+  nameChip: {
+    position: 'absolute', top: 32,
+    backgroundColor: '#C084FC',
+    paddingHorizontal: 9, paddingVertical: 3,
+    borderRadius: 9,
+    borderWidth: 1.2, borderColor: '#FFFFFF',
+    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 4, shadowOffset: { width: 0, height: 2 },
+    elevation: 7,
+  },
+  nameText: {
+    color: '#FFFFFF', fontSize: 11, fontWeight: '800',
+    letterSpacing: -0.1, textAlign: 'center',
   },
 });
 
-const m = StyleSheet.create({
-  wrap: { alignItems: 'center' },
-  bubble: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, alignItems: 'center', minWidth: 68, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-  emoji: { marginBottom: 2 },
-  name: { color: '#FFF', fontSize: 10, fontWeight: '800', maxWidth: 80, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
-  dist: { color: 'rgba(255,255,255,0.75)', fontSize: 9, fontWeight: '600', marginTop: 1 },
-  tail: { width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 7, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
-});
+// rider pin-এর style এখন RiderMarker.tsx-এ (self-contained component)।
 
 // ─── Screen styles ─────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg },
+  // BUG: root-এর background আগে গাঢ় (C.bg, প্রায় কালো) ছিল। MapView normal
+  // সময়ে এটা পুরো ঢেকে রাখে (absoluteFillObject) তাই দেখা যায় না — কিন্তু
+  // tab navigator-এর নিজস্ব crossfade animation (ShiftTransition) পুরো
+  // screen-এর (root সহ, ভিতরের entryFade overlay-ও) opacity একসাথে dip
+  // করে। fast switch-এ সেই মুহূর্তে এই গাঢ় root bleed করে "কালো layer
+  // flash" দেখাত — entryFade overlay সেটা ঠেকাতে পারত না কারণ ওটাও একই
+  // scene-এর অংশ, একসাথেই fade হয়। root-কে navigator-এর হালকা theme রঙে
+  // (#FAF8FF, AppNavigator.tsx-এর APP_NAV_THEME-এর সাথে মেলে) রাখলে
+  // crossfade dip-এ আর গাঢ়/কালো bleed করে না।
+  root: { flex: 1, backgroundColor: '#FAF8FF' },
 
   // ── Top bar
   topBar: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 10 },
@@ -618,17 +990,18 @@ const s = StyleSheet.create({
   etaText: { fontSize: 9, color: '#C084FC', fontWeight: '700', letterSpacing: 0.2 },
 
   // ── Stats — compact pill row, solid readable dark cards
-  statsRow: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', gap: 5, zIndex: 9 },
+  statsRow: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', gap: 4, zIndex: 9 },
   statPill: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#111827', borderRadius: 8,
-    paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', elevation: 4,
+    paddingVertical: 5, paddingHorizontal: 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', elevation: 4,
     shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 },
   },
-  statPillGreen: { borderColor: 'rgba(52,211,153,0.4)', backgroundColor: '#0d1f18' },
+  // Match pill — সবচেয়ে গুরুত্বপূর্ণ signal, একটু জোর দেওয়া
+  statPillGreen: { borderColor: 'rgba(52,211,153,0.5)', backgroundColor: '#0d1f18' },
   statPillGps: { borderColor: 'rgba(245,158,11,0.35)', backgroundColor: '#1a1500' },
-  statPillNum: { fontSize: 12, fontWeight: '900', color: '#F1F5F9' },
-  statPillLbl: { fontSize: 10, fontWeight: '600', color: '#94A3B8' },
+  statPillNum: { fontSize: 13, fontWeight: '900', color: '#F1F5F9' },
+  statPillLbl: { fontSize: 10.5, fontWeight: '600', color: '#94A3B8' },
 
   // ── Legend inline (inside stats row)
   legendInline: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6 },

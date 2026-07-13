@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { StyleSheet, Text as RNText, TouchableOpacity, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle as SvgCircle } from 'react-native-svg';
 
 import type { RiderMatch } from '@/services/firebase/matchingService';
@@ -11,156 +12,234 @@ import type { RiderMatch } from '@/services/firebase/matchingService';
 import { IconChat, IconClose, IconStar } from './MapIcons';
 
 const C = {
-  text: '#EEF2FF',
-  textSub: '#8892A4',
-  textMuted: '#4A5568',
-  teal: '#34D399',
+  surface: '#FFFFFF',
+  cardBorder: '#EDE8F5',
+  primary: '#C084FC',
+  primaryDeep: '#9333EA',
+  text: '#1A1A2E',
+  textSub: '#6B6980',
+  textMuted: '#9896A8',
+  teal: '#0D9488',
   white: '#FFFFFF',
-  matchGreen: '#34D399',
+  matchGreen: '#0D9488',
+  matchGreenDeep: '#0B7A70',
   nearbyOrange: '#FB923C',
+  nearbyOrangeDeep: '#EA7C1C',
+};
+
+const BTN_GRADIENTS: Record<'idle' | 'pending' | 'confirmed', [string, string]> = {
+  idle: [C.primaryDeep, C.primary],
+  pending: [C.nearbyOrangeDeep, C.nearbyOrange],
+  confirmed: [C.matchGreenDeep, C.matchGreen],
 };
 
 type Props = {
   rider: RiderMatch;
   meetupRoute: { distanceText: string; durationText: string; summary: string } | null;
-  onChat: (r: RiderMatch) => void;
+  requestState: 'idle' | 'pending' | 'confirmed';
+  onOffer: (r: RiderMatch) => void;
   onClose: () => void;
 };
 
-export const SelectedSheet = ({ rider, meetupRoute, onChat, onClose }: Props) => {
+export const SelectedSheet = ({ rider, meetupRoute, requestState, onOffer, onClose }: Props) => {
   const isMatch = rider.isMatch;
   const accentColor = isMatch ? C.matchGreen : C.nearbyOrange;
+  const confirmed = requestState === 'confirmed';
+  const pending = requestState === 'pending';
+  const btnLabel = confirmed ? 'Open Chat' : pending ? 'Request Sent · Waiting' : 'Send Request';
+  const btnState: 'idle' | 'pending' | 'confirmed' = confirmed ? 'confirmed' : pending ? 'pending' : 'idle';
   return (
     <View style={ss.wrap}>
       <View style={ss.handle} />
+
+      {/* ── Header row: avatar + identity + close ── */}
       <View style={ss.row}>
         <View style={[ss.avatar, { borderColor: accentColor }]}>
           <RNText style={ss.avatarText}>{rider.name.charAt(0).toUpperCase()}</RNText>
+          <View style={[ss.statusDot, { backgroundColor: accentColor }]} />
         </View>
+
         <View style={ss.info}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <RNText style={ss.name}>{rider.name}</RNText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <RNText style={ss.name} numberOfLines={1}>
+              {rider.name}
+            </RNText>
             {isMatch && (
               <View style={ss.matchBadge}>
                 <RNText style={ss.matchText}>MATCH</RNText>
               </View>
             )}
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+
+          {/* meta chips inline — dest · distance · rating */}
+          <View style={ss.metaLine}>
             <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
               <Path
                 d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
                 fill={C.textSub}
               />
-              <SvgCircle cx="12" cy="9" r="2.5" fill="#0A1022" />
+              <SvgCircle cx="12" cy="9" r="2.5" fill={C.surface} />
             </Svg>
-            <RNText style={ss.dest}>{rider.destination}</RNText>
+            <RNText style={ss.dest} numberOfLines={1}>
+              {rider.destination}
+            </RNText>
+            <View style={ss.dotSep} />
+            <RNText style={ss.meta}>{rider.distance}m</RNText>
+            <View style={ss.dotSep} />
+            <IconStar size={11} />
+            <RNText style={ss.meta}>{rider.rating.toFixed(1)}</RNText>
           </View>
-          <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                <Path
-                  d="M2 12h20M12 2l10 10-10 10"
-                  stroke={C.textMuted}
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </Svg>
-              <RNText style={ss.meta}>{rider.distance}m away</RNText>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <IconStar size={12} />
-              <RNText style={ss.meta}>{rider.rating.toFixed(1)}</RNText>
-            </View>
-          </View>
-          {meetupRoute ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
-              <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                <Path
-                  d="M13 4a1 1 0 10-2 0 1 1 0 002 0zM7 20l3-8 2 3 3-5 2 10"
-                  stroke={C.teal}
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </Svg>
-              <RNText style={ss.walk}>
-                Walk {meetupRoute.distanceText} · ~{meetupRoute.durationText}
-              </RNText>
-            </View>
-          ) : null}
         </View>
-        <TouchableOpacity onPress={onClose} style={ss.close}>
+
+        <TouchableOpacity onPress={onClose} style={ss.close} hitSlop={8}>
           <IconClose />
         </TouchableOpacity>
       </View>
-      <TouchableOpacity style={ss.chatBtn} onPress={() => onChat(rider)} activeOpacity={0.85}>
-        <IconChat />
-        <RNText style={ss.chatText}>Open Chat</RNText>
-      </TouchableOpacity>
+
+      {/* ── Action row: walk pill (left) + request button (right, gradient) ── */}
+      <View style={ss.actions}>
+        {meetupRoute ? (
+          <View style={ss.walkPill}>
+            <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M13 4a1 1 0 10-2 0 1 1 0 002 0zM7 20l3-8 2 3 3-5 2 10"
+                stroke={C.teal}
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+            <RNText style={ss.walk} numberOfLines={1}>
+              {meetupRoute.distanceText} · ~{meetupRoute.durationText}
+            </RNText>
+          </View>
+        ) : null}
+        <TouchableOpacity
+          style={ss.chatBtnTouchable}
+          onPress={() => onOffer(rider)}
+          activeOpacity={0.85}
+          disabled={pending}
+        >
+          <LinearGradient
+            colors={BTN_GRADIENTS[btnState]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={ss.chatBtn}
+          >
+            {confirmed && <IconChat />}
+            <RNText style={ss.chatText}>{btnLabel}</RNText>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
 
 const ss = StyleSheet.create({
   wrap: {
-    marginHorizontal: 12,
-    backgroundColor: '#0A1022',
-    borderRadius: 24,
+    marginHorizontal: 10,
+    backgroundColor: C.surface,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(192,132,252,0.16)',
-    padding: 16,
+    borderColor: C.cardBorder,
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    paddingBottom: 8,
+    overflow: 'hidden',
     elevation: 14,
-    shadowColor: '#C084FC',
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
+    shadowColor: '#3A2E5C',
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
     shadowOffset: { width: 0, height: -4 },
   },
   handle: {
-    width: 32,
+    width: 30,
     height: 3,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: '#E4E0F0',
     borderRadius: 2,
     alignSelf: 'center',
-    marginBottom: 14,
+    marginBottom: 6,
   },
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(192,132,252,0.12)',
-    borderWidth: 2,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F3E8FF',
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { fontSize: 21, fontWeight: '900', color: C.text },
-  info: { flex: 1 },
-  name: { fontSize: 16, fontWeight: '800', color: C.text, letterSpacing: -0.3 },
-  matchBadge: {
-    backgroundColor: 'rgba(52,211,153,0.15)',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(52,211,153,0.35)',
+  avatarText: { fontSize: 16, fontWeight: '900', color: C.primaryDeep },
+  statusDot: {
+    position: 'absolute',
+    right: -1,
+    bottom: -1,
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    borderWidth: 2,
+    borderColor: C.surface,
   },
-  matchText: { fontSize: 8, color: C.matchGreen, fontWeight: '800' },
-  dest: { fontSize: 12, color: C.textSub, marginTop: 4 },
+  info: { flex: 1 },
+  name: { fontSize: 15, fontWeight: '800', color: C.text, letterSpacing: -0.3, flexShrink: 1 },
+  matchBadge: {
+    backgroundColor: 'rgba(13,148,136,0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 0.8,
+    borderColor: 'rgba(13,148,136,0.3)',
+  },
+  matchText: { fontSize: 8, color: C.matchGreen, fontWeight: '800', letterSpacing: 0.3 },
+  metaLine: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  dest: { fontSize: 12, color: C.textSub, fontWeight: '600', flexShrink: 1 },
   meta: { fontSize: 12, color: C.textMuted, fontWeight: '600' },
-  walk: { fontSize: 11, color: C.teal, marginTop: 6, fontWeight: '700' },
-  close: { padding: 6, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 10 },
+  dotSep: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: C.textMuted,
+    marginHorizontal: 2,
+  },
+  walkPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(13,148,136,0.08)',
+    borderWidth: 0.8,
+    borderColor: 'rgba(13,148,136,0.22)',
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  walk: { fontSize: 10, color: C.teal, fontWeight: '700' },
+  close: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F5F3FA',
+    borderRadius: 14,
+  },
+  actions: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginTop: 8 },
+  chatBtnTouchable: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    elevation: 6,
+    shadowColor: C.primaryDeep,
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+  },
   chatBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#C084FC',
-    borderRadius: 16,
-    paddingVertical: 13,
-    marginTop: 14,
-    elevation: 4,
+    paddingVertical: 9,
   },
-  chatText: { color: C.white, fontSize: 14, fontWeight: '800', letterSpacing: -0.2 },
+  chatText: { color: C.white, fontSize: 13.5, fontWeight: '800', letterSpacing: -0.2 },
 });

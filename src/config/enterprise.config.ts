@@ -166,8 +166,8 @@ export const enterpriseConfig = {
     // ─── Compliance ────────────────────────────────────────────────────────────
     compliance: {
         gdprEnabled: true,
-        privacyPolicyURL: 'https://gosharex.com/privacy',
-        termsOfServiceURL: 'https://gosharex.com/terms',
+        privacyPolicyURL: 'https://mozahid-aiub.github.io/GoShareX/',
+        termsOfServiceURL: 'https://mozahid-aiub.github.io/GoShareX/',
         dataRetentionDays: 90, // Auto-delete after 90 days
     },
 } as const;

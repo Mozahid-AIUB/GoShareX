@@ -9,6 +9,7 @@ import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 type Tab = 'terms' | 'privacy';
 
@@ -145,6 +146,7 @@ const PrivacyContent = () => (
 );
 
 export default function LegalScreen() {
+  useSystemBars('#F8F7FF', 'dark');
   const navigation = useNavigation();
   const route = useRoute<{ key: string; name: string; params?: { initialTab?: Tab } }>();
   const [tab, setTab] = useState<Tab>(route.params?.initialTab ?? 'terms');

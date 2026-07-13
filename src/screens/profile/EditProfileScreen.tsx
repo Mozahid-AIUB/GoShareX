@@ -17,9 +17,10 @@ import { useNavigation } from '@react-navigation/native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import type { RootNavProp } from '@/navigation/types';
 import { useAuthStore } from '@/store/authStore';
-import { updateUser } from '@/services/firebase/userService';
+import { updateUser } from '@/services/userService';
 import { isValidName } from '@/utils/validators';
 import { Image } from 'react-native';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 const C = {
   bg: '#F4F6FB',
@@ -93,6 +94,7 @@ const fi = StyleSheet.create({
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function EditProfileScreen() {
+  useSystemBars(C.bg, 'dark');
   const navigation = useNavigation<RootNavProp>();
   const insets     = useSafeAreaInsets();
   const { user, setUser } = useAuthStore();

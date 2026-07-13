@@ -4,6 +4,7 @@ import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 const IconBack = () => (
   <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
@@ -19,6 +20,7 @@ const Section = ({ title, children }: { title: string; children: string }) => (
 );
 
 export default function PrivacyPolicyScreen() {
+  useSystemBars('#F8F7FF', 'dark');
   const navigation = useNavigation();
 
   return (
@@ -32,7 +34,7 @@ export default function PrivacyPolicyScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={s.lastUpdated}>Last updated: May 1, 2025</Text>
+        <Text style={s.lastUpdated}>Last updated: June 17, 2026</Text>
 
         <View style={s.introBadge}>
           <Text style={s.introBadgeText}>GoShareX — AIUB Ride Sharing</Text>
@@ -55,7 +57,7 @@ export default function PrivacyPolicyScreen() {
         </Section>
 
         <Section title="4. Data Sharing">
-          {`We do not sell your personal data. We share data only with:\n\n• Firebase (Google) — Authentication, database, and cloud storage\n• Google Maps — Location and routing services\n• Other GoShareX users — Only your name, destination, pickup point, and rating are visible to nearby riders\n\nWe do not share your email address or student ID with other users.`}
+          {`We do not sell your personal data. We share data only with:\n\n• Supabase — Authentication, database, and realtime services (our backend)\n• OpenStreetMap-based services (Photon, GraphHopper) — Location search and routing\n• Other GoShareX users — Only your name, destination, pickup point, and rating are visible to nearby riders\n\nWe do not share your email address or student ID with other users.`}
         </Section>
 
         <Section title="5. Data Retention">
@@ -63,7 +65,7 @@ export default function PrivacyPolicyScreen() {
         </Section>
 
         <Section title="6. Security">
-          {`We implement industry-standard security measures:\n\n• All data transmitted over HTTPS/TLS encryption\n• Firebase Security Rules restrict data access to authorized users only\n• Passwords are hashed by Firebase Authentication — we never see your password\n• Sensitive tokens stored in device secure storage`}
+          {`We implement industry-standard security measures:\n\n• All data transmitted over HTTPS/TLS encryption\n• Row Level Security (RLS) restricts data access to authorized users only\n• Passwords are securely hashed — we never see or store your raw password\n• Sensitive tokens stored in device secure storage`}
         </Section>
 
         <Section title="7. Your Rights">
@@ -83,7 +85,7 @@ export default function PrivacyPolicyScreen() {
         </Section>
 
         <View style={s.footer}>
-          <Text style={s.footerText}>© 2025 GoShareX. All rights reserved.</Text>
+          <Text style={s.footerText}>© 2026 GoShareX. All rights reserved.</Text>
           <Text style={s.footerText}>Built by AIUB CSE — ভাড়া ভাগ করো, টাকা বাঁচাও 🛺</Text>
         </View>
       </ScrollView>

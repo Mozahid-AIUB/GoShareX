@@ -6,9 +6,12 @@ import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Path, Polyline,
 import PremiumIcon from '@/components/common/PremiumIcon';
 import { useRideStore } from '@/store/rideStore';
 import { useAuthStore } from '@/store/authStore';
-import rideService from '@/services/firebase/rideService';
-import { submitRating, RATING_CATEGORIES, type CategoryId } from '@/services/firebase/ratingService';
+import rideService from '@/services/rideService';
+import { submitRating, RATING_CATEGORIES, type CategoryId } from '@/services/ratingService';
+import { supabase } from '@/config/supabase.config';
+import { logger } from '@/utils/logger';
 import type { RideRoutePreview } from '@/types/ride.types';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 const C = {
@@ -68,6 +71,7 @@ const StatCard = ({ label, value, color }: { label: string; value: string; color
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function RideCompleteScreen() {
+  useSystemBars(C.bg, 'light');
   const route     = useRoute<any>();
   const navigation = useNavigation<any>();
   const { clearRide } = useRideStore();
@@ -104,6 +108,26 @@ export default function RideCompleteScreen() {
     }).catch(() => undefined);
     return () => { mounted = false; };
   }, [rideId, routePreview]);
+
+  // Mark ride as completed (for rating reminder tracking)
+  useEffect(() => {
+    if (!rideId || !user?.uid || !rider?.uid) return;
+    const markCompleted = async () => {
+      try {
+        const { error } = await supabase.rpc('mark_ride_completed', {
+          p_ride_id: rideId,
+          p_ratee_id: rider.uid || rider.userId,
+          p_ratee_name: rider.name || 'Rider',
+          p_rater_id: user.uid,
+          p_rater_name: user.name || 'User',
+        });
+        if (error) logger.warn('RideCompleteScreen.markCompleted', error);
+      } catch (e) {
+        logger.warn('RideCompleteScreen.markCompleted', e);
+      }
+    };
+    void markCompleted();
+  }, [rideId, user?.uid, rider?.uid]);
 
   const toggleCategory = (id: CategoryId) => {
     setSelected((prev) =>

@@ -1,13 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Text } from 'react-native-paper';
-import {
-  collection, query, where, orderBy, getDocs,
-  limit, startAfter, QueryDocumentSnapshot, DocumentData,
-} from 'firebase/firestore';
-import { db } from '@/config/firebase.config';
+import rideService from '@/services/rideService';
 import { useAuthStore } from '@/store/authStore';
 import PremiumIcon from '@/components/common/PremiumIcon';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 const PAGE_SIZE = 20;
 
@@ -24,59 +21,41 @@ interface RideRecord {
 }
 
 export default function RideHistoryScreen() {
+  useSystemBars('#FAF8FF', 'dark');
   const { user } = useAuthStore();
   const [rides, setRides] = useState<RideRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
-  const fetchPage = useCallback(async (after: QueryDocumentSnapshot<DocumentData> | null) => {
-    if (!user?.uid) return;
-
-    const makeQuery = (field: 'rider1' | 'rider2') =>
-      after
-        ? query(collection(db, 'rides'), where(field, '==', user.uid), orderBy('confirmedAt', 'desc'), startAfter(after), limit(PAGE_SIZE))
-        : query(collection(db, 'rides'), where(field, '==', user.uid), orderBy('confirmedAt', 'desc'), limit(PAGE_SIZE));
-
-    const [snap1, snap2] = await Promise.all([
-      getDocs(makeQuery('rider1')),
-      getDocs(makeQuery('rider2')),
-    ]);
-
-    const toRecords = (snap: typeof snap1): RideRecord[] =>
-      snap.docs.map((d) => ({ id: d.id, ...d.data() } as RideRecord));
-
-    const combined = [...toRecords(snap1), ...toRecords(snap2)]
-      .sort((a, b) => b.confirmedAt - a.confirmedAt);
-
-    // Use the last doc from whichever snapshot had more results for cursor
-    const newLastDoc =
-      snap1.docs.length >= snap2.docs.length
-        ? snap1.docs[snap1.docs.length - 1] ?? null
-        : snap2.docs[snap2.docs.length - 1] ?? null;
-
-    setLastDoc(newLastDoc ?? null);
-    setHasMore(snap1.docs.length === PAGE_SIZE || snap2.docs.length === PAGE_SIZE);
-    return combined;
+  // ride history router থেকে (Supabase/Firebase flag অনুযায়ী)। আগে সরাসরি
+  // Firestore ডাকত → production-এ chats/rides Supabase-এ হওয়ায় ভুল data।
+  const fetchPage = useCallback(async (p: number): Promise<RideRecord[]> => {
+    if (!user?.uid) return [];
+    const { rides: rows, hasMore: more } = await rideService.getRideHistory(user.uid, p, PAGE_SIZE);
+    setHasMore(more);
+    return rows as unknown as RideRecord[];
   }, [user?.uid]);
 
   useEffect(() => {
     if (!user?.uid) return;
     setLoading(true);
-    fetchPage(null)
-      .then((records) => { if (records) setRides(records); })
+    fetchPage(0)
+      .then((records) => { setRides(records); setPage(0); })
       .catch(() => setError('Ride history লোড করা যায়নি।'))
       .finally(() => setLoading(false));
   }, [user?.uid, fetchPage]);
 
   const loadMore = async () => {
-    if (!hasMore || loadingMore || !lastDoc) return;
+    if (!hasMore || loadingMore) return;
     setLoadingMore(true);
     try {
-      const more = await fetchPage(lastDoc);
-      if (more) setRides((prev) => [...prev, ...more]);
+      const nextPage = page + 1;
+      const more = await fetchPage(nextPage);
+      setRides((prev) => [...prev, ...more]);
+      setPage(nextPage);
     } catch {
       setError('আরো ride লোড করা যায়নি।');
     } finally {

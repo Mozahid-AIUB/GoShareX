@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { Dimensions, StyleSheet, Text as RNText, TouchableOpacity, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle as SvgCircle } from 'react-native-svg';
 
 import VehicleIcon from '@/components/common/VehicleIcon';
@@ -13,10 +14,15 @@ import type { VehicleType } from '@/store/rideStore';
 import { IconChat, IconStar } from './MapIcons';
 
 const { width: SW } = Dimensions.get('window');
-const CARD_W = SW * 0.72;
+const CARD_W = SW * 0.58;
 
 const C = {
   bg: '#050816',
+  surface: '#0A1022',
+  card: 'rgba(12,18,38,0.92)',
+  cardBorder: 'rgba(192,132,252,0.12)',
+  primary: '#C084FC',
+  primaryDeep: '#9333EA',
   text: '#EEF2FF',
   textSub: '#8892A4',
   textMuted: '#4A5568',
@@ -24,7 +30,14 @@ const C = {
   green: '#34D399',
   white: '#FFFFFF',
   matchGreen: '#34D399',
+  matchGreenDeep: '#0FA574',
   nearbyOrange: '#FB923C',
+};
+
+const OFFER_GRADIENTS: Record<'idle' | 'pending' | 'confirmed', [string, string]> = {
+  idle: [C.primaryDeep, C.primary],
+  pending: [C.amber, C.amber],
+  confirmed: [C.matchGreenDeep, C.matchGreen],
 };
 
 type Props = {
@@ -43,6 +56,9 @@ export const RiderCard = ({ rider, requestState, onOffer, onChat, onPress }: Pro
     vehicleType === 'bike' ? 'motorcycle' : vehicleType === 'cng' ? 'cng' : 'rickshaw';
   const vehicleIconTone: 'indigo' | 'teal' | 'amber' =
     vehicleType === 'bike' ? 'indigo' : vehicleType === 'cng' ? 'teal' : 'amber';
+
+  const offerState: 'idle' | 'pending' | 'confirmed' =
+    requestState === 'confirmed' ? 'confirmed' : requestState === 'pending' ? 'pending' : 'idle';
 
   return (
     <TouchableOpacity onPress={() => onPress(rider)} activeOpacity={0.85} style={rc.outer}>
@@ -64,8 +80,8 @@ export const RiderCard = ({ rider, requestState, onOffer, onChat, onPress }: Pro
               </View>
             )}
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 7 }}>
-            <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
+          <View style={rc.destRow}>
+            <Svg width={9} height={9} viewBox="0 0 24 24" fill="none">
               <Path
                 d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
                 fill={C.textSub}
@@ -77,8 +93,8 @@ export const RiderCard = ({ rider, requestState, onOffer, onChat, onPress }: Pro
             </RNText>
           </View>
           <View style={rc.metaRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+              <Svg width={9} height={9} viewBox="0 0 24 24" fill="none">
                 <Path
                   d="M2 12h20M12 2l10 10-10 10"
                   stroke={C.textMuted}
@@ -90,36 +106,27 @@ export const RiderCard = ({ rider, requestState, onOffer, onChat, onPress }: Pro
               <RNText style={rc.metaChip}>{rider.distance}m</RNText>
             </View>
             <View style={rc.starRow}>
-              <IconStar size={11} />
+              <IconStar size={9} />
               <RNText style={rc.rating}>{rider.rating.toFixed(1)}</RNText>
             </View>
             <View style={rc.vehicle}>
-              <VehicleIcon type={vehicleIconType} size={28} tone={vehicleIconTone} />
+              <VehicleIcon type={vehicleIconType} size={18} tone={vehicleIconTone} />
             </View>
           </View>
         </View>
       </View>
 
       <View style={rc.actions}>
-        <TouchableOpacity
-          style={[
-            rc.offerBtn,
-            requestState === 'confirmed'
-              ? rc.offerConfirmed
-              : requestState === 'pending'
-                ? rc.offerPending
-                : null,
-          ]}
-          onPress={() => onOffer(rider)}
-          activeOpacity={0.8}
-        >
-          <RNText style={rc.offerText}>
-            {requestState === 'confirmed'
-              ? 'Open Chat'
-              : requestState === 'pending'
-                ? 'Pending'
-                : 'Send Offer'}
-          </RNText>
+        <TouchableOpacity style={rc.offerBtnTouchable} onPress={() => onOffer(rider)} activeOpacity={0.85}>
+          <LinearGradient colors={OFFER_GRADIENTS[offerState]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={rc.offerBtn}>
+            <RNText style={rc.offerText}>
+              {requestState === 'confirmed'
+                ? 'Open Chat'
+                : requestState === 'pending'
+                  ? 'Pending'
+                  : 'Send Offer'}
+            </RNText>
+          </LinearGradient>
         </TouchableOpacity>
         <TouchableOpacity style={rc.chatBtn} onPress={() => onChat(rider)} activeOpacity={0.8}>
           <IconChat />
@@ -132,68 +139,67 @@ export const RiderCard = ({ rider, requestState, onOffer, onChat, onPress }: Pro
 const rc = StyleSheet.create({
   outer: {
     width: CARD_W,
-    backgroundColor: '#0A1022',
-    borderRadius: 22,
+    backgroundColor: '#0E1430',
+    borderRadius: 14,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(192,132,252,0.14)',
-    marginRight: 12,
-    elevation: 6,
-    shadowColor: '#C084FC',
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
+    borderColor: 'rgba(192,132,252,0.20)',
+    marginRight: 8,
+    elevation: 5,
+    shadowColor: C.primary,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
   },
-  accentBar: { height: 2.5, width: '100%' },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 14, paddingBottom: 8, gap: 12 },
+  accentBar: { height: 2, width: '100%' },
+  row: { flexDirection: 'row', alignItems: 'center', padding: 8, paddingBottom: 4, gap: 7 },
   avatarWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(192,132,252,0.12)',
-    borderWidth: 2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(192,132,252,0.15)',
+    borderWidth: 1.2,
+    borderColor: C.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarLetter: { fontSize: 20, fontWeight: '900', color: C.text },
+  avatarLetter: { fontSize: 12, fontWeight: '900', color: C.text },
   info: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  name: { fontSize: 15, fontWeight: '800', color: C.text, flex: 1, letterSpacing: -0.3 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 1 },
+  name: { fontSize: 12, fontWeight: '800', color: C.text, flex: 1, letterSpacing: -0.2 },
   matchPill: {
     backgroundColor: 'rgba(52,211,153,0.15)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 0.8,
     borderColor: 'rgba(52,211,153,0.35)',
   },
-  matchPillText: { fontSize: 8, color: C.matchGreen, fontWeight: '800', letterSpacing: 0.5 },
-  dest: { fontSize: 12, color: C.textSub, marginBottom: 7 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  metaChip: { fontSize: 11, color: C.textMuted, fontWeight: '600' },
-  starRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  rating: { fontSize: 11, color: C.amber, fontWeight: '700' },
-  vehicle: { width: 18, height: 18 },
-  actions: { flexDirection: 'row', paddingHorizontal: 14, paddingBottom: 14, gap: 8 },
+  matchPillText: { fontSize: 6.5, color: C.matchGreen, fontWeight: '800', letterSpacing: 0.2 },
+  destRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 2 },
+  dest: { fontSize: 9, color: C.textSub, flexShrink: 1 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  metaChip: { fontSize: 8.5, color: C.textMuted, fontWeight: '600' },
+  starRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  rating: { fontSize: 8.5, color: C.amber, fontWeight: '700' },
+  vehicle: { width: 12, height: 12 },
+  actions: { flexDirection: 'row', paddingHorizontal: 8, paddingBottom: 8, gap: 5 },
+  offerBtnTouchable: { flex: 1, borderRadius: 9, overflow: 'hidden', elevation: 3 },
   offerBtn: {
     flex: 1,
-    backgroundColor: '#C084FC',
-    paddingVertical: 10,
-    borderRadius: 13,
+    paddingVertical: 6,
     alignItems: 'center',
-    elevation: 3,
+    justifyContent: 'center',
   },
-  offerPending: { backgroundColor: C.amber },
-  offerConfirmed: { backgroundColor: C.green },
-  offerText: { color: C.white, fontSize: 12, fontWeight: '800', letterSpacing: -0.2 },
+  offerText: { color: C.white, fontSize: 10, fontWeight: '800', letterSpacing: -0.15 },
   chatBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
+    width: 26,
+    height: 26,
+    borderRadius: 9,
     backgroundColor: 'rgba(192,132,252,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(192,132,252,0.25)',
+    borderColor: C.cardBorder,
   },
 });

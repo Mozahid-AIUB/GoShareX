@@ -10,7 +10,6 @@ import {
   getStoredFCMToken,
   sendPushNotification,
 } from '@/services/firebase/messaging';
-import { logError } from '@/services/analytics/crashService';
 import { logger } from '@/utils/logger';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -55,7 +54,8 @@ export async function sendRideRequest(
       },
     );
   } catch (error) {
-    logError(error as Error, { fn: 'sendRideRequest', targetUid });
+    // push fail fatal না (token নেই/permission) — crash report না করে চুপচাপ warn।
+    logger.warn('fcmService.sendRideRequest', String((error as Error)?.message ?? error));
   }
 }
 
@@ -75,7 +75,27 @@ export async function sendRideConfirmed(
       { type: 'ride_confirmed', partnerName, rideId },
     );
   } catch (error) {
-    logError(error as Error, { fn: 'sendRideConfirmed', targetUid });
+    logger.warn('fcmService.sendRideConfirmed', String((error as Error)?.message ?? error));
+  }
+}
+
+/**
+ * Notify a user to rate their ride partner (1 hour after ride completion).
+ */
+export async function sendRideRatingReminder(
+  targetUid: string,
+  partnerName: string,
+  rideId: string,
+): Promise<void> {
+  try {
+    await push(
+      targetUid,
+      'Rate Your Ride 👍',
+      `How was your ride with ${partnerName}? Your rating helps them earn trust.`,
+      { type: 'rate_ride_reminder', partnerName, rideId },
+    );
+  } catch (error) {
+    logger.warn('fcmService.sendRideRatingReminder', String((error as Error)?.message ?? error));
   }
 }
 
@@ -94,7 +114,7 @@ export async function sendRideCancelled(
       { type: 'ride_cancelled', reason },
     );
   } catch (error) {
-    logError(error as Error, { fn: 'sendRideCancelled', targetUid });
+    logger.warn('fcmService.sendRideCancelled', String((error as Error)?.message ?? error));
   }
 }
 
@@ -113,6 +133,6 @@ export async function sendDestinationReached(
       { type: 'ride_complete', rideId },
     );
   } catch (error) {
-    logError(error as Error, { fn: 'sendDestinationReached', targetUid });
+    logger.warn('fcmService.sendDestinationReached', String((error as Error)?.message ?? error));
   }
 }

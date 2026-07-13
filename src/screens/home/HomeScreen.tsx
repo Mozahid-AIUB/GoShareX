@@ -16,7 +16,7 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { ActivityIndicator, Text } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Stop, Circle, Path, Rect } from 'react-native-svg';
 import PremiumIcon from '@/components/common/PremiumIcon';
 
@@ -27,6 +27,9 @@ import { PICKUP_POINTS, getPickupPointById } from '@/constants/pickupPoints';
 import { COLORS } from '@/constants/theme';
 import { premiumTheme } from '@/design/premium';
 import type { MainTabNavProp } from '@/navigation/types';
+import { rideRequestService, type RideRequest } from '@/services/supabase/rideRequestService';
+import { sendRideRequest } from '@/services/notifications/fcmService';
+import { logger } from '@/utils/logger';
 import distanceMatrixService from '@/services/google/distanceMatrixService';
 import directionsService from '@/services/google/directionsService';
 import routesService from '@/services/google/routesService';
@@ -40,9 +43,7 @@ import { useLocationStore } from '@/store';
 import type { RideRequestState } from '@/store/rideStore';
 import { VEHICLE_CONFIG, type VehicleType } from '@/store/rideStore';
 import { sanitizeSpeedKmh } from '@/utils/locationSpeed';
-import { logger } from '@/utils/logger';
-import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, limit } from 'firebase/firestore';
-import { db } from '@/services/firebase/config';
+import { subscribeToNotifications, markAllNotificationsRead } from '@/services/notificationFeedService';
 import PremiumVehicleArt from '@/components/vehicles/PremiumVehicleArt';
 import {
   recordSearch,
@@ -79,6 +80,8 @@ import {
   IconRouteLine,
 } from './components/HomeIcons';
 import { IconRickshaw, IconBikeVehicle, IconCNG } from './components/VehicleIcons';
+import VehicleIcon from '@/components/common/VehicleIcon';
+import { haversineDistance } from '@/utils/haversine';
 import { LiveDot, TrustChip, MatchRing } from './components/StatusChips';
 import {
   LIVE_PARTNER_FEED_ENABLED,
@@ -96,7 +99,11 @@ import {
   type AppNotification,
 } from './utils/homeHelpers';
 import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
+// জোন স্তর (মিটার) — segmented pill-এ দেখায়, কতদূরের rider "match"।
+// LiveMapScreen-এর ZONE_LEVELS এর সমান রাখা — দুই screen consistent।
+const ZONE_LEVELS = [150, 250, 350] as const;
 
 // ─── Design Tokens — light theme matching the S StyleSheet ───────────────────
 const D = {
@@ -267,69 +274,79 @@ const PartnerCard = ({
         {/* Header */}
         <View style={S.partnerHeader}>
           <View style={S.partnerAvatar}>
-            <Text style={S.partnerAvatarText}>{partner.name.charAt(0)}</Text>
+            {/* rider-এর আসল বাহন icon (Map-এর সাথে একই VehicleIcon) —
+                আগে নামের প্রথম অক্ষর ("R") দেখাত। */}
+            <VehicleIcon
+              type={partner.vehicleType === 'bike' ? 'motorcycle' : partner.vehicleType === 'cng' ? 'cng' : 'rickshaw'}
+              tone={partner.vehicleType === 'bike' ? 'indigo' : partner.vehicleType === 'cng' ? 'teal' : 'amber'}
+              size={22}
+            />
           </View>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={S.partnerName}>{partner.name}</Text>
-              <TrustChip badge={partner.badge} confirmed={isConfirmed} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Text style={[S.partnerName, { flexShrink: 1 }]} numberOfLines={1}>
+                {partner.name}
+              </Text>
+              <View style={{ flexShrink: 0 }}>
+                <TrustChip badge={partner.badge} confirmed={isConfirmed} />
+              </View>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
-              <IconStar size={11} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 }}>
+              <IconStar size={10} />
               <Text style={S.partnerMeta}> {partner.rating?.toFixed(1)}</Text>
             </View>
           </View>
-          <MatchRing score={partner.matchScore} />
+          <View style={{ flexShrink: 0, marginLeft: 3 }}>
+            <MatchRing score={partner.matchScore} />
+          </View>
         </View>
 
         {/* Info row */}
         <View style={S.partnerInfoRow}>
           <View style={S.partnerInfoItem}>
-            <IconMapPin size={14} color1="#8E9DC0" color2="#4B5A7A" />
+            <IconMapPin size={12} color1="#8E9DC0" color2="#4B5A7A" />
             <Text style={S.partnerInfoVal}>{fmtDist(partner.distanceMeters)} away</Text>
           </View>
           <View style={S.partnerInfoDivider} />
           <View style={S.partnerInfoItem}>
-            <IconClock size={14} />
+            <IconClock size={12} />
             <Text style={S.partnerInfoVal}>ETA {partner.etaMinutes} min</Text>
           </View>
           <View style={S.partnerInfoDivider} />
           <View style={S.partnerInfoItem}>
-            <IconCash size={14} />
+            <IconCash size={12} />
             <Text style={[S.partnerInfoVal, { color: D.green, fontWeight: '700' }]}>BDT {partner.splitFare}</Text>
           </View>
         </View>
 
         {/* Destination */}
         <View style={S.partnerDest}>
-          <IconNavigation size={13} />
+          <IconNavigation size={11} />
           <Text style={S.partnerDestText}>Going to {partner.destinationName}</Text>
         </View>
 
-        {/* Actions */}
+        {/* Action — একটাই CTA: Request (accept হলে chat খোলে)। direct Chat
+            সরানো হয়েছে — অনুমতি ছাড়া কারো inbox-এ ঢোকা যায় না (anti-spam)। */}
         <View style={S.partnerActions}>
           <TouchableOpacity
             style={[
               S.btnRequest,
+              { flex: 1 },
               isPending && { backgroundColor: D.amber },
               isConfirmed && { backgroundColor: D.green },
             ]}
             onPress={onRequest}
+            disabled={isPending}
             activeOpacity={0.85}
           >
             <MaterialCommunityIcons
               name={isConfirmed ? 'check' : isPending ? 'clock-outline' : 'hand-wave-outline'}
-              size={16}
+              size={14}
               color="#FFF"
             />
             <Text style={S.btnRequestText}>
-              {isConfirmed ? 'Confirmed' : isPending ? 'Pending…' : 'Request'}
+              {isConfirmed ? 'Confirmed — Chat' : isPending ? 'Request sent · waiting…' : 'Request to ride'}
             </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={S.btnChat} onPress={onChat} activeOpacity={0.82}>
-            <MaterialCommunityIcons name="message-text-outline" size={16} color={D.primary} />
-            <Text style={S.btnChatText}>Chat</Text>
           </TouchableOpacity>
         </View>
       </Pressable>
@@ -353,12 +370,13 @@ const PickupModal = ({
   const [gpsLoading, setGpsLoading] = React.useState(false);
   // IDs of pickup points that appear in frequent list (to avoid duplicate in full list)
   const frequentIds = new Set(frequentPickups.map(f => f.id));
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={S.modalOverlay}>
         <TouchableOpacity style={S.modalBackdrop} activeOpacity={1} onPress={onClose} />
-        <View style={[S.modalSheet, { maxHeight: '90%' }]}>
+        <View style={[S.modalSheet, { maxHeight: '90%', paddingBottom: 20 + insets.bottom }]}>
           <View style={S.modalHandle} />
           <Text style={S.modalTitle}>Where are you boarding from?</Text>
 
@@ -494,6 +512,7 @@ const DestinationModal = ({
     }
   }, [visible]);
 
+
   useEffect(() => {
     if (!query.trim() || query.trim().length < 2) {
       setRemoteSuggestions([]); setError(''); setIsSearching(false); return;
@@ -521,11 +540,18 @@ const DestinationModal = ({
   }, [query, currentLocation]);
 
   const handleSelectHistory = (entry: SearchEntry) => {
-    recordSearch({ id: entry.id, name: entry.name, lat: entry.lat, lng: entry.lng, placeId: entry.placeId }).catch(() => { });
     // Custom Places entries (lat/lng present) need customDestination set — not just destination id
     if (entry.lat && entry.lng) {
+      recordSearch({ id: entry.id, name: entry.name, lat: entry.lat, lng: entry.lng, placeId: entry.placeId }).catch(() => { });
       onSelectCustomHistory(entry);
+    } else if (entry.placeId) {
+      // পুরনো (আগের bug-এ তৈরি হওয়া) entry — lat/lng ছাড়াই সেভ হয়ে গিয়েছিল।
+      // placeId থাকলে সেটা preset destination না, Google Place — details
+      // fetch করে (onSelectSuggestion, handleSuggestionSelect) সঠিক
+      // lat/lng-সহ নতুন করে destination set করি, "self-heal" করে।
+      onSelectSuggestion({ placeId: entry.placeId, primaryText: entry.name, secondaryText: entry.subtitle ?? '', description: entry.name });
     } else {
+      recordSearch({ id: entry.id, name: entry.name, lat: entry.lat, lng: entry.lng, placeId: entry.placeId }).catch(() => { });
       const dest: RouteDestination = {
         id: entry.id,
         name: entry.name,
@@ -540,13 +566,11 @@ const DestinationModal = ({
   };
 
   const handleRemote = (s: PlaceSuggestion) => {
-    recordSearch({
-      id: s.placeId,
-      name: s.primaryText,
-      subtitle: s.secondaryText,
-      placeId: s.placeId,
-    }).catch(() => { });
-
+    // এখানে recordSearch() ডাকা হতো raw placeId দিয়ে, lat/lng ছাড়াই —
+    // onSelectSuggestion (handleSuggestionSelect) নিজেই সঠিক custom_
+    // prefix + lat/lng সহ recordSearch করে। দুটো call একই destination-এর
+    // জন্য দুইটা আলাদা (একটা ভাঙা, lat/lng-বিহীন) history entry বানাত —
+    // পরে সেই ভাঙা entry-টায় click করলে destination select "কাজ করত না"।
     onSelectSuggestion(s);
     onClose();
   };
@@ -554,14 +578,19 @@ const DestinationModal = ({
   const showHistory = query.trim().length < 2;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={S.modalOverlay}>
-        <TouchableOpacity style={S.modalBackdrop} activeOpacity={1} onPress={() => { Keyboard.dismiss(); onClose(); }} />
-        <View style={[S.modalSheet, { maxHeight: '88%' }]}>
-          <View style={S.modalHandle} />
-          <Text style={S.modalTitle}>Where to?</Text>
-
-          <View style={S.searchWrap}>
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen">
+      {/* Full-screen search (Uber/Google Maps pattern) — bottom-sheet নয়।
+          Input উপরে fixed, list নিচে scroll। keyboard উঠলে input নড়ে না (উপরে
+          স্থির), শুধু নিচের list-এর জায়গা ছোট হয় → কোনো লাফ/float/gap নেই।
+          আগের bottom-sheet + KeyboardAvoiding/margin/padding সব বাদ — এটাই
+          Android-এ সবচেয়ে স্থিতিশীল। */}
+      <View style={S.searchScreen}>
+        {/* উপরে fixed header: back + search input (keyboard উঠলে এটা নড়ে না) */}
+        <View style={S.searchTopBar}>
+          <TouchableOpacity onPress={() => { Keyboard.dismiss(); onClose(); }} style={S.searchBackBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color="#1A1A2E" />
+          </TouchableOpacity>
+          <View style={[S.searchWrap, { flex: 1, marginBottom: 0 }]}>
             <MaterialCommunityIcons name="magnify" size={18} color={D.textMuted} />
             <TextInput
               ref={inputRef}
@@ -580,10 +609,12 @@ const DestinationModal = ({
                 </TouchableOpacity>
                 : null}
           </View>
+        </View>
 
+        <View style={S.searchBody}>
           {!!error && <Text style={{ color: COLORS.error, fontSize: 12, marginBottom: 8, fontWeight: '600' }}>{error}</Text>}
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 24 }}>
             {/* Popular / recent searches when no query */}
             {showHistory && popularSearches.length > 0 && (
               <>
@@ -686,8 +717,13 @@ const DestinationModal = ({
 // ─── MAIN SCREEN ─────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   useScreenFocusTracking('Home');
+  useSystemBars('#FAF8FF', 'dark');
   const navigation = useNavigation<MainTabNavProp>();
   const tabBarHeight = useBottomTabBarHeight();
+  // edge-to-edge মোডে bottom sheet modal device-এর নিচের navigation bar-এর
+  // একদম গায়ে গিয়ে ঠেকছিল (root SafeAreaView-এ edges={['top']} শুধু, bottom
+  // safe-area handle হয় না) — তাই modal-এর নিজস্ব bottom padding-এ এই inset যোগ করি।
+  const insets = useSafeAreaInsets();
   const {
     destination, customDestination, pickupPoint, setDestination, setCustomDestination, setPickupPoint,
     setPartner, setStatus, requestStates,
@@ -811,7 +847,46 @@ export default function HomeScreen() {
   }, []);
   const timeCtx = useMemo(() => getTimeContext(currentHour), [currentHour]);
   const greeting = useMemo(() => getGreeting(currentHour), [currentHour]);
-  useNearbyRiders(destination, LIVE_PARTNER_FEED_ENABLED && !!destination);
+  // জোন radius — Map ও Home শেয়ার করা store state (এক জায়গায় বদলালে
+  // দুই জায়গায় বদলায়)। MATCH = একই গন্তব্য AND এই radius-এর ভিতরে।
+  const zoneRadius = useRideStore(s => s.zoneRadius);
+  const setZoneRadius = useRideStore(s => s.setZoneRadius);
+  // "Go Live" — গন্তব্য সেট + presenceEnabled হলে যেকোনো screen-এ discoverable
+  // (broadcast useLivePresence hook চালায়)। header pill এই অবস্থা দেখায় + toggle।
+  const presenceEnabled = useRideStore(s => s.presenceEnabled);
+  const setPresenceEnabled = useRideStore(s => s.setPresenceEnabled);
+  // গন্তব্য সেট থাকলে আর Go Live on থাকলে = এখন discoverable।
+  const isLive = presenceEnabled && (!!destination || !!customDestination);
+
+  // ── Ride request handshake ──
+  // incoming banner এখন GLOBAL (AppNavigator → IncomingRequestOverlay) — সব
+  // screen-এ দেখায়, তাই Home-এর local listener/banner সরানো হয়েছে। এখানে
+  // শুধু outgoing (নিজের পাঠানো request accept হলে chat-এ navigate)।
+
+  // A: outgoing request — accept হলে chat_id পাই → chat-এ navigate
+  const navigatedReqRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!storeUser?.uid) return;
+    return rideRequestService.listenToOutgoing(storeUser.uid, (reqs) => {
+      const accepted = reqs.find(
+        (r) => r.status === 'accepted' && r.chatId && !navigatedReqRef.current.has(r.id),
+      );
+      if (accepted?.chatId) {
+        navigatedReqRef.current.add(accepted.id);
+        clearRequestState(accepted.toUser);
+        navigation.navigate('Chat', { chatId: accepted.chatId, partnerName: 'Rider' });
+      }
+    });
+  }, [storeUser?.uid, navigation, clearRequestState]);
+
+  // (accept/decline handlers এখন IncomingRequestOverlay-এ — global)
+
+  useNearbyRiders(
+    destination,
+    LIVE_PARTNER_FEED_ENABLED && !!destination,
+    selectedDestDetails?.lat,   // geo-match: নিজের গন্তব্যের coordinate
+    selectedDestDetails?.lng,
+  );
   const { nearbyRiders } = useRideStore();
 
   // Sync route card FROM label — only when user has explicitly chosen a pickup
@@ -836,9 +911,15 @@ export default function HomeScreen() {
     }
   }, [selectedDestDetails]);
 
+  // user আসল pickup/destination বদলালে তবেই search "পুরোনো" — list লুকাও।
+  // KEY: selectedPickupDetails একটা useMemo যার deps-এ live currentLocation
+  // আছে; GPS jitter-এ ওটা নতুন object হয়। object reference-এ depend করলে
+  // প্রতি GPS tick-এ এই effect চলত → search করার পরেও hasSearchedPassengers
+  // বারবার false হয়ে list লুকিয়ে যেত। তাই শুধু আসল pickup id ও destination
+  // id (primitive) বদলালে reset করি — GPS jitter আর list-কে নাড়ায় না।
   useEffect(() => {
     setHasSearchedPassengers(false);
-  }, [selectedPickupDetails, selectedDestDetails]);
+  }, [selectedPickup, destination, customDestination?.id]);
 
   // ── Google Routes API: fetch optimised route when pickup + destination set ──
   useEffect(() => {
@@ -983,12 +1064,11 @@ export default function HomeScreen() {
     if (!destination) return [];
     const base = nearbyRiders.length > 0 ? nearbyRiders : [];
     return base
-      .filter(r =>
-        // isMatch already guarantees: same destination + within radius
-        // r.destination === destination alone is NOT enough — pickup point must also match
-        // otherwise riders from different pickup points appear as valid partners
-        r.isMatch || r.destination === destination
-      )
+      // MATCH = একই গন্তব্য (isMatch, geo ≤700m) AND জোন radius-এর ভিতরে।
+      // "Kuril" vs "Kuril Bishwa Road" আলাদা নাম হলেও geo-match ধরে; আর
+      // zoneRadius দিয়ে শুধু কাছের (segmented pill-এ বেছে নেওয়া) লোক দেখাই —
+      // তাই 662m দূরের কেউ একই গন্তব্য হলেও জোন 350m হলে list-এ আসবে না।
+      .filter(r => r.isMatch && (r.distance ?? 0) <= zoneRadius)
       .map((r): VisiblePartner => {
         const api = partnerDistances[r.uid];
         return {
@@ -1000,25 +1080,35 @@ export default function HomeScreen() {
           destinationName: DESTINATIONS.find(d => d.id === r.destination)?.name ?? r.destination,
           pickupPoint: r.pickupPoint,
           splitFare: Math.ceil(getFare(selectedPickup, r.destination) / 2),
-          distanceMeters: api?.distanceMeters ?? r.distance ?? 0,
+          // straight-line distance (filter-এর সাথে একই) — যাতে "267m কিন্তু
+          // 150m জোনে কেন?" অসঙ্গতি না হয়। Map-ও straight-line দেখায়, তাই দুই
+          // screen এক সংখ্যা। (Google road-distance display করতাম, সরালাম।)
+          distanceMeters: r.distance ?? 0,
           etaMinutes: api?.durationInTrafficSeconds
             ? Math.max(1, Math.round(api.durationInTrafficSeconds / 60))
             : api?.durationSeconds
               ? Math.max(1, Math.round(api.durationSeconds / 60))
               : 2,
+          // premium smart-match quality (0–100)। মূল ভিত্তি server-এর দিক/পথ-
+          // সচেতন score (matchScore — গন্তব্য মিল + একই দিক + আমার পথে + কত কাছে)।
+          // তার সাথে client-এর জানা rating ও একই-pickup nudge যোগ করি। migration
+          // আগে না চললে (score undefined) পুরোনো distance-ভিত্তিক হিসাবে fallback।
           matchScore: Math.min(100, Math.max(0, Math.round(
-            70 +
-            (r.rating - 3) * 10 +
-            (r.isMatch ? 20 : 0) +
-            (r.pickupPoint === selectedPickupLabel ? 10 : 0)
+            r.matchScore != null
+              ? r.matchScore + Math.max(0, (r.rating - 3)) * 4 + (r.pickupPoint === selectedPickupLabel ? 6 : 0)
+              : 25 + (1 - Math.min(1, (r.distance ?? 0) / Math.max(1, zoneRadius))) * 55 +
+                Math.max(0, (r.rating - 3)) * 10 +
+                (r.pickupPoint === selectedPickupLabel ? 10 : 0)
           ))),
           lat: r.lat,
           lng: r.lng,
           isMatch: r.isMatch,
+          vehicleType: r.vehicleType ?? 'rickshaw',
         };
       })
-      .sort((a, b) => a.distanceMeters - b.distanceMeters);
-  }, [destination, nearbyRiders, partnerDistances, selectedPickup, selectedPickupLabel]);
+      // premium: সেরা match আগে (score বেশি), সমান হলে কাছেরটা আগে।
+      .sort((a, b) => b.matchScore - a.matchScore || a.distanceMeters - b.distanceMeters);
+  }, [destination, nearbyRiders, partnerDistances, selectedPickup, selectedPickupLabel, zoneRadius]);
 
   const refreshExactCurrentLocation = useCallback(async () => {
     setIsResolvingCurrentLocation(true);
@@ -1097,30 +1187,25 @@ export default function HomeScreen() {
     // Load frequent pickups for PickupModal suggestion list
     getFrequentPickups(5).then(setFrequentPickups).catch(() => { });
 
-    // GPS runs silently in background — does NOT auto-set FROM
-    void refreshExactCurrentLocation().catch(() => setCurrentLocation(null));
+    // Contextual permission: permission granted থাকলেও অ্যাপ খোলার সাথে
+    // সাথেই silent GPS fetch করতাম না — কিন্তু high-accuracy fetch নিজেই
+    // Android-এর "Location Accuracy" system dialog popup করে ফেলত, যেটা
+    // user-এর কাছে permission-prompt-এর মতোই বিরক্তিকর লাগছিল। তাই এখন
+    // location একদমই fetch করি না এখানে — ইউজার "current location"-এ
+    // ট্যাপ করলে (PickupModal-এর onSelectGPS) তখনই fetch হবে।
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshExactCurrentLocation]);
 
-  // Real-time notifications subscription
+  // Real-time notifications subscription (router → Supabase/Firebase by flag)
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
+    const uid = storeUser?.uid;
     if (!uid) return;
-    const q = query(
-      collection(db, 'notifications'),
-      where('toUserId', '==', uid),
-      orderBy('createdAt', 'desc'),
-      limit(50),
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const items = snap.docs.map((d) => ({ id: d.id, type: '', read: false, ...d.data() } as AppNotification));
+    const unsub = subscribeToNotifications(uid, (items) => {
       setNotifications(items);
       setUnreadCount(items.filter((n) => !n.read).length);
-    }, (error) => {
-      logger.warn('HomeScreen.notifications', error);
     });
     return unsub;
-  }, []);
+  }, [storeUser?.uid]);
 
   // Handlers
   const handleSwap = () => {
@@ -1289,6 +1374,10 @@ export default function HomeScreen() {
     name: partner.name,
     distance: partner.distanceMeters,
     destination: partner.destination,
+    // ride-এর গন্তব্যের coordinate — RideActiveScreen-এ Uber-style auto-
+    // complete geofence-এ লাগে (custom গন্তব্যেও কাজ করে)।
+    destLat: selectedDestDetails?.lat,
+    destLng: selectedDestDetails?.lng,
     pickupPoint: selectedPickupLabel,
     rating: partner.rating,
     badge: partner.badge,
@@ -1297,17 +1386,56 @@ export default function HomeScreen() {
     isMatch: destination === partner.destination,
   });
 
-  const handleRequest = (partner: VisiblePartner) => {
+  const handleRequest = async (partner: VisiblePartner) => {
+    if (!storeUser?.uid) return;
     setPartner(buildRiderPayload(partner));
     setStatus('waiting');
-    setRequestState(partner.id, 'pending');
+    setRequestState(partner.id, 'pending');   // UI: optimistic pending
     setPendingPartner(partner);
+    // আসল request পাঠাই (Supabase) — B realtime banner-এ দেখবে, accept করলে
+    // chat খুলবে (A outgoing listener chat_id পেয়ে navigate করবে)।
+    try {
+      const loc = useLocationStore.getState();
+      await rideRequestService.sendRequest({
+        fromUser: storeUser.uid,
+        fromName: storeUser.name ?? 'A rider',
+        toUser: partner.id,
+        destination: selectedDestDetails?.name ?? partner.destination,
+        destLat: selectedDestDetails?.lat,
+        destLng: selectedDestDetails?.lng,
+        fare: partner.splitFare,
+        // sender info — banner premium card-এ দেখাতে
+        fromRating: storeUser.rating ?? 5,
+        fromBadge: storeUser.badge ?? 'New Rider',
+        fromVehicle: useRideStore.getState().vehicleType ?? 'rickshaw',
+        fromLat: loc.latitude ?? undefined,
+        fromLng: loc.longitude ?? undefined,
+      });
+      // push notification — B app বন্ধ/background-এ থাকলেও জানবে। Expo Go-তে
+      // কাজ করে না (production build লাগে), তাই fail করলে silent (catch করা)।
+      // production phase-এ এটাই request-কে app-এর বাইরে পৌঁছে দেবে।
+      void sendRideRequest(
+        partner.id,
+        storeUser.name ?? 'A rider',
+        selectedDestDetails?.name ?? partner.destination,
+        partner.splitFare,
+        '',  // chatId এখনো নেই (accept-এ তৈরি হবে)
+      );
+    } catch (e: any) {
+      clearRequestState(partner.id);
+      setPendingPartner(null);
+      // service-এর আসল বার্তা দেখাই (যেমন "rider not available" — fake rider)।
+      Alert.alert('Request failed', e?.message ?? 'Could not send the request. Please try again.');
+      logger.warn('HomeScreen.sendRequest', e);
+    }
   };
 
   const handleChat = (partner: VisiblePartner) => {
     setPartner(buildRiderPayload(partner));
     setStatus('matched');
-    setRequestState(partner.id, 'confirmed');
+    // chat খোলা = শুধু কথা বলা, আসল deal না। তাই 'confirmed' সেট করি না —
+    // আসল "Confirmed" হয় Chat-এর Confirm Deal-এ (server deal, একটাই active)।
+    // (আগে এখানে 'confirmed' সেট হতো → Home-এ একাধিক "Confirmed" দেখাত ভুলভাবে।)
     setPendingPartner(null);
     navigation.navigate('Chat', { rider: buildRiderPayload(partner), partnerName: partner.name });
   };
@@ -1332,6 +1460,9 @@ export default function HomeScreen() {
         onScroll={e => setElevated(e.nativeEvent.contentOffset.y > 8)}
         scrollEventThrottle={16}
       >
+        {/* Incoming request banner এখন GLOBAL (IncomingRequestOverlay,
+            AppNavigator-এ) — সব screen-এ দেখায়, তাই Home থেকে সরানো হয়েছে। */}
+
         {/* Header greeting */}
         <Animated.View style={[S.header, { opacity: headerOpacity }]}>
           {/* Left — greeting block */}
@@ -1357,9 +1488,7 @@ export default function HomeScreen() {
               activeOpacity={0.8}
               onPress={() => {
                 setShowNotifModal(true);
-                notifications.filter((n) => !n.read).forEach((n) => {
-                  updateDoc(doc(db, 'notifications', n.id), { read: true }).catch(() => { });
-                });
+                if (storeUser?.uid) void markAllNotificationsRead(storeUser.uid, notifications);
                 setUnreadCount(0);
               }}
             >
@@ -1370,10 +1499,24 @@ export default function HomeScreen() {
                 </View>
               )}
             </TouchableOpacity>
-            <View style={S.livePillInline}>
-              <LiveDot />
-              <Text style={S.liveTextInline}>LIVE</Text>
-            </View>
+            {/* presence status pill — গন্তব্য সেট + Go Live হলে সবুজ "LIVE"
+                (অন্যরা খুঁজে পায়), নাহলে ধূসর "OFFLINE"। tap করে toggle। */}
+            <TouchableOpacity
+              style={[S.livePillInline, !isLive && S.livePillOffline]}
+              activeOpacity={0.8}
+              onPress={() => {
+                if (!destination && !customDestination) {
+                  Alert.alert('গন্তব্য দিন আগে', 'Live হতে হলে আগে "কোথায় যাবেন?" সেট করুন — তাহলেই অন্যরা আপনাকে খুঁজে পাবে।');
+                  return;
+                }
+                setPresenceEnabled(!presenceEnabled);
+              }}
+            >
+              {isLive ? <LiveDot /> : <View style={S.offlineDot} />}
+              <Text style={[S.liveTextInline, !isLive && S.liveTextOffline]}>
+                {isLive ? 'LIVE' : 'OFFLINE'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </Animated.View>
 
@@ -1513,10 +1656,14 @@ export default function HomeScreen() {
                 </View>
               )}
 
-              {/* Find riders button */}
+              {/* Find riders button — double-tap বন্ধ করতে resolve চলাকালীন
+                  disable, কিন্তু label/icon বদলায় না (pickup আগেই background-এ
+                  resolve থাকে, তাই "Getting your location…" দেখানো অপ্রয়োজনীয়/
+                  unprofessional ছিল)। */}
               <TouchableOpacity
-                style={S.searchPassengersBtn}
+                style={[S.searchPassengersBtn, isResolvingCurrentLocation && { opacity: 0.85 }]}
                 activeOpacity={0.88}
+                disabled={isResolvingCurrentLocation}
                 onPress={() => { void handlePassengerSearch(); }}
               >
                 <MaterialCommunityIcons name="account-search-outline" size={20} color="#FFF" />
@@ -1542,16 +1689,35 @@ export default function HomeScreen() {
 
 
 
-        {/* Live partner feed — show as soon as destination selected */}
-        {LIVE_PARTNER_FEED_ENABLED && selectedDestDetails ? (
+        {/* Live partner feed — শুধু "Find riders going my way" click করার পরে
+            (hasSearchedPassengers)। আগে destination সেট করলেই list চলে আসত;
+            এখন user স্পষ্টভাবে search না করলে list দেখায় না। FROM/TO বদলালে
+            hasSearchedPassengers false হয় (নিচের effect) → list আবার লুকায়। */}
+        {LIVE_PARTNER_FEED_ENABLED && selectedDestDetails && hasSearchedPassengers ? (
           <View style={S.section}>
             <View style={S.sectionHeader}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={S.sectionTitle}>People on this route</Text>
                 <Text style={S.sectionSub}>
                   From {selectedPickupLabel} to {selectedDestDetails.name}
                 </Text>
               </View>
+              {/* জোন chip — Map-এর মতো। tap করলে 150→250→350→150 cycle।
+                  কতদূরের (একই গন্তব্যের) rider "match" দেখাব; সাথে সাথে list filter।
+                  Map ও Home শেয়ার করা store — এক জায়গায় বদলালে দুই জায়গায়। */}
+              <TouchableOpacity
+                style={S.zoneChip}
+                onPress={() => {
+                  const idx = ZONE_LEVELS.indexOf(zoneRadius as typeof ZONE_LEVELS[number]);
+                  const next = ZONE_LEVELS[(idx + 1) % ZONE_LEVELS.length];
+                  setZoneRadius(next);
+                }}
+                activeOpacity={0.8}
+              >
+                <MaterialCommunityIcons name="map-marker-radius" size={14} color="#6366F1" />
+                <Text style={S.zoneChipText}>{zoneRadius}m</Text>
+                <MaterialCommunityIcons name="chevron-up" size={14} color="#6366F1" />
+              </TouchableOpacity>
               <View style={S.liveCountBadge}>
                 <LiveDot />
                 <Text style={S.liveCountText}>{visiblePartners.length} live</Text>
@@ -1657,7 +1823,7 @@ export default function HomeScreen() {
             activeOpacity={1}
             onPress={() => { if (pendingPartner) clearRequestState(pendingPartner.id); setPendingPartner(null); }}
           />
-          <View style={S.modalSheet}>
+          <View style={[S.modalSheet, { paddingBottom: 20 + insets.bottom }]}>
             <View style={S.modalHandle} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
               <View style={[S.partnerAvatar, { width: 52, height: 52, borderRadius: 26 }]}>
@@ -1701,22 +1867,21 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            <TouchableOpacity
-              style={S.primaryBtn}
-              activeOpacity={0.85}
-              onPress={() => pendingPartner && handleChat(pendingPartner)}
-            >
-              <MaterialCommunityIcons name="message-text-outline" size={18} color="#FFF" />
-              <Text style={S.primaryBtnText}>Continue to chat</Text>
-            </TouchableOpacity>
+            {/* request পাঠানো হয়েছে — accept-এর অপেক্ষা (সরাসরি chat না;
+                accept হলে outgoing listener আপনাআপনি chat-এ নিয়ে যাবে)। */}
+            <View style={S.waitCard}>
+              <MaterialCommunityIcons name="clock-outline" size={18} color={D.amber} />
+              <Text style={S.waitCardText}>
+                Request sent — waiting for {pendingPartner?.name ?? 'rider'} to accept. Chat opens automatically once they accept.
+              </Text>
+            </View>
 
             <TouchableOpacity
               style={S.modalSecondaryBtn}
               activeOpacity={0.85}
-              onPress={() => { setPendingPartner(null); navigation.navigate('Map'); }}
+              onPress={() => setPendingPartner(null)}
             >
-              <MaterialCommunityIcons name="map-outline" size={18} color={D.text} />
-              <Text style={S.modalSecondaryBtnText}>Open live map</Text>
+              <Text style={S.modalSecondaryBtnText}>OK</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1726,13 +1891,13 @@ export default function HomeScreen() {
       <Modal visible={showNotifModal} transparent animationType="slide" onRequestClose={() => setShowNotifModal(false)}>
         <View style={S.modalOverlay}>
           <TouchableOpacity style={S.modalBackdrop} activeOpacity={1} onPress={() => setShowNotifModal(false)} />
-          <View style={[S.modalSheet, { backgroundColor: '#0C1128', maxHeight: '80%' }]}>
+          <View style={[S.modalSheet, { backgroundColor: '#0C1128', maxHeight: '80%', paddingBottom: 20 + insets.bottom }]}>
             <View style={[S.modalHandle, { backgroundColor: 'rgba(192,132,252,0.3)' }]} />
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <Text style={{ fontSize: 20, fontWeight: '900', color: '#EEF2FF', letterSpacing: -0.3 }}>Notifications</Text>
               {notifications.length > 0 && (
                 <TouchableOpacity onPress={() => {
-                  notifications.forEach((n) => updateDoc(doc(db, 'notifications', n.id), { read: true }).catch(() => { }));
+                  if (storeUser?.uid) void markAllNotificationsRead(storeUser.uid, notifications);
                 }} activeOpacity={0.7}>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: '#C084FC' }}>Mark all read</Text>
                 </TouchableOpacity>
@@ -1805,6 +1970,12 @@ const S = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(13,148,136,0.25)',
   },
   liveTextInline: { fontSize: 9, fontWeight: '900', color: '#0D9488', letterSpacing: 1.5 },
+  livePillOffline: {
+    backgroundColor: 'rgba(148,148,168,0.10)',
+    borderColor: 'rgba(148,148,168,0.28)',
+  },
+  liveTextOffline: { color: '#9896A8' },
+  offlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#9896A8' },
 
   timeCtxRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
   timeCtxIconSm: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
@@ -2047,13 +2218,56 @@ const S = StyleSheet.create({
   section: { marginBottom: 22 },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1A1A2E', marginBottom: 6, letterSpacing: -0.2 },
   sectionSub: { fontSize: 13, color: '#9896A8', fontWeight: '600', letterSpacing: 0.1 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   liveCountBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: 'rgba(20,184,166,0.1)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
     borderWidth: 1, borderColor: 'rgba(20,184,166,0.25)',
   },
   liveCountText: { fontSize: 12, fontWeight: '800', color: '#0D9488', letterSpacing: 0.3 },
+
+  // ── Zone radius chip (Map-এর মতো, "live"-এর পাশে) ──
+  zoneChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: 'rgba(99,102,241,0.08)', borderRadius: 20,
+    paddingHorizontal: 10, paddingVertical: 6, marginRight: 8,
+    borderWidth: 1, borderColor: 'rgba(99,102,241,0.25)',
+  },
+  zoneChipText: { fontSize: 12, fontWeight: '800', color: '#6366F1', letterSpacing: 0.2 },
+
+  // ── Incoming ride-request premium card ──
+  reqBanner: {
+    backgroundColor: '#FFFFFF', borderRadius: 18, padding: 14, gap: 10,
+    marginHorizontal: 16, marginTop: 12,
+    borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)',
+    shadowColor: '#6366F1', shadowOpacity: 0.12, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 }, elevation: 4,
+  },
+  reqTopRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  reqAvatar: {
+    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(99,102,241,0.1)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.2)',
+  },
+  reqNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  reqBannerTitle: { fontSize: 15, fontWeight: '800', color: '#1A1A2E', letterSpacing: -0.2, flexShrink: 1 },
+  reqBadgeChip: {
+    backgroundColor: 'rgba(16,185,129,0.12)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2,
+    borderWidth: 1, borderColor: 'rgba(16,185,129,0.25)',
+  },
+  reqBadgeText: { fontSize: 9, fontWeight: '800', color: '#0D9488', letterSpacing: 0.2 },
+  reqMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  reqMetaText: { fontSize: 12, color: '#6B7280', fontWeight: '600' },
+  reqRouteRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#F6F5FC', borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8,
+  },
+  reqRouteText: { fontSize: 13, color: '#1A1A2E', fontWeight: '700', flexShrink: 1 },
+  reqFareText: { fontSize: 13, color: '#0D9488', fontWeight: '800', marginLeft: 8 },
+  reqBannerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  reqDeclineBtn: { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, backgroundColor: 'rgba(148,163,184,0.16)' },
+  reqDeclineText: { fontSize: 13, fontWeight: '800', color: '#6B7280' },
+  reqAcceptBtn: { flex: 2, alignItems: 'center', paddingVertical: 11, borderRadius: 12, backgroundColor: '#6366F1' },
+  reqAcceptText: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
 
   // ── Destination chips ──
   destChipRow: { paddingTop: 10, paddingBottom: 6, gap: 10, flexDirection: 'row', paddingHorizontal: 0 },
@@ -2073,50 +2287,49 @@ const S = StyleSheet.create({
 
   // ── Partner card ──
   partnerCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 20,
-    padding: 16, marginBottom: 12,
+    backgroundColor: '#FFFFFF', borderRadius: 16,
+    padding: 10, marginBottom: 9,
     borderWidth: 1, borderColor: '#EDE8F5',
-    elevation: 3, shadowColor: '#6366F1', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
+    elevation: 2, shadowColor: '#6366F1', shadowOpacity: 0.07, shadowRadius: 7, shadowOffset: { width: 0, height: 3 },
   },
-  partnerHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  partnerHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 },
   partnerAvatar: {
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: '#EEF0FF', borderWidth: 2, borderColor: '#D4D7FF',
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: '#EEF0FF', borderWidth: 1.2, borderColor: '#DDE0FF',
     alignItems: 'center', justifyContent: 'center',
   },
-  partnerAvatarText: { fontSize: 20, fontWeight: '900', color: '#6366F1' },
-  partnerName: { fontSize: 17, fontWeight: '800', color: '#1A1A2E', letterSpacing: -0.2 },
-  partnerMeta: { fontSize: 12, color: '#9896A8', marginTop: 2, fontWeight: '600' },
+  partnerAvatarText: { fontSize: 16, fontWeight: '900', color: '#6366F1' },
+  partnerName: { fontSize: 13.5, fontWeight: '800', color: '#1A1A2E', letterSpacing: -0.2 },
+  partnerMeta: { fontSize: 10.5, color: '#9896A8', marginTop: 1, fontWeight: '600' },
 
   partnerInfoRow: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#FAF8FF', borderRadius: 14,
-    padding: 12, marginBottom: 12,
-    borderWidth: 1, borderColor: '#EDE8F5',
+    backgroundColor: '#FAF8FF', borderRadius: 10,
+    paddingVertical: 6, paddingHorizontal: 6, marginBottom: 6,
+    borderWidth: 1, borderColor: '#EFEAF7',
   },
-  partnerInfoItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center' },
-  partnerInfoVal: { fontSize: 13, fontWeight: '700', color: '#1A1A2E', letterSpacing: 0.2 },
-  partnerInfoDivider: { width: 1, height: 18, backgroundColor: '#EDE8F5' },
+  partnerInfoItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'center' },
+  partnerInfoVal: { fontSize: 11, fontWeight: '700', color: '#1A1A2E', letterSpacing: 0.1 },
+  partnerInfoDivider: { width: 1, height: 13, backgroundColor: '#EDE8F5' },
 
   partnerDest: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#FAF8FF', borderRadius: 10,
-    paddingHorizontal: 10, paddingVertical: 8, marginBottom: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 2, paddingVertical: 1, marginBottom: 7,
   },
-  partnerDestText: { fontSize: 13, fontWeight: '600', color: '#4A4860' },
+  partnerDestText: { fontSize: 11, fontWeight: '600', color: '#6B6980' },
 
   partnerActions: {
-    flexDirection: 'row', gap: 8,
+    flexDirection: 'row', gap: 6,
     borderTopWidth: 1, borderTopColor: '#F3F0FC',
-    paddingTop: 12, marginTop: 12,
+    paddingTop: 8,
   },
   btnRequest: {
-    flex: 1, height: 44, borderRadius: 14, backgroundColor: '#6366F1',
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    flex: 1, height: 36, borderRadius: 11, backgroundColor: '#6366F1',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
   },
-  btnRequestText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  btnRequestText: { color: '#FFFFFF', fontSize: 12.5, fontWeight: '800' },
   btnChat: {
-    width: 44, height: 44, borderRadius: 14,
+    width: 36, height: 36, borderRadius: 11,
     backgroundColor: '#F3F0FC', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: '#E0D8F8',
   },
@@ -2139,7 +2352,18 @@ const S = StyleSheet.create({
   badgeEliteText: { color: '#7C3AED' },
   badgeTrustedText: { color: '#0D9488' },
 
-  // ── Modal styles ──
+  // ── Full-screen search styles (Uber/Google Maps pattern) ──
+  // searchScreen: পুরো screen; header উপরে fixed, body নিচে scroll।
+  searchScreen: { flex: 1, backgroundColor: '#FFFFFF', paddingTop: 44 },
+  searchTopBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 16, paddingBottom: 12,
+    borderBottomWidth: 1, borderBottomColor: '#F0ECF8',
+  },
+  searchBackBtn: { padding: 4 },
+  searchBody: { flex: 1, paddingHorizontal: 20, paddingTop: 14 },
+
+  // ── Modal styles (bottom-sheet — অন্য modal-এ ব্যবহৃত) ──
   modalOverlay: { flex: 1, backgroundColor: 'rgba(26,26,46,0.4)', justifyContent: 'flex-end' },
   modalBackdrop: { flex: 1 },
   modalSheet: {
@@ -2255,4 +2479,11 @@ const S = StyleSheet.create({
     gap: 8, borderWidth: 1, borderColor: '#EDE8F5',
   },
   modalSecondaryBtnText: { color: '#1A1A2E', fontSize: 15, fontWeight: '700' },
+  // request পাঠানোর পর "waiting for accept" card
+  waitCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: 'rgba(245,158,11,0.1)', borderRadius: 14, padding: 14, marginBottom: 12,
+    borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)',
+  },
+  waitCardText: { flex: 1, fontSize: 13, color: '#92700E', fontWeight: '600', lineHeight: 18 },
 });

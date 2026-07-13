@@ -37,6 +37,13 @@ interface RideState {
   requestStates: Record<string, RideRequestState>;
   requestingPartner: NearbyRider | null;
   nearbyRiders: NearbyRider[];
+  // জোন (meet) radius — কতদূরের একই-গন্তব্য rider "match"। Map ও Home
+  // একই value শেয়ার করে, তাই এক জায়গায় বদলালে দুই জায়গায় বদলায়।
+  zoneRadius: number;
+  // "Go Live" — true হলে গন্তব্য সেট থাকা অবস্থায় যেকোনো screen-এ নিজের
+  // presence broadcast হয় (active_riders-এ লেখা) → অন্যরা খুঁজে পায়। false
+  // করলে কেউ দেখবে না (offline)। আসল broadcast useLivePresence hook চালায়।
+  presenceEnabled: boolean;
 }
 
 interface RideStore extends RideState {
@@ -53,6 +60,8 @@ interface RideStore extends RideState {
   clearRequestState: (partnerId: string) => void;
   setRequestingPartner: (partner: NearbyRider | null) => void;
   setNearbyRiders: (riders: NearbyRider[]) => void;
+  setZoneRadius: (radius: number) => void;
+  setPresenceEnabled: (enabled: boolean) => void;
   clearRide: () => void;
   readonly selectedDestination: string | null;
   readonly selectedPickup: string | null;
@@ -71,6 +80,8 @@ export const useRideStore = create<RideStore>((set, get) => ({
   requestStates: {},
   requestingPartner: null,
   nearbyRiders: [],
+  zoneRadius: 350,   // default — widest zone স্তর
+  presenceEnabled: true,   // default discoverable — গন্তব্য দিলেই live
 
   get selectedDestination() { return get().destination; },
   get selectedPickup() { return get().pickupPoint; },
@@ -94,6 +105,8 @@ export const useRideStore = create<RideStore>((set, get) => ({
     }),
   setRequestingPartner: (partner) => set({ requestingPartner: partner }),
   setNearbyRiders: (riders) => set({ nearbyRiders: riders }),
+  setZoneRadius: (zoneRadius) => set({ zoneRadius }),
+  setPresenceEnabled: (presenceEnabled) => set({ presenceEnabled }),
   clearRide: () => set({
     currentRide: null, status: 'idle', partner: null,
     destination: null, customDestination: null, pickupPoint: null,

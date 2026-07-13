@@ -1,6 +1,15 @@
 import ENV from '@/config/env';
 
 import { buildQueryString, fetchJson, GOOGLE_API_ENDPOINTS } from './base';
+import osmService from '@/services/osm/osmService';
+import { logger } from '@/utils/logger';
+
+// 🔧 SWITCH: Google চালু/বন্ধ (placesService-এর সাথে একই অর্থ)।
+// false → সবসময় ফ্রি OSRM; true → আগে Google, fail করলে OSRM।
+const USE_GOOGLE = false;
+
+const hasGoogleKey = () =>
+  USE_GOOGLE && !!ENV.googleDirectionsApiKey && ENV.googleDirectionsApiKey !== 'placeholder';
 
 type LatLng = {
   latitude: number;
@@ -101,25 +110,37 @@ class DirectionsService {
     destination: LatLng;
     mode?: DirectionsRequest['mode'];
   }) {
-    const data = await this.getDirections({
-      origin: `${params.origin.latitude},${params.origin.longitude}`,
-      destination: `${params.destination.latitude},${params.destination.longitude}`,
-      mode: params.mode ?? 'walking',
-    });
+    // Google key থাকলে আগে Google — fail করলে (billing সহ) OSRM (ফ্রি)।
+    if (hasGoogleKey()) {
+      try {
+        const data = await this.getDirections({
+          origin: `${params.origin.latitude},${params.origin.longitude}`,
+          destination: `${params.destination.latitude},${params.destination.longitude}`,
+          mode: params.mode ?? 'walking',
+        });
 
-    const route = data.routes?.[0];
-    const leg = route?.legs?.[0];
+        const route = data.routes?.[0];
+        const leg = route?.legs?.[0];
+        // Google সাড়া দিল কিন্তু route নেই → OSRM চেষ্টা করি।
+        if (route?.overview_polyline?.points) {
+          return {
+            summary: route?.summary ?? '',
+            polyline: route.overview_polyline.points,
+            distanceText: leg?.distance?.text ?? '',
+            distanceMeters: leg?.distance?.value ?? 0,
+            durationText: leg?.duration?.text ?? '',
+            durationSeconds: leg?.duration?.value ?? 0,
+            startAddress: leg?.start_address ?? '',
+            endAddress: leg?.end_address ?? '',
+          };
+        }
+      } catch (e: any) {
+        logger.warn('directions.getRoute.google→osm', e?.message ?? String(e));
+      }
+    }
 
-    return {
-      summary: route?.summary ?? '',
-      polyline: route?.overview_polyline?.points ?? '',
-      distanceText: leg?.distance?.text ?? '',
-      distanceMeters: leg?.distance?.value ?? 0,
-      durationText: leg?.duration?.text ?? '',
-      durationSeconds: leg?.duration?.value ?? 0,
-      startAddress: leg?.start_address ?? '',
-      endAddress: leg?.end_address ?? '',
-    };
+    // ---- ফ্রি fallback: OSRM ----
+    return osmService.getRoute({ origin: params.origin, destination: params.destination });
   }
 }
 

@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
 import type { RootNavProp } from '@/navigation/types';
-import authService from '@/services/firebase/authService';
+import authService from '@/services/authService';
 import { auth } from '@/config/firebase.config';
 import { isValidName } from '@/utils/validators';
 import { getFCMToken, saveFCMToken } from '@/services/firebase/messaging';
@@ -25,8 +25,10 @@ import { C } from '@/components/auth/authColors';
 import { IconUser, IconPhone, IconBack } from '@/components/auth/AuthIcons';
 import { getErrorMessage } from '@/utils/errorHandler';
 import FormField from '@/components/auth/FormField';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 export default function ProfileSetupScreen() {
+  useSystemBars(C.bg, 'dark');
   const navigation = useNavigation<RootNavProp>();
   const { setUser } = useAuthStore();
 

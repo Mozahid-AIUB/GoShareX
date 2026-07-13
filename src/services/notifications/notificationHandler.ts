@@ -7,7 +7,25 @@
 import * as Notifications from 'expo-notifications';
 import { logError, logWarning } from '@/services/analytics/crashService';
 import { scheduleLocalNotification } from '@/services/notifications/notificationService';
+import { useNotificationPrefsStore } from '@/store/notificationPrefsStore';
 import { logger } from '@/utils/logger';
+
+/**
+ * receiver-এর Settings toggle অনুযায়ী এই notification দেখানো হবে কি না।
+ * ride-সম্পর্কিত → notifRides, chat → notifChat। toggle off হলে suppress।
+ * (এটা receiver-এর device-এ চলে, তাই তার নিজের পছন্দই প্রযোজ্য।)
+ */
+function isNotificationAllowed(type: string): boolean {
+  const prefs = useNotificationPrefsStore.getState();
+  if (type === 'chat_message' || type === 'new_message') return prefs.notifChat;
+  if (
+    type === 'ride_request' || type === 'ride_confirmed' || type === 'ride_started' ||
+    type === 'ride_complete' || type === 'ride_cancelled' || type === 'partner_no_response'
+  ) {
+    return prefs.notifRides;
+  }
+  return true; // অন্য ধরনের (account warning ইত্যাদি) সবসময় দেখাই।
+}
 
 function isExpoGo(): boolean {
   try {
@@ -39,6 +57,12 @@ export function handleForegroundNotification(notification: any): void {
     const title: string = notification?.request?.content?.title ?? 'GoShareX';
     const body: string = notification?.request?.content?.body ?? '';
     const data: Record<string, any> = notification?.request?.content?.data ?? {};
+
+    // receiver যদি এই ধরনের notification বন্ধ রাখে (Settings toggle) → দেখাই না।
+    if (!isNotificationAllowed(String(data?.type ?? ''))) {
+      logger.info('notifications', `Suppressed by user toggle: ${data?.type}`);
+      return;
+    }
 
     scheduleLocalNotification(title, body, data).catch((err) =>
       logError(err as Error, { fn: 'handleForegroundNotification' }),

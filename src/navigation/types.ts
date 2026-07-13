@@ -15,6 +15,7 @@ export type AuthStackParamList = {
   Register: undefined;
   ProfileSetup: { uid?: string; email?: string };
   ForgotPassword: { email?: string };
+  ResetPassword: { email: string };
 };
 
 export type MainTabParamList = {
@@ -45,6 +46,7 @@ export type RootStackParamList = {
   EditProfile: undefined;
   Settings: undefined;
   RideHistory: undefined;
+  AdminDashboard: undefined;
   PostBoard: { highlightPostId?: string };
   CreatePost: undefined;
   LiveMap: { destination?: string; pickup?: string } | undefined;

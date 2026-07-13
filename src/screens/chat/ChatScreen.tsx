@@ -1,4 +1,5 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Clipboard,
@@ -6,7 +7,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  StatusBar,
+  ScrollView,
   StyleSheet,
   TextInput,
   TouchableOpacity,
@@ -19,12 +20,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuthStore } from '@/store/authStore';
 import { useRideStore } from '@/store/rideStore';
-import chatService, { Chat, Message } from '@/services/firebase/chatService';
+import chatService, { Chat, Message } from '@/services/chatService';
 import { getFare } from '@/constants/fareTable';
 import { sendRideRequest } from '@/services/notifications/fcmService';
 import { storage, STORAGE_KEYS } from '@/utils/storage';
 import { logger } from '@/utils/logger';
-import { listenToPresence } from '@/services/firebase/presenceService';
+import { listenToPresence } from '@/services/presenceService';
+import { rideRequestService } from '@/services/supabase/rideRequestService';
 import { usePrivacyStore } from '@/store/privacyStore';
 
 import {
@@ -38,6 +40,7 @@ import {
 import { LiveDot, MiniAvatar } from './components/ChatBadges';
 import { QUICK_REPLIES, formatCountdown } from './utils/chatHelpers';
 import { useScreenTracking } from '@/hooks/useScreenTracking';
+import { useSystemBars } from '@/hooks/useSystemBars';
 import { getRoutePreviewUrl } from '@/services/google/staticMapService';
 import { getDestinationByName, getDestinationById } from '@/constants/destinations';
 import { getPickupPointById } from '@/constants/pickupPoints';
@@ -66,8 +69,21 @@ const CHAT_DURATION_MS = {
   anonymous_group: 10 * 60 * 1000,
 } as const;
 
+// date separator label (WhatsApp-এর মতো Today / Yesterday / তারিখ)
+const dayKey = (ts: number) => new Date(ts).toDateString();
+const dateSeparatorLabel = (ts: number): string => {
+  const today = new Date();
+  const d = new Date(ts);
+  const todayKey = today.toDateString();
+  const yest = new Date(today); yest.setDate(today.getDate() - 1);
+  if (d.toDateString() === todayKey) return 'Today';
+  if (d.toDateString() === yest.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
 export default function ChatScreen() {
   useScreenTracking('Chat');
+  useSystemBars(C.bg, 'light');
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
@@ -96,6 +112,50 @@ export default function ChatScreen() {
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingActiveRef = useRef(false);
   const accessLossAlertShownRef = useRef(false);
+
+  // ─── Optimistic send (WhatsApp-এর মতো instant অনুভূতি) ───
+  // send চাপার সাথে সাথেই message bubble দেখাই (pending, হালকা); server থেকে
+  // realtime-এ আসল message এলে echo টা সরে যায়। network ধীর হলেও chat
+  // কখনো "আটকে আছে" মনে হয় না — এটাই smooth experience-এর মূল।
+  const [pendingEchoes, setPendingEchoes] = useState<Array<Message & { pending?: boolean }>>([]);
+
+  // server message এসে গেলে matching echo সরাই। প্রতিটা server message
+  // সর্বোচ্চ একটা echo মেলায় (consume করা set) — নাহলে একই text দুবার পাঠালে
+  // একটা server message দুটো echo-ই সরিয়ে দিত (অকালে অদৃশ্য → flicker)।
+  useEffect(() => {
+    if (pendingEchoes.length === 0) return;
+    setPendingEchoes((prev) => {
+      const consumed = new Set<string>();
+      return prev.filter((e) => {
+        const match = messages.find(
+          (m) =>
+            !consumed.has(m.id) &&
+            m.senderId === e.senderId &&
+            m.text === e.text &&
+            (m.timestamp ?? 0) >= e.timestamp - 60_000,
+        );
+        if (match) { consumed.add(match.id); return false; }  // server-এ এসেছে → echo বাদ
+        return true;  // এখনো server-এ আসেনি → echo রাখি
+      });
+    });
+  }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // safety: কোনো echo যদি 30s-এও server-এ না মেলে (network glitch — sendMessage
+  // সফল কিন্তু realtime miss), তবু সরিয়ে দিই যাতে চিরকাল "pending" আটকে না থাকে।
+  useEffect(() => {
+    if (pendingEchoes.length === 0) return;
+    const t = setTimeout(() => {
+      const cutoff = Date.now() - 30_000;
+      setPendingEchoes((prev) => prev.filter((e) => e.timestamp > cutoff));
+    }, 31_000);
+    return () => clearTimeout(t);
+  }, [pendingEchoes]);
+
+  // তালিকা = server message + এখনো-pending echo
+  const displayMessages = useMemo(
+    () => [...messages, ...pendingEchoes],
+    [messages, pendingEchoes],
+  );
 
   const fare = getFare(pickupPoint ?? 'main_gate', destination ?? 'kuril');
   const splitFare = Math.ceil(fare / 2);
@@ -141,12 +201,19 @@ export default function ChatScreen() {
     if (route.params?.chatId) { setChatId(route.params.chatId); return; }
     if (!rider || !riderUid) return;
     const init = async () => {
-      const id = await chatService.getOrCreateChat(
-        user.uid, user.name ?? 'You',
-        riderUid, rider.name,
-        destination ?? rider.destination, fare
-      );
-      setChatId(id);
+      try {
+        const id = await chatService.getOrCreateChat(
+          user.uid, user.name ?? 'You',
+          riderUid, rider.name,
+          destination ?? rider.destination, fare
+        );
+        setChatId(id);
+      } catch (e) {
+        // chat তৈরি fail হলে chatId null থাকত → send silent fail হতো;
+        // ব্যবহারকারীকে ভদ্রভাবে জানাই। (আসল 42501 root cause 0018 RPC-তে fixed।)
+        logger.warn('ChatScreen.getOrCreateChat', e);
+        Alert.alert('Chat unavailable', 'Could not open this chat. Please check your connection and try again.');
+      }
     };
     void init();
   }, [destination, fare, rider, riderUid, route.params?.chatId, user]);
@@ -191,11 +258,20 @@ export default function ChatScreen() {
       setChatMeta(chat);
       if (chat.lastMessageTime) {
         void persistReadTime(chatId, chat.lastMessageTime);
-        setPartnerOnline(Date.now() - chat.lastMessageTime < 2 * 60 * 1000);
+        // NOTE: partnerOnline এখানে সেট করি না — আসল presence (Supabase Realtime
+        // Presence channel, listenToPresence effect) authoritative। lastMessageTime
+        // দিয়ে online ধরা ভুল signal ছিল (message না পাঠালে offline দেখাত যদিও
+        // online) আর presence-এর সাথে দুই জায়গায় লড়ত।
       }
       if (!chat.anonymous && chat.dealConfirmed && typeof chat.dealConfirmed === 'object') {
         const both = Object.values(chat.dealConfirmed).length > 0 && Object.values(chat.dealConfirmed).every(Boolean);
         setDealConfirmed(both);
+        if (both) {
+          // deal পাকা — দুজনকে in_ride (reserved → locked দৃঢ়, chat ghost
+          // হলেও free হবে না; release হবে শুধু ride complete/cancel-এ)।
+          const parts = chat.participants ?? [];
+          if (parts.length === 2) void rideRequestService.setRidersInRide(parts);
+        }
         if (both && !myDealPressedRef.current) {
           const f = chat.fare ?? fare;
           navigation.navigate('RideConfirmed', {
@@ -310,10 +386,29 @@ export default function ChatScreen() {
     const senderName = isAnonymousRoom
       ? chatMeta?.participantAliases?.[user.uid] ?? 'Anonymous'
       : user.name ?? 'You';
+
+    // optimistic echo — server-এর অপেক্ষা না করে এখনই bubble দেখাই
+    const echoId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    setPendingEchoes((prev) => [
+      ...prev,
+      {
+        id: echoId,
+        senderId: user.uid,
+        senderName,
+        text: content,
+        type: 'text',
+        timestamp: Date.now(),
+        read: false,
+        pending: true,
+      } as Message & { pending?: boolean },
+    ]);
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
+
     try {
       await chatService.sendMessage(chatId, user.uid, senderName, content);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
+      // fail হলে echo সরিয়ে text ফেরত দিই — user আবার চেষ্টা করতে পারে
+      setPendingEchoes((prev) => prev.filter((m) => m.id !== echoId));
       setText(content);
       Alert.alert('Send failed', 'Message could not be sent. Please try again.');
       logger.warn('ChatScreen.sendMsg', e);
@@ -322,6 +417,23 @@ export default function ChatScreen() {
 
   const handleDealConfirm = async () => {
     if (!chatId || !user || isAnonymousRoom || chatAccessLost) return;
+
+    // business rule: একসময়ে একটাই active ride-deal। অন্য কোনো chat-এ deal
+    // confirm করা থাকলে এখানে confirm আটকাই (একজন একসাথে একটাই ride-এ যাবে)।
+    try {
+      const other = await chatService.findOtherActiveConfirmedDeal(user.uid, chatId);
+      if (other) {
+        Alert.alert(
+          'You already have an active ride',
+          `You've confirmed a ride with ${other.partnerName}. Finish or cancel it before confirming another.`,
+        );
+        return;
+      }
+    } catch (e) {
+      logger.warn('ChatScreen.checkActiveDeal', e);
+      // চেক fail করলে confirm আটকাই না (best-effort) — নাহলে ইউজার stuck।
+    }
+
     setMyDealPressed(true);
 
     // Notify the other rider via Expo Push API (fcm_tokens read is now allowed for auth users)
@@ -338,9 +450,9 @@ export default function ChatScreen() {
     const bothConfirmed = await chatService.confirmDeal(chatId, user.uid);
     if (bothConfirmed) {
       navigation.navigate('RideConfirmed', { rider, chatId, fare, splitFare });
-    } else {
-      Alert.alert('Pending', `Waiting for ${rider?.name ?? 'the other rider'} to confirm.`);
     }
+    // not-both-confirmed: কোনো popup না — deal button নিজেই "Waiting for
+    // partner confirmation..." দেখায় (inline status > বিরক্তিকর Alert)।
   };
 
   const handleCopy = useCallback((msgId: string, txt: string) => {
@@ -392,12 +504,30 @@ export default function ChatScreen() {
     Alert.alert('Message options', undefined, options);
   }, [user, chatId, chatMeta, isAnonymousGroup, handleCopy]);
 
-  const renderMessage = useCallback(({ item }: { item: Message }) => {
+  const renderMessage = useCallback(({ item, index }: { item: Message; index?: number }) => {
+    // date separator — আগের message-এর দিন ভিন্ন হলে (বা প্রথম) উপরে দেখাই।
+    const dlist = displayMessages;
+    const dIdx = index ?? dlist.findIndex((x) => x.id === item.id);
+    const dPrev = dIdx > 0 ? dlist[dIdx - 1] : null;
+    const showDateSep =
+      item.timestamp != null &&
+      (!dPrev || dPrev.timestamp == null || dayKey(dPrev.timestamp) !== dayKey(item.timestamp));
+    const DateSep = showDateSep && item.timestamp != null ? (
+      <View style={m.dateSepRow}>
+        <View style={m.dateSepPill}>
+          <Text style={m.dateSepText}>{dateSeparatorLabel(item.timestamp)}</Text>
+        </View>
+      </View>
+    ) : null;
+
     if (item.type === 'system') {
       return (
-        <View style={m.systemRow}>
-          <View style={m.systemPill}>
-            <Text style={m.systemText}>{item.text}</Text>
+        <View>
+          {DateSep}
+          <View style={m.systemRow}>
+            <View style={m.systemPill}>
+              <Text style={m.systemText}>{item.text}</Text>
+            </View>
           </View>
         </View>
       );
@@ -410,13 +540,24 @@ export default function ChatScreen() {
     // Hide blocked users' messages
     if (!isMe && blockedAliases.has(label ?? '')) return null;
 
+    // ── WhatsApp-style grouping ──
+    // পরপর একই sender-এর message এক "stack" — শুধু stack-এর শেষ bubble-এ time
+    // ও tail/avatar দেখাই, মাঝেরগুলো শক্ত করে বসে। পরিচ্ছন্ন, কম জায়গা নেয়।
+    const list = displayMessages;
+    const idx = index ?? list.findIndex((x) => x.id === item.id);
+    const prev = idx > 0 ? list[idx - 1] : null;
+    const next = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
+    const sameAsPrev = prev && prev.type !== 'system' && prev.senderId === item.senderId;
+    const sameAsNext = next && next.type !== 'system' && next.senderId === item.senderId;
+    const isGroupStart = !sameAsPrev;   // stack-এর প্রথম
+    const isGroupEnd = !sameAsNext;     // stack-এর শেষ (এখানে time + tail + avatar)
+
     const timeStr = item.timestamp
       ? new Date(item.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
       : '';
     const copied = copiedMsgId === item.id;
     const isDeleted = item.text === '[deleted]';
 
-    // Read receipt: only for ride chat, only on my own messages, only if partner has read past this ts
     const partnerReadAt = !isAnonymousRoom && chatMeta?.lastRead
       ? Math.max(...Object.entries(chatMeta.lastRead)
         .filter(([uid]) => uid !== user?.uid)
@@ -424,68 +565,76 @@ export default function ChatScreen() {
       : 0;
     const isRead = isMe && !isAnonymousRoom && partnerReadAt > 0 && partnerReadAt >= (item.timestamp ?? 0);
 
-    const maxBubbleWidth = screenWidth < 400 ? 0.85 : 0.75;
+    const maxBubbleWidth = screenWidth < 400 ? 0.82 : 0.72;
 
     return (
-      <View style={[m.row, isMe && m.rowMe]}>
-        {!isMe && <MiniAvatar label={label ?? 'A'} gradient={isAnonymousRoom} />}
+      <View>
+      {DateSep}
+      <View style={[m.row, isMe && m.rowMe, { marginTop: isGroupStart ? 8 : 2 }]}>
+        {/* avatar শুধু partner-এর stack-এর শেষে; নাহলে ফাঁকা spacer (alignment) */}
+        {!isMe && (
+          isGroupEnd
+            ? <MiniAvatar label={label ?? 'A'} gradient={isAnonymousRoom} />
+            : <View style={m.avatarSpacer} />
+        )}
         <TouchableWithoutFeedback onLongPress={() => handleMessageLongPress(item)}>
           <View
             style={[
               m.bubble,
               { maxWidth: `${maxBubbleWidth * 100}%` },
               isMe ? m.bubbleMe : m.bubbleThem,
+              // tail শুধু stack-এর শেষ bubble-এ; নাহলে দুপাশ সমান-গোল (grouped look)
+              isMe
+                ? (isGroupEnd ? m.tailMe : m.noTailMe)
+                : (isGroupEnd ? m.tailThem : m.noTailThem),
               copied && m.bubbleCopied,
             ]}
           >
             {copied && <View style={m.copiedOverlay} />}
-            {!isMe && <Text style={m.senderLabel}>{label}</Text>}
+            {/* sender নাম শুধু partner stack-এর শুরুতে (anonymous group-এ কাজে লাগে) */}
+            {!isMe && isGroupStart && isAnonymousRoom && <Text style={m.senderLabel}>{label}</Text>}
             <Text style={[m.bubbleText, isMe && m.bubbleTextMe, isDeleted && m.bubbleTextDeleted]}>
               {isDeleted ? 'message deleted' : item.text}
             </Text>
-            <View style={m.bubbleFooter}>
-              <Text style={[m.msgTime, isMe && m.msgTimeMe]}>
-                {copied ? '✓' : timeStr}
-              </Text>
-              {isMe && !isAnonymousRoom && !isDeleted && (
-                <Text style={[m.readMark, isRead && m.readMarkSeen]}>
-                  {isRead ? '✓✓' : '✓'}
-                </Text>
-              )}
-            </View>
-            {copied && (
-              <View style={m.copiedLabel}>
-                <Text style={m.copiedLabelText}>Copied!</Text>
+            {/* time + tick শুধু stack-এর শেষ bubble-এ (WhatsApp pattern) */}
+            {isGroupEnd && (
+              <View style={m.bubbleFooter}>
+                <Text style={[m.msgTime, isMe && m.msgTimeMe]}>{copied ? '✓ copied' : timeStr}</Text>
+                {isMe && !isAnonymousRoom && !isDeleted && (
+                  <Text style={[m.readMark, isRead && m.readMarkSeen]}>{isRead ? '✓✓' : '✓'}</Text>
+                )}
               </View>
             )}
           </View>
         </TouchableWithoutFeedback>
       </View>
+      </View>
     );
-  }, [user?.uid, chatMeta, isAnonymousRoom, copiedMsgId, handleMessageLongPress, blockedAliases]);
+  }, [user?.uid, chatMeta, isAnonymousRoom, copiedMsgId, handleMessageLongPress, blockedAliases, displayMessages, screenWidth]);
 
   return (
     <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
-      {/* Header */}
+      {/* Header — WhatsApp-style: back | avatar | name+status (left) | action */}
       <View style={[s.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity style={s.headerBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <IconBack />
         </TouchableOpacity>
+        {/* avatar — ride chat-এ partner-এর initial, anonymous-এ live dot */}
+        {!isAnonymousRoom && <MiniAvatar label={title?.charAt(0) ?? 'R'} />}
         <View style={s.headerCenter}>
           <View style={s.headerTitleRow}>
-            {isAnonymousRoom
-              ? <LiveDot color={roomExpired ? C.red : C.green} />
-              : <View style={[s.onlineDot, { backgroundColor: partnerOnline ? C.green : C.textMuted }]} />
-            }
+            {isAnonymousRoom && <LiveDot color={roomExpired ? C.red : C.green} />}
             <Text style={s.headerTitle} numberOfLines={1}>{title}</Text>
           </View>
           {!isAnonymousRoom && (
-            <Text style={s.headerSub} numberOfLines={1}>
-              {roomExpired
-                ? 'Session ended'
-                : presenceLabel ?? destination ?? rider?.destination ?? 'Ride Chat'}
-            </Text>
+            <View style={s.headerStatusRow}>
+              <View style={[s.onlineDot, { backgroundColor: partnerOnline ? C.green : C.textMuted }]} />
+              <Text style={s.headerSub} numberOfLines={1}>
+                {roomExpired
+                  ? 'Session ended'
+                  : presenceLabel ?? (partnerOnline ? 'Online' : 'Offline')}
+              </Text>
+            </View>
           )}
         </View>
         {isAnonymousRoom ? (
@@ -544,8 +693,39 @@ export default function ChatScreen() {
         </View>
       ) : (
         <View style={s.fareBanner}>
-          <Text style={s.fareBannerLabel}>Fare split</Text>
-          <Text style={s.fareBannerFare}>BDT {fare} / 2 = <Text style={s.fareBannerSplit}>BDT {splitFare} each</Text></Text>
+          {/* বামে fare তথ্য */}
+          <View style={{ flex: 1 }}>
+            <Text style={s.fareBannerLabel}>Fare split</Text>
+            {fare > 0 ? (
+              <Text style={s.fareBannerFare}>BDT {fare} / 2 = <Text style={s.fareBannerSplit}>BDT {splitFare} each</Text></Text>
+            ) : (
+              <Text style={s.fareBannerSplit}>Decide together in chat 🤝</Text>
+            )}
+          </View>
+          {/* ডানে compact deal chip — নিচের বিশাল bar এখান থেকে এল। deal
+              সবসময় দৃশ্যমান কিন্তু message-এর জায়গা দখল করে না। */}
+          {!dealConfirmed ? (
+            <TouchableOpacity
+              style={[s.dealChip, myDealPressed && s.dealChipPending]}
+              onPress={handleDealConfirm}
+              disabled={myDealPressed}
+              activeOpacity={0.85}
+            >
+              {myDealPressed ? (
+                <Text style={s.dealChipText}>Waiting…</Text>
+              ) : (
+                <>
+                  <IconCheck />
+                  <Text style={s.dealChipText}>Confirm</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <View style={s.dealChipDone}>
+              <IconCheck />
+              <Text style={s.dealChipDoneText}>Confirmed</Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -578,14 +758,22 @@ export default function ChatScreen() {
       {/* Messages */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 60 : 60}
+        // Android-এ behavior="height" পুরো view ছোট করে → input "jump" করত।
+        // Android নিজেই adjustResize করে (app.json), তাই behavior undefined +
+        // offset 0 = input keyboard-এর ঠিক উপরে স্থির বসে। iOS-এ padding।
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 44 : 0}
       >
         <FlatList
           ref={listRef}
-          data={messages}
+          data={displayMessages}
           keyExtractor={(m) => m.id}
-          renderItem={renderMessage}
+          renderItem={({ item, index }) => (
+            // pending echo হালকা দেখাই — server confirm হলে পূর্ণ উজ্জ্বল
+            <View style={(item as any).pending ? { opacity: 0.55 } : undefined}>
+              {renderMessage({ item, index })}
+            </View>
+          )}
           contentContainerStyle={{
             flexGrow: 1,
             paddingHorizontal: screenWidth < 400 ? 10 : 16,
@@ -607,27 +795,46 @@ export default function ChatScreen() {
               </View>
             ) : (
               <View style={s.emptyMsgs}>
-                <Text style={s.emptyMsgsText}>No messages yet. Say hello!</Text>
+                {/* matched-context empty state — মরা "No messages yet" এর বদলে
+                    উষ্ণ শুরু: কী হয়েছে + এরপর কী করবে, পরিষ্কার পথ। */}
+                <View style={s.emptyIconWrap}>
+                  <IconHandshake />
+                </View>
+                <Text style={s.emptyTitle}>
+                  {isAnonymousRoom ? 'You are connected!' : `You matched with ${title}`}
+                </Text>
+                <Text style={s.emptyMsgsText}>
+                  {isAnonymousRoom
+                    ? 'Say hello — identities stay hidden.'
+                    : 'Same destination 🎯 Say salam, agree on a meet point, and split the fare.'}
+                </Text>
+                <Text style={s.emptyHint}>Tap a quick reply below to start ↓</Text>
               </View>
             )
           }
         />
 
-        {/* Quick replies */}
-        {!isWaiting && (
-          <View style={[s.quickRow, { paddingHorizontal: screenWidth < 360 ? 8 : 10 }]}>
+        {/* Quick replies — শুধু input খালি থাকলে (WhatsApp-এ permanent না),
+            একটা horizontal scroll row (একাধিক line নিয়ে জায়গা নষ্ট করে না)। */}
+        {!isWaiting && !roomExpired && text.trim().length === 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={s.quickScroll}
+            contentContainerStyle={s.quickRow}
+            keyboardShouldPersistTaps="handled"
+          >
             {QUICK_REPLIES.map((qr) => (
               <TouchableOpacity
                 key={qr.id}
-                style={[s.qrBtn, roomExpired && s.qrBtnDisabled]}
+                style={s.qrBtn}
                 onPress={() => { void sendMsg(qr.text); }}
-                disabled={roomExpired}
-                activeOpacity={0.75}
+                activeOpacity={0.7}
               >
-                <Text style={[s.qrText, { fontSize: screenWidth < 360 ? 10 : 11 }]}>{qr.text}</Text>
+                <Text style={s.qrText}>{qr.text}</Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
         )}
 
         {/* Typing indicator (someone else typing) */}
@@ -729,24 +936,12 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Deal confirm (ride chats only) */}
-        {!isAnonymousRoom && !dealConfirmed && (
-          <TouchableOpacity
-            style={[s.dealBtn, myDealPressed && s.dealBtnPending]}
-            onPress={handleDealConfirm}
-            disabled={myDealPressed}
-            activeOpacity={0.85}
-          >
-            <IconHandshake />
-            <Text style={s.dealBtnText}>
-              {myDealPressed ? 'Waiting for partner confirmation...' : 'Confirm Deal | BDT ' + splitFare + ' each'}
-            </Text>
-          </TouchableOpacity>
-        )}
-        {!isAnonymousRoom && dealConfirmed && (
-          <View style={s.dealConfirmedRow}>
-            <IconCheck />
-            <Text style={s.dealConfirmedText}>Deal confirmed | proceeding to ride</Text>
+        {/* Deal confirm — header fare-bar-এর chip-এ সরানো হয়েছে (compact,
+            message-এর জায়গা মুক্ত)। myDealPressed হলে এখানে একটা subtle inline
+            banner দেখাই যাতে partner-এর অপেক্ষা পরিষ্কার বোঝা যায়। */}
+        {!isAnonymousRoom && myDealPressed && !dealConfirmed && (
+          <View style={s.dealWaitRow}>
+            <Text style={s.dealWaitText}>⏳ Waiting for partner to confirm…</Text>
           </View>
         )}
 
@@ -778,11 +973,12 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(244,63,94,0.25)',
   },
   leaveBtnText: { fontSize: 11, fontWeight: '800', color: '#F43F5E', letterSpacing: 0.2 },
-  headerCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
+  headerCenter: { flex: 1, alignItems: 'flex-start', justifyContent: 'center', paddingHorizontal: 10 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  headerTitle: { fontSize: 14, fontWeight: '800', color: C.text },
-  headerSub: { fontSize: 9, color: C.textSub, marginTop: 0 },
-  onlineDot: { width: 8, height: 8, borderRadius: 4 },
+  headerTitle: { fontSize: 15.5, fontWeight: '800', color: C.text, letterSpacing: -0.2 },
+  headerStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 1 },
+  headerSub: { fontSize: 11, color: C.textSub },
+  onlineDot: { width: 7, height: 7, borderRadius: 3.5 },
 
   anonBanner: {
     backgroundColor: 'rgba(245,158,11,0.08)',
@@ -832,6 +1028,23 @@ const s = StyleSheet.create({
   fareBannerLabel: { fontSize: 12, color: C.textSub, fontWeight: '600' },
   fareBannerFare: { fontSize: 13, color: C.text, fontWeight: '600' },
   fareBannerSplit: { color: C.teal, fontWeight: '800' },
+  // header-এর compact deal chip (নিচের বিশাল bar থেকে এল)
+  dealChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: C.teal, borderRadius: 11,
+    paddingHorizontal: 14, paddingVertical: 8, marginLeft: 10,
+  },
+  dealChipPending: { backgroundColor: C.amber, paddingHorizontal: 12 },
+  dealChipText: { color: C.white, fontSize: 13, fontWeight: '800', letterSpacing: 0.2 },
+  dealChipDone: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(16,185,129,0.15)', borderRadius: 11,
+    paddingHorizontal: 12, paddingVertical: 7, marginLeft: 10,
+    borderWidth: 1, borderColor: 'rgba(16,185,129,0.3)',
+  },
+  dealChipDoneText: { color: C.green, fontSize: 12, fontWeight: '800' },
+  dealWaitRow: { alignItems: 'center', paddingVertical: 6 },
+  dealWaitText: { fontSize: 12, color: C.amber, fontWeight: '700' },
 
   mapPreviewWrap: {
     position: 'relative',
@@ -859,8 +1072,15 @@ const s = StyleSheet.create({
     letterSpacing: 0.2,
   },
 
-  emptyMsgs: { alignItems: 'center', marginTop: 60 },
+  emptyMsgs: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 8, minHeight: 320 },
   emptyMsgsText: { fontSize: 13, color: C.textSub, textAlign: 'center', lineHeight: 20 },
+  emptyIconWrap: {
+    width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(99,102,241,0.12)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)',
+    marginBottom: 4,
+  },
+  emptyTitle: { fontSize: 16, fontWeight: '800', color: C.text, textAlign: 'center', letterSpacing: -0.2 },
+  emptyHint: { fontSize: 11, fontWeight: '700', color: C.primary, marginTop: 6, letterSpacing: 0.2 },
   waitingStage: {
     flex: 1,
     alignItems: 'center',
@@ -900,35 +1120,34 @@ const s = StyleSheet.create({
     maxWidth: 260,
   },
 
+  // single-line horizontal scroll (flexWrap সরানো → একাধিক line নেয় না)
+  quickScroll: { maxHeight: 44, backgroundColor: C.bg },
   quickRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 5,
+    gap: 7,
     paddingHorizontal: 10,
-    paddingTop: 6,
-    paddingBottom: 4,
-    backgroundColor: C.bg,
-    borderTopWidth: 1,
-    borderTopColor: C.border,
+    paddingVertical: 7,
+    alignItems: 'center',
   },
   qrBtn: {
-    backgroundColor: C.surface,
-    borderRadius: 14,
-    paddingHorizontal: 11,
-    paddingVertical: 5,
+    backgroundColor: 'rgba(99,102,241,0.1)',
+    borderRadius: 16,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.24)',
+    borderColor: 'rgba(99,102,241,0.22)',
   },
-  qrBtnDisabled: { opacity: 0.35 },
-  qrText: { fontSize: 11, color: '#C7D2FE', fontWeight: '700' },
+  qrText: { fontSize: 12, color: '#C7D2FE', fontWeight: '600' },
 
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: 10,
     paddingTop: 8,
-    gap: 7,
+    gap: 8,
     backgroundColor: C.bg,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
   },
   typingRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -942,15 +1161,15 @@ const s = StyleSheet.create({
   typingText: { fontSize: 11, color: C.textMuted, fontStyle: 'italic' },
   input: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    fontSize: 14,
+    backgroundColor: C.surfaceStrong,
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    fontSize: 15,
     color: C.text,
-    maxHeight: 100,
-    borderWidth: 1.5,
-    borderColor: 'rgba(99,102,241,0.3)',
+    maxHeight: 110,
+    borderWidth: 1,
+    borderColor: C.border,
   },
   inputDisabled: {
     opacity: 0.6,
@@ -963,49 +1182,29 @@ const s = StyleSheet.create({
     borderColor: 'rgba(244,63,94,0.2)',
   },
   inputFocused: {
-    borderColor: 'rgba(99,102,241,0.7)',
-    backgroundColor: 'rgba(99,102,241,0.08)',
-    borderWidth: 2,
+    borderColor: 'rgba(99,102,241,0.55)',
+    backgroundColor: 'rgba(99,102,241,0.06)',
   },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(99,102,241,0.4)',
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: C.surfaceStrong,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(99,102,241,0.3)',
   },
   sendBtnActive: {
     backgroundColor: C.primary,
-    borderColor: C.primary,
     shadowColor: C.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    elevation: 6,
   },
   sendBtnDisabled: {
-    opacity: 0.35,
+    backgroundColor: C.surfaceStrong,
     shadowOpacity: 0,
   },
-
-  dealBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    margin: 12, padding: 15, borderRadius: 18,
-    backgroundColor: C.teal,
-  },
-  dealBtnPending: { backgroundColor: C.amber },
-  dealBtnText: { color: C.white, fontSize: 15, fontWeight: '800' },
-  dealConfirmedRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    marginHorizontal: 12, marginBottom: 10,
-    backgroundColor: 'rgba(16,185,129,0.1)',
-    borderRadius: 14, padding: 10,
-    borderWidth: 1, borderColor: 'rgba(16,185,129,0.25)',
-  },
-  dealConfirmedText: { fontSize: 13, color: C.green, fontWeight: '700' },
 
   expiredBanner: {
     margin: 12,
@@ -1052,21 +1251,39 @@ const m = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 6, maxWidth: '80%',
   },
   systemText: { fontSize: 11, color: C.textSub, fontWeight: '600', textAlign: 'center' },
+  dateSepRow: { alignItems: 'center', marginVertical: 10 },
+  dateSepPill: {
+    backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 4,
+  },
+  dateSepText: { fontSize: 11, color: C.textSub, fontWeight: '700', letterSpacing: 0.3 },
   bubble: {
-    padding: 10,
-    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
     position: 'relative',
+    // subtle depth — WhatsApp-এর মতো bubble একটু ভাসা ভাসা লাগে
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.18,
+    shadowRadius: 2,
+    elevation: 1,
   },
   bubbleThem: {
-    backgroundColor: C.surface,
-    borderBottomLeftRadius: 3,
+    backgroundColor: C.surfaceStrong,
     borderWidth: 1,
     borderColor: C.border,
   },
   bubbleMe: {
     backgroundColor: C.primary,
-    borderBottomRightRadius: 3,
   },
+  // tail = stack-এর শেষ bubble-এর কোণা চাপা (WhatsApp pluck); grouped মাঝের
+  // bubble দুপাশ সমান-গোল যাতে একটা stack মনে হয়।
+  tailMe: { borderBottomRightRadius: 5 },
+  noTailMe: { borderBottomRightRadius: 18, borderTopRightRadius: 7 },
+  tailThem: { borderBottomLeftRadius: 5 },
+  noTailThem: { borderBottomLeftRadius: 18, borderTopLeftRadius: 7 },
+  avatarSpacer: { width: 30 },
   bubbleCopied: {
     opacity: 0.85,
   },
@@ -1107,9 +1324,9 @@ const m = StyleSheet.create({
     marginBottom: 2,
   },
   bubbleText: {
-    fontSize: 13,
+    fontSize: 14.5,
     color: C.text,
-    lineHeight: 19,
+    lineHeight: 20,
   },
   bubbleTextMe: { color: C.white },
   msgTime: {

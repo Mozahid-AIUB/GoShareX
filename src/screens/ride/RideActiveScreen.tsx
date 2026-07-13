@@ -6,8 +6,8 @@ import Svg, { Circle, Defs, Path, Stop, LinearGradient as SvgLinearGradient } fr
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '@/config/firebase.config';
 import { useRideStore } from '@/store/rideStore';
-import rideService from '@/services/firebase/rideService';
-import { startGeofencingForDestination, stopGeofencing, registerGeofenceTask } from '@/services/location/geofenceService';
+import rideService from '@/services/rideService';
+import { startGeofencingForDestination, startGeofencingAtCoords, stopGeofencing, registerGeofenceTask } from '@/services/location/geofenceService';
 import { startMovementDetection } from '@/services/location/movementDetector';
 import type { RideRoutePreview } from '@/types/ride.types';
 import { logger } from '@/utils/logger';
@@ -16,6 +16,7 @@ import { shareRide } from '@/services/ride/shareRideService';
 import { getDestinationByName, getDestinationById } from '@/constants/destinations';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useLocationStore } from '@/store/locationStore';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 // ─── Tokens ──────────────────────────────────────────────────────────────────
 const C = {
@@ -152,6 +153,7 @@ const InfoRow = ({
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function RideActiveScreen() {
+  useSystemBars(C.bg, 'light');
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { setStatus } = useRideStore();
@@ -226,14 +228,20 @@ export default function RideActiveScreen() {
     return () => unsub();
   }, [rideId]);
 
-  // Register geofence task and start geofencing
+  // Register geofence task and start geofencing — Uber/Pathao-style auto-complete.
+  // গন্তব্যে পৌঁছালে geofence Enter fire করে → ride নিজে complete হয়।
   useEffect(() => {
     const destination = rider?.destination;
+    // custom গন্তব্যেও কাজ করাতে coordinate-প্রথম: rider payload-এ destLat/
+    // destLng থাকলে সরাসরি সেই point-এ geofence; নাহলে preset নাম দিয়ে resolve
+    // (পুরোনো fallback)। তাই preset + custom — দুটোতেই auto-complete কাজ করে।
+    const destLat = rider?.destLat ?? rider?.destinationLat;
+    const destLng = rider?.destLng ?? rider?.destinationLng;
 
     const setupGeofence = async () => {
-      if (!destination) return;
+      if (!destination && destLat == null) return;
 
-      // Use the ref so the callback always reaches the real handleCompleteRide
+      // Use the ref so the callback always reaches the latest handleCompleteRide
       // regardless of when the geofence task fires relative to the render cycle
       registerGeofenceTask((_destinationId) => {
         Alert.alert(
@@ -245,8 +253,15 @@ export default function RideActiveScreen() {
       });
 
       try {
-        await startGeofencingForDestination(destination);
-        logger.debug('RideActiveScreen', 'Geofencing started for', destination);
+        if (typeof destLat === 'number' && typeof destLng === 'number') {
+          // যেকোনো গন্তব্য (custom বা preset) — coordinate দিয়ে।
+          await startGeofencingAtCoords('ride_destination', destLat, destLng, 120);
+          logger.debug('RideActiveScreen', 'Geofencing started at coords', destLat, destLng);
+        } else if (destination) {
+          // fallback — preset DESTINATIONS তালিকার নাম দিয়ে।
+          await startGeofencingForDestination(destination);
+          logger.debug('RideActiveScreen', 'Geofencing started for', destination);
+        }
       } catch (error) {
         logger.warn('RideActiveScreen.geofenceSetup', error);
       }
@@ -259,7 +274,7 @@ export default function RideActiveScreen() {
         logger.warn('RideActiveScreen.geofenceStop', error);
       });
     };
-  }, [rider?.destination]);
+  }, [rider?.destination, rider?.destLat, rider?.destLng, rider?.destinationLat, rider?.destinationLng]);
 
   // Movement detection — auto-confirm ride has physically started (5+ km/h)
   useEffect(() => {

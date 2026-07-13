@@ -1,6 +1,20 @@
 import ENV from '@/config/env';
 
 import { buildQueryString, fetchJson, GOOGLE_API_ENDPOINTS } from './base';
+import osmService from '@/services/osm/osmService';
+import { logger } from '@/utils/logger';
+
+// ============================================================
+//  🔧 SWITCH: Google চালু/বন্ধ
+//  USE_GOOGLE = false  → সবসময় ফ্রি OSM (Photon/OSRM)। Google ছোঁবে না।
+//  USE_GOOGLE = true   → আগে Google চেষ্টা, fail করলে OSM fallback।
+//  (billing ঠিক হলে শুধু এটা true করলেই Google ফিরে আসবে।)
+// ============================================================
+const USE_GOOGLE = false;
+
+// Google key আছে ও placeholder নয়? — switch অন থাকলে তবেই Google চেষ্টা করি।
+const hasGoogleKey = () =>
+  USE_GOOGLE && !!ENV.googlePlacesApiKey && ENV.googlePlacesApiKey !== 'placeholder';
 
 export interface PlaceSuggestion {
   placeId: string;
@@ -89,36 +103,48 @@ class PlacesService {
     sessionToken?: string;
     language?: string;
   }): Promise<PlaceSuggestion[]> {
-    if (!ENV.googlePlacesApiKey || ENV.googlePlacesApiKey === 'placeholder') {
-      throw new Error('Google Places API key is missing at runtime');
+    // Google key থাকলে আগে Google — fail করলে (billing/REQUEST_DENIED সহ) OSM।
+    if (hasGoogleKey()) {
+      try {
+        const query = buildQueryString({
+          input: params.input.trim(),
+          key: ENV.googlePlacesApiKey,
+          language: params.language ?? 'en',
+          sessiontoken: params.sessionToken,
+          location:
+            params.latitude !== undefined && params.longitude !== undefined
+              ? `${params.latitude},${params.longitude}`
+              : undefined,
+          radius: params.radiusMeters ?? 10000,
+        });
+
+        const data = await fetchJson<PlacesAutocompleteResponse>(
+          `${GOOGLE_API_ENDPOINTS.placesAutocomplete}?${query}`
+        );
+
+        if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+          throw new Error(data.error_message || `Places autocomplete failed: ${data.status}`);
+        }
+
+        return (data.predictions ?? []).map((prediction) => ({
+          placeId: prediction.place_id,
+          description: prediction.description,
+          primaryText: prediction.structured_formatting?.main_text ?? prediction.description,
+          secondaryText: prediction.structured_formatting?.secondary_text ?? '',
+        }));
+      } catch (e: any) {
+        // Google fail (সাধারণত billing) → OSM fallback। নিচে গড়িয়ে যায়।
+        logger.warn('places.autocomplete.google→osm', e?.message ?? String(e));
+      }
     }
 
-    const query = buildQueryString({
-      input: params.input.trim(),
-      key: ENV.googlePlacesApiKey,
-      language: params.language ?? 'en',
-      sessiontoken: params.sessionToken,
-      location:
-        params.latitude !== undefined && params.longitude !== undefined
-          ? `${params.latitude},${params.longitude}`
-          : undefined,
-      radius: params.radiusMeters ?? 10000,
+    // ---- ফ্রি fallback: Photon (OSM) ----
+    return osmService.autocomplete({
+      input: params.input,
+      latitude: params.latitude,
+      longitude: params.longitude,
+      limit: 8,
     });
-
-    const data = await fetchJson<PlacesAutocompleteResponse>(
-      `${GOOGLE_API_ENDPOINTS.placesAutocomplete}?${query}`
-    );
-
-    if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-      throw new Error(data.error_message || `Places autocomplete failed: ${data.status}`);
-    }
-
-    return (data.predictions ?? []).map((prediction) => ({
-      placeId: prediction.place_id,
-      description: prediction.description,
-      primaryText: prediction.structured_formatting?.main_text ?? prediction.description,
-      secondaryText: prediction.structured_formatting?.secondary_text ?? '',
-    }));
   }
 
   async findNearbyRickshawStands(params: {
@@ -156,32 +182,42 @@ class PlacesService {
   }
 
   async getPlaceDetails(params: { placeId: string; language?: string }) {
-    if (!ENV.googlePlacesApiKey || ENV.googlePlacesApiKey === 'placeholder') {
-      throw new Error('Google Places API key is missing at runtime');
+    // OSM suggestion (osm: দিয়ে শুরু) → Photon দিয়ে coord (Google লাগে না)।
+    if (params.placeId.startsWith('osm:')) {
+      return osmService.getPlaceDetails(params.placeId);
     }
 
-    const query = buildQueryString({
-      key: ENV.googlePlacesApiKey,
-      place_id: params.placeId,
-      language: params.language ?? 'en',
-      fields: 'place_id,name,formatted_address,geometry',
-    });
+    if (hasGoogleKey()) {
+      try {
+        const query = buildQueryString({
+          key: ENV.googlePlacesApiKey,
+          place_id: params.placeId,
+          language: params.language ?? 'en',
+          fields: 'place_id,name,formatted_address,geometry',
+        });
 
-    const data = await fetchJson<PlaceDetailsResponse>(
-      `${GOOGLE_API_ENDPOINTS.placesDetails}?${query}`
-    );
+        const data = await fetchJson<PlaceDetailsResponse>(
+          `${GOOGLE_API_ENDPOINTS.placesDetails}?${query}`
+        );
 
-    if (data.status !== 'OK' || !data.result?.geometry?.location) {
-      throw new Error(data.error_message || `Place details failed: ${data.status}`);
+        if (data.status !== 'OK' || !data.result?.geometry?.location) {
+          throw new Error(data.error_message || `Place details failed: ${data.status}`);
+        }
+
+        return {
+          placeId: data.result.place_id ?? params.placeId,
+          name: data.result.name ?? 'Selected place',
+          address: data.result.formatted_address ?? '',
+          latitude: data.result.geometry.location.lat,
+          longitude: data.result.geometry.location.lng,
+        };
+      } catch (e: any) {
+        logger.warn('places.getPlaceDetails.google', e?.message ?? String(e));
+        throw e; // Google place_id OSM দিয়ে resolve হবে না → আসল error দেখাই
+      }
     }
 
-    return {
-      placeId: data.result.place_id ?? params.placeId,
-      name: data.result.name ?? 'Selected place',
-      address: data.result.formatted_address ?? '',
-      latitude: data.result.geometry.location.lat,
-      longitude: data.result.geometry.location.lng,
-    };
+    throw new Error('Google Places API key is missing at runtime');
   }
 
   /**

@@ -64,8 +64,16 @@ const parseDuration = (value?: string | number): number => {
   return match ? parseInt(match[1], 10) : 0;
 };
 
+// 🔧 SWITCH: Google Routes চালু/বন্ধ। false → সাথে সাথে fail দেয় (call করে না)
+// → caller-এর catch OSRM fallback-এ যায়। billing ঠিক হলে true করো।
+const USE_GOOGLE = false;
+
 class RoutesService {
   async computeRoute(req: ComputeRouteRequest) {
+    // Google বন্ধ — Google API call না করেই fail; map-এর catch OSRM ডাকবে।
+    if (!USE_GOOGLE) {
+      throw new GoogleApiError('Google Routes disabled (using free OSM)');
+    }
     const fieldMask = [
       'routes.duration',
       'routes.distanceMeters',

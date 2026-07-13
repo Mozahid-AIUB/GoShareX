@@ -85,6 +85,7 @@ export type VisiblePartner = {
   lat: number;
   lng: number;
   isMatch: boolean;
+  vehicleType?: 'rickshaw' | 'cng' | 'bike';
 };
 
 export type AppNotification = {
@@ -128,14 +129,14 @@ export const getTimeContext = (h: number): TimeContext => {
     };
   if (h >= 12 && h < 15)
     return {
-      label: 'Noon',
+      label: 'Lunch Hours',
       icon: React.createElement(IconLunch, { size: 26 }),
       color: COLORS.green,
       sub: 'Good availability for midday trips',
     };
   if (h >= 15 && h < 18)
     return {
-      label: 'Afternoon',
+      label: 'Golden Hours',
       icon: React.createElement(IconAfternoon, { size: 26 }),
       color: COLORS.primary,
       sub: 'Good route overlap for departures',

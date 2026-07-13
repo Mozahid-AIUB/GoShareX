@@ -6,11 +6,13 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { RouteProp } from '@react-navigation/native';
 
 import { AuthStackParamList, RootNavProp } from '@/navigation/types';
-import authService from '@/services/firebase/authService';
+import authService from '@/services/authService';
 import { isValidEmail, isValidGmail } from '@/utils/validators';
 import { C } from '@/components/auth/authColors';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 export default function ForgotPasswordScreen() {
+  useSystemBars(C.bg, 'dark');
   const navigation = useNavigation<RootNavProp>();
   const route = useRoute<RouteProp<AuthStackParamList, 'ForgotPassword'>>();
   const initialEmail = route.params?.email ?? '';
@@ -39,13 +41,14 @@ export default function ForgotPasswordScreen() {
     setLoading(true);
     try {
       await authService.resetPassword(normalizedEmail);
-      Alert.alert(
-        'Reset email sent',
-        `We sent a password reset email to ${normalizedEmail}. Check your inbox and spam folder.`,
-        [{ text: 'Back to Login', onPress: () => navigation.navigate('Auth', { screen: 'Login' }) }]
-      );
+      // code পাঠানো হয়েছে — এখন ResetPassword screen-এ গিয়ে
+      // ইউজার code + নতুন password দেবে (সব অ্যাপের ভেতরে, OTP flow)।
+      navigation.navigate('Auth', {
+        screen: 'ResetPassword',
+        params: { email: normalizedEmail },
+      });
     } catch (e: any) {
-      Alert.alert('Reset failed', e?.message ?? 'Could not send password reset email.');
+      Alert.alert('Reset failed', e?.message ?? 'Could not send reset code.');
     } finally {
       setLoading(false);
     }
@@ -58,7 +61,7 @@ export default function ForgotPasswordScreen() {
           <View style={s.card}>
             <Text style={s.title}>Reset Password</Text>
             <Text style={s.sub}>
-              Enter your Gmail address and we will send a secure password reset email.
+              Enter your Gmail address and we will send a 6-digit reset code to your inbox.
             </Text>
 
             <Text style={s.label}>Gmail Address</Text>
@@ -76,7 +79,7 @@ export default function ForgotPasswordScreen() {
             {!!error && <Text style={s.error}>{error}</Text>}
 
             <Pressable style={[s.btn, loading && s.btnDisabled]} onPress={handleSend} disabled={loading}>
-              <Text style={s.btnText}>{loading ? 'Sending...' : 'Send Reset Email'}</Text>
+              <Text style={s.btnText}>{loading ? 'Sending...' : 'Send Reset Code'}</Text>
             </Pressable>
 
             <Pressable

@@ -13,6 +13,8 @@ interface EnvConfig {
   googleRoutesApiKey: string;
   googleDirectionsApiKey: string;
   googleDistanceMatrixApiKey: string;
+  // ফ্রি routing — GraphHopper (card ছাড়া)। খালি হলে OSRM fallback।
+  graphHopperApiKey: string;
   appEnv: 'development' | 'staging' | 'production';
   appVersion: string;
   apiTimeout: number;
@@ -69,6 +71,7 @@ export const ENV: EnvConfig = {
   googleRoutesApiKey: getEnvVar('GOOGLE_ROUTES_API_KEY', getEnvVar('GOOGLE_MAPS_API_KEY')),
   googleDirectionsApiKey: getEnvVar('GOOGLE_DIRECTIONS_API_KEY', getEnvVar('GOOGLE_MAPS_API_KEY')),
   googleDistanceMatrixApiKey: getEnvVar('GOOGLE_DISTANCE_MATRIX_API_KEY', getEnvVar('GOOGLE_MAPS_API_KEY')),
+  graphHopperApiKey: getEnvVar('GRAPHHOPPER_API_KEY', ''),
   appEnv: getEnvVar('APP_ENV', 'development') as 'development' | 'staging' | 'production',
   appVersion: getEnvVar('APP_VERSION', '1.0.0'),
   apiTimeout: getNumberEnvVar('API_TIMEOUT', 30000),
@@ -99,10 +102,10 @@ const REQUIRED_KEYS: (keyof EnvConfig)[] = [
 export const validateEnvironment = (): void => {
   const missing = REQUIRED_KEYS.filter((k) => !ENV[k]);
   if (missing.length > 0) {
+    // আগে production-এ throw করত → একটা env খালি হলেই app splash-এ crash
+    // করত (খুলত না)। এখন শুধু warn করি — app খোলে, শুধু সংশ্লিষ্ট feature
+    // ডিগ্রেড হতে পারে। (env পৌঁছানোর আসল সমস্যা আলাদাভাবে ঠিক করা হয়।)
     const msg = `[GoShareX] Missing required env vars: ${missing.join(', ')}`;
-    if (!__DEV__) {
-      throw new Error(msg);
-    }
     console.error(msg);
   } else if (__DEV__) {
     console.log(`[GoShareX] Env loaded — ${ENV.appEnv} v${ENV.appVersion}`);

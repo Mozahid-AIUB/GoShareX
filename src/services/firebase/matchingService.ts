@@ -43,7 +43,7 @@ export interface RiderMatch {
   lat: number;
   lng: number;
   isMatch: boolean;
-  vehicleType?: string;
+  vehicleType?: 'rickshaw' | 'cng' | 'bike';
 }
 
 /** Shape of raw RTDB active_rider entries before mapping to RiderMatch */
@@ -53,12 +53,36 @@ export interface ActiveRiderRaw {
   lat: number;
   lng: number;
   destination: string;
+  destLat?: number;   // গন্তব্যের lat (geo-matching-এর জন্য)
+  destLng?: number;   // গন্তব্যের lng
   pickupPoint: string;
   rating?: number;
   badge?: string;
   vehicleType?: string;
   status?: string;
   timestamp?: number;
+}
+
+// দুই গন্তব্য এই দূরত্বের (মিটার) মধ্যে হলে = একই গন্তব্য = match।
+// Kuril vs Kuril Chowrasta (~৫০০m) ধরবে; Kuril vs Banani (~৩km) না।
+// ৫০০m = কড়া সীমা — শুধু সত্যিকারের কাছের গন্তব্যকে "একই জায়গা" ধরে।
+// নোট: এটা meet distance (zone 150/250/350m) থেকে আলাদা — এটা গন্তব্য↔গন্তব্য,
+// zone হলো তুমি↔rider। দুটো আলাদা, যোগ হয় না।
+export const SAME_DESTINATION_RADIUS_M = 500;
+
+/**
+ * একটা lat/lng জোড়া valid কিনা — accurate match-এর জন্য জরুরি guard।
+ * GPS fail হলে প্রায়ই 0,0 (Gulf of Guinea) বা NaN আসে — সেগুলো বাদ দিই,
+ * নাহলে ভুল match হয় (দুজনের 0,0 মিলে গিয়ে "match" দেখাবে)।
+ */
+function isValidLatLng(lat?: number | null, lng?: number | null): boolean {
+  return (
+    typeof lat === 'number' && typeof lng === 'number' &&
+    Number.isFinite(lat) && Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0) &&        // 0,0 = GPS fail
+    lat >= -90 && lat <= 90 &&
+    lng >= -180 && lng <= 180
+  );
 }
 
 /**
@@ -74,14 +98,19 @@ class MatchingService {
     currentLng: number,
     currentDestination: string,
     allRiders: ActiveRiderRaw[],
-    accuracyMeters?: number
+    accuracyMeters?: number,
+    currentDestLat?: number,   // নিজের গন্তব্যের lat (geo-matching)
+    currentDestLng?: number,   // নিজের গন্তব্যের lng
+    overrideVisibleRadius?: number,  // ইউজার zone bar দিয়ে নিজে radius ঠিক করলে
   ): RiderMatch[] {
     const matches: RiderMatch[] = [];
     const tier = getSearchRadius(accuracyMeters);
     const matchRadius = tier.searchRadius;
-    // Always show riders within 1km on map regardless of GPS tier —
-    // so the map never looks empty in dense BD urban areas.
-    const visibleRadius = Math.max(matchRadius, 1000);
+    // ইউজার zone bar দিয়ে radius দিলে সেটাই মানি (নিজের নিয়ন্ত্রণ);
+    // নাহলে ঘন BD শহরে map যেন খালি না দেখায় — কমপক্ষে 1km।
+    const visibleRadius = overrideVisibleRadius != null
+      ? overrideVisibleRadius
+      : Math.max(matchRadius, 1000);
 
     for (const rider of allRiders) {
       const distance = calculateDistance(
@@ -93,9 +122,26 @@ class MatchingService {
 
       if (distance > visibleRadius) continue;
 
-      const isMatch =
-        rider.destination === currentDestination &&
-        distance <= matchRadius;
+      // ─── GEO-MATCH: text না, গন্তব্যের COORDINATE মেলাই ───
+      // দুজনের গন্তব্য ~৭০০ মিটারের মধ্যে = একই গন্তব্য = match।
+      // ("Kuril" vs "Kuril Bishwa Road" — ভিন্ন text, কাছাকাছি জায়গা → match)
+      // এখানে আসা মানেই rider ইতিমধ্যে visibleRadius-এর ভিতরে (লাইন উপরে guard),
+      // তাই isMatch-এ আর distance চেক করার দরকার নেই — শুধু গন্তব্য মেলে কিনা দেখি।
+      let isMatch: boolean;
+      const haveBothDestCoords =
+        isValidLatLng(currentDestLat, currentDestLng) &&
+        isValidLatLng(rider.destLat, rider.destLng);
+
+      if (haveBothDestCoords) {
+        const destGap = calculateDistance(
+          currentDestLat!, currentDestLng!, rider.destLat!, rider.destLng!,
+        );
+        isMatch = destGap <= SAME_DESTINATION_RADIUS_M;
+      } else {
+        // fallback (valid lat/lng নেই) — পুরনো text compare।
+        // GPS fail হলে এখানে আসবে; অন্তত text মিললে match দেখাই।
+        isMatch = rider.destination === currentDestination;
+      }
 
       matches.push({
         userId: rider.id,
@@ -105,7 +151,7 @@ class MatchingService {
         pickupPoint: rider.pickupPoint,
         rating: rider.rating || 5.0,
         badge: rider.badge || 'New Rider',
-        vehicleType: rider.vehicleType ?? 'rickshaw',
+        vehicleType: (rider.vehicleType as RiderMatch['vehicleType']) ?? 'rickshaw',
         lat: rider.lat,
         lng: rider.lng,
         isMatch,

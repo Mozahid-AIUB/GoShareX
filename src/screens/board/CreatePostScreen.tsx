@@ -20,10 +20,11 @@ import PremiumIcon from '@/components/common/PremiumIcon';
 import VehicleIcon from '@/components/common/VehicleIcon';
 import type { RootNavProp } from '@/navigation/types';
 import { useAuthStore } from '@/store/authStore';
-import { createPost } from '@/services/firebase/postService';
+import { createPost } from '@/services/postService';
 import placesService, { PlaceSuggestion } from '@/services/google/placesService';
 import { getErrorMessage } from '@/utils/errorHandler';
 import { trackEvent } from '@/services/analytics/analyticsService';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 const C = {
   bg: '#FAF8FF',
@@ -238,12 +239,25 @@ const RIDE_TYPES = [
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function CreatePostScreen() {
+  useSystemBars(C.bg, 'dark');
   const navigation = useNavigation<RootNavProp>();
   const { user } = useAuthStore();
 
   const [destination, setDestination] = useState('');
   const [meetPoint, setMeetPoint] = useState('');
   const [meetTime, setMeetTime] = useState('');
+  const [meridiem, setMeridiem] = useState<'AM' | 'PM'>('AM');
+
+  // 12-hour (meetTime + meridiem) -> 24-hour "HH:MM" (DB/compat-এর জন্য)
+  const to24Hour = (t12: string, mer: 'AM' | 'PM'): string => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(t12.trim());
+    if (!m) return t12.trim();
+    let hh = Number(m[1]);
+    const mm = m[2];
+    if (mer === 'AM') hh = hh === 12 ? 0 : hh;
+    else hh = hh === 12 ? 12 : hh + 12;
+    return `${String(hh).padStart(2, '0')}:${mm}`;
+  };
   const [rideType, setRideType] = useState<'share' | 'bike_owner'>('share');
   const [maxRiders, setMaxRiders] = useState(2);
   const [note, setNote] = useState('');
@@ -271,8 +285,24 @@ export default function CreatePostScreen() {
     const errs: Record<string, string> = {};
     if (!destination.trim()) errs.destination = 'Select your destination';
     if (!meetPoint.trim()) errs.meetPoint = 'Select your meet point';
-    if (!meetTime.trim()) errs.meetTime = 'Enter meet time (e.g. 12:05)';
-    else if (!/^\d{1,2}:\d{2}$/.test(meetTime.trim())) errs.meetTime = 'Format: HH:MM (e.g. 12:05)';
+
+    const t = meetTime.trim();
+    if (!t) {
+      errs.meetTime = 'Enter meet time (e.g. 12:05)';
+    } else {
+      // 12-hour format চেক
+      const m = /^(\d{1,2}):(\d{2})$/.exec(t);
+      if (!m) {
+        errs.meetTime = 'Format: HH:MM (e.g. 12:05)';
+      } else {
+        // 12-hour: ঘণ্টা 1-12, মিনিট 0-59 (13:00 বা 25:25 আটকাবে)
+        const hh = Number(m[1]);
+        const mm = Number(m[2]);
+        if (hh < 1 || hh > 12 || mm > 59) {
+          errs.meetTime = 'Invalid time. Hours 1–12, minutes 00–59.';
+        }
+      }
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -290,7 +320,8 @@ export default function CreatePostScreen() {
         authorPhotoURL: user.photoURL ?? null,
         destination,
         meetPoint,
-        meetTime: meetTime.trim(),
+        // ইউজার 12-hour দেয় (12:05 PM); DB-তে দেখানোর জন্য AM/PM সহ রাখি
+        meetTime: `${meetTime.trim()} ${meridiem}`,
         rideType,
         note: note.trim() || null,
         maxRiders,
@@ -367,29 +398,45 @@ export default function CreatePostScreen() {
           {/* Meet Time */}
           <View style={s.fieldWrap}>
             <Text style={s.sectionLabel}>Meet Time</Text>
-            <View style={[s.timeInputRow, !!errors.meetTime && s.timeInputRowError, meetTime.length > 0 && !errors.meetTime && s.timeInputRowDone]}>
-              <IconClock color={meetTime && !errors.meetTime ? C.primary : C.textMuted} />
-              <TextInput
-                value={meetTime}
-                onChangeText={t => {
-                  // auto-insert colon after 2 digits
-                  let v = t.replace(NON_NUMERIC_REGEX, '');
-                  if (v.length === 2 && !v.includes(':') && meetTime.length === 1) v = v + ':';
-                  setMeetTime(v);
-                }}
-                placeholder="12:05"
-                placeholderTextColor={C.textMuted}
-                style={s.timeInput}
-                keyboardType="numeric"
-                maxLength={5}
-                returnKeyType="done"
-              />
-              {meetTime.length > 0 && !errors.meetTime && TIME_REGEX.test(meetTime) && (
-                <Text style={s.timeValid}>✓</Text>
-              )}
+            <View style={s.timeRowWrap}>
+              <View style={[s.timeInputRow, { flex: 1 }, !!errors.meetTime && s.timeInputRowError, meetTime.length > 0 && !errors.meetTime && s.timeInputRowDone]}>
+                <IconClock color={meetTime && !errors.meetTime ? C.primary : C.textMuted} />
+                <TextInput
+                  value={meetTime}
+                  onChangeText={t => {
+                    // auto-insert colon after 2 digits
+                    let v = t.replace(NON_NUMERIC_REGEX, '');
+                    if (v.length === 2 && !v.includes(':') && meetTime.length === 1) v = v + ':';
+                    setMeetTime(v);
+                  }}
+                  placeholder="12:05"
+                  placeholderTextColor={C.textMuted}
+                  style={s.timeInput}
+                  keyboardType="numeric"
+                  maxLength={5}
+                  returnKeyType="done"
+                />
+                {meetTime.length > 0 && !errors.meetTime && TIME_REGEX.test(meetTime) && (
+                  <Text style={s.timeValid}>✓</Text>
+                )}
+              </View>
+
+              {/* AM / PM toggle */}
+              <View style={s.ampmWrap}>
+                {(['AM', 'PM'] as const).map((m) => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[s.ampmBtn, meridiem === m && s.ampmBtnActive]}
+                    onPress={() => setMeridiem(m)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[s.ampmText, meridiem === m && s.ampmTextActive]}>{m}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
             {!!errors.meetTime && <Text style={s.errorText}>{errors.meetTime}</Text>}
-            <Text style={s.timeHint}>24-hour format — যেমন: 12:05, 14:30, 08:00</Text>
+            <Text style={s.timeHint}>12-hour format — যেমন: 12:05 PM, 8:00 AM</Text>
           </View>
 
           {/* Max Riders */}
@@ -502,6 +549,20 @@ const s = StyleSheet.create({
   timeInputRowDone: { borderColor: C.green },
   timeInput: { flex: 1, fontSize: 22, fontWeight: '700', color: C.text, letterSpacing: 2 },
   timeValid: { fontSize: 18, color: C.green, fontWeight: '800' },
+  timeRowWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  ampmWrap: {
+    flexDirection: 'row',
+    backgroundColor: C.card,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    overflow: 'hidden',
+    height: 50,
+  },
+  ampmBtn: { width: 48, alignItems: 'center', justifyContent: 'center' },
+  ampmBtnActive: { backgroundColor: C.primary },
+  ampmText: { fontSize: 14, fontWeight: '800', color: C.textMuted },
+  ampmTextActive: { color: '#fff' },
   timeHint: { fontSize: 11, color: C.textMuted, marginTop: 5, marginLeft: 2 },
   errorText: { fontSize: 11, color: C.error, marginTop: 4, marginLeft: 2 },
 

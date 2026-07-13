@@ -5,8 +5,15 @@ import {
   Firestore,
   initializeFirestore,
   CACHE_SIZE_UNLIMITED,
+  setLogLevel as setFirestoreLogLevel,
 } from 'firebase/firestore';
-import { getDatabase, Database } from 'firebase/database';
+
+// অ্যাপ এখন মূলত Supabase-এ; Firebase Firestore-এর internal connectivity
+// error ("Could not reach Cloud Firestore backend" ইত্যাদি) console.error
+// দিয়ে আসে → dev-এ পুরো screen লাল LogBox — user-unfriendly আর অপ্রয়োজনীয়।
+// SDK-র নিজের logging বন্ধ করি; আমাদের নিজস্ব try/catch + logger যথেষ্ট।
+setFirestoreLogLevel('silent');
+import { getDatabase, Database, ref, goOffline } from 'firebase/database';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { getFunctions, Functions } from 'firebase/functions';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,14 +35,16 @@ const {
   FIREBASE_DATABASE_URL,
 } = extraConfig;
 
+// Supabase migration-এ Firebase keys optional — missing হলে warn করি কিন্তু crash করি না।
+// Firebase এখন শুধু Google Sign-In OAuth wrapper হিসেবে ব্যবহার হয়।
 if (!FIREBASE_API_KEY || !FIREBASE_AUTH_DOMAIN || !FIREBASE_PROJECT_ID) {
-  console.error('[firebase.config] Missing required Firebase env vars. Check your .env file.');
+  console.warn('[firebase.config] Firebase env vars missing — Google Sign-In may not work. Supabase auth unaffected.');
 }
 
 const firebaseConfig = {
-  apiKey: FIREBASE_API_KEY ?? '',
-  authDomain: FIREBASE_AUTH_DOMAIN ?? '',
-  projectId: FIREBASE_PROJECT_ID ?? '',
+  apiKey: FIREBASE_API_KEY ?? 'placeholder',
+  authDomain: FIREBASE_AUTH_DOMAIN ?? 'placeholder.firebaseapp.com',
+  projectId: FIREBASE_PROJECT_ID ?? 'placeholder',
   storageBucket: FIREBASE_STORAGE_BUCKET ?? '',
   messagingSenderId: FIREBASE_MESSAGING_SENDER_ID ?? '',
   appId: FIREBASE_APP_ID ?? '',
@@ -78,18 +87,25 @@ const auth: Auth = (() => {
 })();
 
 // Firestore must also be initialized only once on React Native.
+// experimentalForceLongPolling সরানো হয়েছে — app এখন Supabase-কেন্দ্রিক,
+// Firestore rarely ব্যবহার হয়; long polling timeout → splash freeze করত।
 const db: Firestore = (() => {
   try {
     return initializeFirestore(app, {
       cacheSizeBytes: CACHE_SIZE_UNLIMITED,
-      experimentalForceLongPolling: true,
     } as any);
   } catch {
     return getFirestore(app);
   }
 })();
 
+// RTDB initialize করি কিন্তু সাথে সাথে offline করে দিই —
+// app এখন Supabase presence ব্যবহার করে (USE_SUPABASE_CHAT: true)।
+// goOffline() না দিলে RTDB startup-এ connect করার চেষ্টা করে
+// JS thread block করে → "Timeout waiting for drawn" freeze।
 const realtimeDb: Database = getDatabase(app);
+goOffline(realtimeDb);
+
 const storage: FirebaseStorage = getStorage(app);
 const functions: Functions = getFunctions(app);
 

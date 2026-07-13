@@ -51,6 +51,20 @@ class LocationService {
   }
 
   /**
+   * Check if location permission is ALREADY granted — does NOT prompt.
+   * Use this for silent background work so the OS permission dialog only
+   * appears when the user explicitly taps "current location".
+   */
+  async hasPermission(): Promise<boolean> {
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      return status === 'granted';
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Get current location
    */
   async getCurrentLocation(): Promise<LocationData | null> {

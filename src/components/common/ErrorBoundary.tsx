@@ -68,7 +68,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
             the problem persists.
           </AppText>
 
-          {__DEV__ && this.state.error ? (
+          {this.state.error ? (
             <ScrollView style={styles.devContainer}>
               <AppText
                 variant="caption"

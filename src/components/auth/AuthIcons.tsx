@@ -1,27 +1,5 @@
 import React from 'react';
-import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
-
-export const LogoMark = ({ size = 48 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 48 48" fill="none">
-    <Defs>
-      <LinearGradient id="lmg" x1="0" y1="0" x2="1" y2="1">
-        <Stop offset="0" stopColor="#6366F1" />
-        <Stop offset="1" stopColor="#14B8A6" />
-      </LinearGradient>
-    </Defs>
-    <Rect width="48" height="48" rx="16" fill="url(#lmg)" />
-    <Rect x="6" y="22" width="16" height="10" rx="3" fill="rgba(255,255,255,0.9)" />
-    <Path d="M9 22 Q10 17 14 16 H18 Q22 17 22 22 Z" fill="rgba(255,255,255,0.7)" />
-    <Circle cx="10" cy="32" r="2.5" fill="#4F46E5" />
-    <Circle cx="19" cy="32" r="2.5" fill="#4F46E5" />
-    <Rect x="26" y="22" width="16" height="10" rx="3" fill="rgba(255,255,255,0.9)" />
-    <Path d="M29 22 Q30 17 34 16 H38 Q42 17 42 22 Z" fill="rgba(255,255,255,0.7)" />
-    <Circle cx="30" cy="32" r="2.5" fill="#0F766E" />
-    <Circle cx="39" cy="32" r="2.5" fill="#0F766E" />
-    <Rect x="6" y="33" width="36" height="4" rx="2" fill="rgba(255,255,255,0.15)" />
-    <Rect x="20" y="35" width="8" height="1.5" rx="0.75" fill="rgba(255,255,255,0.4)" />
-  </Svg>
-);
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 export const IconEmail = () => (
   <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">

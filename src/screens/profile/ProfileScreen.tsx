@@ -3,6 +3,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Image,
   Linking,
   Modal,
   Pressable,
@@ -19,14 +20,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import type { MainTabNavProp } from '@/navigation/types';
 
-import authService from '@/services/firebase/authService';
-import { getUser } from '@/services/firebase/userService';
-import { getTrustBreakdown, RATING_CATEGORIES, type TrustBreakdown } from '@/services/firebase/ratingService';
+import authService from '@/services/authService';
+import { getUser } from '@/services/userService';
+import { getTrustBreakdown, RATING_CATEGORIES, type TrustBreakdown } from '@/services/ratingService';
 import { useAuthStore } from '@/store/authStore';
+import { isAdminEmail } from '@/config/admin';
 import type { User } from '@/types/auth.types';
 import PremiumIcon from '@/components/common/PremiumIcon';
 import { logger } from '@/utils/logger';
 import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 const SW = Dimensions.get('window').width;
 
@@ -69,6 +72,7 @@ const Icon = ({ d, color = C.textSub, size = 16 }: { d: string; color?: string; 
 const IconEdit     = () => <Icon d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />;
 const IconHistory  = () => <Icon d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />;
 const IconSettings = () => <Icon d="M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />;
+const IconAdmin    = () => <Icon d="M3 3v18h18M7 16l4-6 4 3 5-8" color="#6366F1" />;
 const IconAlert    = () => <Icon d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" color={C.red} />;
 const IconMail     = () => <Icon d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6" color={C.amber} />;
 const IconShield   = () => <Icon d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" color={C.teal} />;
@@ -347,6 +351,7 @@ function isRecoverable(err: unknown) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   useScreenFocusTracking('Profile');
+  useSystemBars(C.bg, 'dark');
   const navigation = useNavigation<MainTabNavProp>();
   const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
@@ -358,6 +363,7 @@ export default function ProfileScreen() {
   const [disclaimerVisible, setDisclaimerVisible] = useState(false);
   const fadeAnim  = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
+  const lastFetchedAtRef = useRef(0);
 
   useEffect(() => { setProfile(user); }, [user]);
 
@@ -368,9 +374,18 @@ export default function ProfileScreen() {
     ]).start();
   }, []);
 
+  // ride শেষ হলে badge/trustScore/totalRides বদলে যেতে পারে, তাই focus-এ
+  // refresh দরকার — কিন্তু আগে প্রতিটা focus-এই (এমনকি কয়েক সেকেন্ড আগে
+  // tab পাল্টে আবার ফিরলেও) দুটো network round-trip চালাত, যা tab-switch-কে
+  // ধীর করত। ৩০ সেকেন্ডের বেশি পুরনো হলেই শুধু আবার fetch করি।
+  const PROFILE_REFRESH_STALE_MS = 30_000;
   useFocusEffect(useCallback(() => {
     let active = true;
     if (!user?.uid) return () => { active = false; };
+    if (Date.now() - lastFetchedAtRef.current < PROFILE_REFRESH_STALE_MS) {
+      return () => { active = false; };
+    }
+    lastFetchedAtRef.current = Date.now();
     Promise.all([
       getUser(user.uid),
       getTrustBreakdown(user.uid),
@@ -430,18 +445,24 @@ export default function ProfileScreen() {
               {/* Avatar */}
               <View style={s.avatarWrap}>
                 <View style={[s.avatarRing, { borderColor: badgeMeta.color }]}>
-                  <Svg width={76} height={76} viewBox="0 0 76 76" style={StyleSheet.absoluteFillObject}>
-                    <Defs>
-                      <LinearGradient id="av" x1="0" y1="0" x2="1" y2="1">
-                        <Stop offset="0" stopColor={badgeMeta.color} stopOpacity="0.25" />
-                        <Stop offset="1" stopColor={badgeMeta.color} stopOpacity="0.05" />
-                      </LinearGradient>
-                    </Defs>
-                    <Circle cx="38" cy="38" r="38" fill="url(#av)" />
-                  </Svg>
-                  <Text style={[s.avatarLetter, { color: badgeMeta.color }]}>
-                    {(profile?.name ?? 'U').charAt(0).toUpperCase()}
-                  </Text>
+                  {profile?.photoURL ? (
+                    <Image source={{ uri: profile.photoURL }} style={s.avatarImage} />
+                  ) : (
+                    <>
+                      <Svg width={76} height={76} viewBox="0 0 76 76" style={StyleSheet.absoluteFillObject}>
+                        <Defs>
+                          <LinearGradient id="av" x1="0" y1="0" x2="1" y2="1">
+                            <Stop offset="0" stopColor={badgeMeta.color} stopOpacity="0.25" />
+                            <Stop offset="1" stopColor={badgeMeta.color} stopOpacity="0.05" />
+                          </LinearGradient>
+                        </Defs>
+                        <Circle cx="38" cy="38" r="38" fill="url(#av)" />
+                      </Svg>
+                      <Text style={[s.avatarLetter, { color: badgeMeta.color }]}>
+                        {(profile?.name ?? 'U').charAt(0).toUpperCase()}
+                      </Text>
+                    </>
+                  )}
                 </View>
                 <View style={s.onlineDot} />
               </View>
@@ -522,6 +543,9 @@ export default function ProfileScreen() {
             <MenuItem icon={<IconEdit />}     label="Edit Profile"  sub="Update name & photo"       onPress={() => navigation.navigate('EditProfile')} />
             <MenuItem icon={<IconHistory />}  label="Ride History"  sub="Past rides & receipts"      onPress={() => navigation.navigate('RideHistory')} />
             <MenuItem icon={<IconSettings />} label="Settings"      sub="Notifications, privacy"     onPress={() => navigation.navigate('Settings')} />
+            {isAdminEmail(profile?.email) && (
+              <MenuItem icon={<IconAdmin />} label="Admin Dashboard" sub="Live stats — only you" rightBadge="ADMIN" onPress={() => navigation.navigate('AdminDashboard')} />
+            )}
           </View>
 
           {/* ── Support ── */}
@@ -662,6 +686,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
   avatarLetter: { fontSize: 30, fontWeight: '900', zIndex: 1 },
+  avatarImage: { width: 76, height: 76, borderRadius: 38 },
   onlineDot: {
     position: 'absolute', bottom: 2, right: 2,
     width: 14, height: 14, borderRadius: 7,

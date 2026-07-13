@@ -764,6 +764,83 @@ class ChatService {
     );
   }
 
+  /** এই user-এর অন্য কোনো active confirmed ride-deal আছে কিনা (business rule)। */
+  async findOtherActiveConfirmedDeal(
+    userId: string,
+    exceptChatId: string,
+  ): Promise<{ chatId: string; partnerName: string } | null> {
+    const snap = await getDocs(
+      query(collection(db, 'chats'), where('participants', 'array-contains', userId)),
+    );
+    const now = Date.now();
+    for (const d of snap.docs) {
+      if (d.id === exceptChatId) continue;
+      const c = d.data() as any;
+      if (c.mode !== 'ride') continue;
+      const iConfirmed = c.dealConfirmed?.[userId] === true;
+      const active = (c.expiresAt ?? 0) > now && !(c.closedAt && c.closedAt <= now);
+      if (iConfirmed && active) {
+        const other = (c.participants as string[])?.find((p) => p !== userId);
+        const partnerName = (other && c.participantNames?.[other]) || 'another rider';
+        return { chatId: d.id, partnerName };
+      }
+    }
+    return null;
+  }
+
+  /** ইউজারের সব chat live (ChatListScreen liveChats এর সমতুল্য)। */
+  listenToUserChats(
+    userId: string,
+    callback: (chats: Array<Chat & { chatId: string }>) => void,
+    onError?: (error: Error) => void,
+  ): () => void {
+    const q = query(
+      collection(db, 'chats'),
+      where('participants', 'array-contains', userId),
+      orderBy('lastMessageTime', 'desc'),
+    );
+    return onSnapshot(
+      q,
+      (snap) => callback(snap.docs.map((d) => ({ chatId: d.id, ...(d.data() as Chat) }))),
+      (error) => {
+        if (!this.isExpectedPermissionError(error)) logger.warn('chatService.listenToUserChats', error);
+        onError?.(error);
+      },
+    );
+  }
+
+  /** join করার মতো খোলা anonymous_group room live (groupRooms এর সমতুল্য)। */
+  listenToOpenGroupRooms(
+    userId: string,
+    callback: (rooms: Array<Chat & { chatId: string }>) => void,
+    onError?: (error: Error) => void,
+  ): () => void {
+    const q = query(
+      collection(db, 'chats'),
+      where('mode', '==', 'anonymous_group'),
+      where('searching', '==', true),
+      limit(20),
+    );
+    return onSnapshot(
+      q,
+      (snap) => {
+        const now = Date.now();
+        const rooms = snap.docs
+          .map((d) => ({ chatId: d.id, ...(d.data() as Chat) }))
+          .filter((r) =>
+            !r.participants?.includes(userId) &&
+            ((r as any).expiresAt ?? 0) > now &&
+            (r.participants?.length ?? 0) < 10,
+          );
+        callback(rooms);
+      },
+      (error) => {
+        if (!this.isExpectedPermissionError(error)) logger.warn('chatService.listenToOpenGroupRooms', error);
+        onError?.(error);
+      },
+    );
+  }
+
   // Legacy aliases — kept for backward compat with existing call sites
   async deleteOneToOneHistory(chatId: string): Promise<void> {
     return this.deleteChat(chatId);

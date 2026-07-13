@@ -1,5 +1,6 @@
-import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing } from 'react-native';
+import { createBottomTabNavigator, TransitionPresets } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
@@ -18,6 +19,60 @@ const C = {
   border: '#EDE8F5',
   active: '#6366F1',
   inactive: '#B0AACC',
+};
+
+// ─── Custom tab transition ────────────────────────────────────────────────────
+// BUG: animation: 'shift' Android-এ একটা confirmed react-navigation library
+// বাগ trigger করে — tab বদলানোর মাঝপথে ছোট্ট একটা কালো ফ্রেম flash করে
+// (GitHub issue react-navigation/react-navigation#12862, Expo SDK 54-এ
+// রিপোর্ট করা)। root cause library-র নিজের native Android rendering-এ,
+// কোনো background/color-এর সমস্যা না — তাই root-level color fix (যেগুলো
+// আগে try করা হয়েছিল) কাজ করেনি। library-র নিজস্ব workaround হলো animation
+// mode বদলানো। 'fade' ব্যবহার করছি — এই বাগ নেই, তবু smooth crossfade
+// (premium feel) বজায় থাকে, শুধু 'shift'-এর sideways slide-টা নেই।
+const tabTransitionSpec = {
+  ...TransitionPresets.FadeTransition.transitionSpec,
+  config: {
+    ...TransitionPresets.FadeTransition.transitionSpec?.config,
+    duration: 340,
+    easing: Easing.inOut(Easing.cubic),
+  },
+} as typeof TransitionPresets.FadeTransition.transitionSpec;
+
+// signature motion — শুধু fade না, screen content ৮px নিচ থেকে উঠে এসে
+// জায়গায় "settle" করে (GPS lock/pin drop-এর মতো একটা lift feel), সাথে
+// সামান্য scale (0.98 → 1) যোগ করে depth-এর illusion দেয়। plain library
+// fade থেকে আলাদা করতেই এই custom interpolator — 'fade' preset-এর bug-free
+// base animation-এর উপর বসানো, নিজস্ব sceneStyle override করে।
+const sceneStyleInterpolator = ({
+  current: { progress },
+}: {
+  current: { progress: Animated.Value };
+}) => {
+  const translateY = progress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [8, 0, 8],
+  });
+  const scale = progress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [0.98, 1, 0.98],
+  });
+  // opacity translateY/scale-এর চেয়ে অনেক দ্রুত 0→1 পৌঁছায় (progress 0.35
+  // এই পুরো fade শেষ, বাকি ৬৫% শুধু rise/scale settle করে) — আগে opacity
+  // পুরো ৩৪০ms জুড়ে সমান গতিতে বদলাত, তাই content প্রায় পুরো transition
+  // duration জুড়ে অদৃশ্য/আবছা থাকত এবং tab tap করার পর "কিছুক্ষণ পর render
+  // হলো" মনে হতো। এখন content দ্রুত visible হয়ে যায়, rise/scale-এর
+  // premium settle feel টা বজায় থেকেই চলতে থাকে।
+  const opacity = progress.interpolate({
+    inputRange: [-1, -0.65, 0, 0.65, 1],
+    outputRange: [0, 1, 1, 1, 0],
+  });
+  return {
+    sceneStyle: {
+      opacity,
+      transform: [{ translateY }, { scale }],
+    },
+  } as { sceneStyle: import('react-native').ViewStyle };
 };
 
 // ─── Pure SVG tab icons (zero dependencies) ───────────────────────────────────
@@ -81,6 +136,28 @@ const IconProfile = ({ active }: { active: boolean }) => (
   </Svg>
 );
 
+// active হওয়ার মুহূর্তে ছোট্ট একটা tight spring "pop" (bounce না, ১ ধাপেই
+// settle) — tab tap করলে যেন সেই icon "lock" হলো, এই signature feel দেয়।
+// inactive হলে সাথে সাথেই normal size-এ ফিরে আসে (spring না, শুধু active→
+// pop-টাই attention পাওয়ার যোগ্য, inactive-এ animation distract করবে)।
+const AnimatedTabIcon = ({ focused, children }: { focused: boolean; children: React.ReactNode }) => {
+  const scale = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (focused) {
+      scale.setValue(0.82);
+      Animated.spring(scale, {
+        toValue: 1,
+        useNativeDriver: true,
+        speed: 22,
+        bounciness: 9,
+      }).start();
+    } else {
+      scale.setValue(1);
+    }
+  }, [focused, scale]);
+  return <Animated.View style={{ transform: [{ scale }] }}>{children}</Animated.View>;
+};
+
 // ─── Navigator ────────────────────────────────────────────────────────────────
 const BottomTabNavigator = () => {
   const insets = useSafeAreaInsets();
@@ -97,6 +174,14 @@ const BottomTabNavigator = () => {
         headerShown: false,
         tabBarHideOnKeyboard: true,
         lazy: true,
+        // tab বদলালে নিজস্ব "rise + settle" signature transition — plain
+        // fade না, content হালকা নিচ থেকে উঠে scale-in হয় (sceneStyleInterpolator,
+        // উপরে সংজ্ঞায়িত)। base animation 'fade' রাখা হয়েছে কারণ 'shift'
+        // Android-এ black-flash bug trigger করে (react-navigation#12862) —
+        // 'fade' bug-free, আমরা শুধু তার উপর নিজস্ব motion বসিয়েছি।
+        animation: 'fade',
+        transitionSpec: tabTransitionSpec,
+        sceneStyleInterpolator,
         // Library-native label rendering — handles vertical centering automatically
         tabBarShowLabel: true,
         tabBarActiveTintColor: C.active,
@@ -136,7 +221,19 @@ const BottomTabNavigator = () => {
         component={HomeScreen}
         options={{
           tabBarLabel: 'Home',
-          tabBarIcon: ({ focused }) => <IconHome active={focused} />,
+          // sceneStyle-এ প্রতিটা screen-এর নিজস্ব আসল background রঙ — bottom-tabs
+          // v7 কোনো default background দেয় না scene container-এ (শুধু flex:1),
+          // তাই fade transition-এর সময় দুটো screen যখন একসাথে আংশিক দৃশ্যমান
+          // থাকে, দুই screen-এর মাঝের ফাঁকা জায়গা দিয়ে নিচের native root view
+          // (কালো) দেখা যেত — এটাই "Home black hয়ে আসছে" bug। sceneStyle এখানে
+          // custom sceneStyleInterpolator-এর opacity/scale animation শুরুর
+          // আগেই বসে, তাই কালো ফাঁক আর দেখা যাবে না।
+          sceneStyle: { backgroundColor: '#FAF8FF' },
+          tabBarIcon: ({ focused }) => (
+            <AnimatedTabIcon focused={focused}>
+              <IconHome active={focused} />
+            </AnimatedTabIcon>
+          ),
         }}
       />
       <Tab.Screen
@@ -144,7 +241,12 @@ const BottomTabNavigator = () => {
         component={LiveMapScreen}
         options={{
           tabBarLabel: 'Map',
-          tabBarIcon: ({ focused }) => <IconMap active={focused} />,
+          sceneStyle: { backgroundColor: '#050816' },
+          tabBarIcon: ({ focused }) => (
+            <AnimatedTabIcon focused={focused}>
+              <IconMap active={focused} />
+            </AnimatedTabIcon>
+          ),
         }}
       />
       <Tab.Screen
@@ -152,7 +254,12 @@ const BottomTabNavigator = () => {
         component={PostBoardScreen}
         options={{
           tabBarLabel: 'RidePool',
-          tabBarIcon: ({ focused }) => <IconBoard active={focused} />,
+          sceneStyle: { backgroundColor: '#F5F5FA' },
+          tabBarIcon: ({ focused }) => (
+            <AnimatedTabIcon focused={focused}>
+              <IconBoard active={focused} />
+            </AnimatedTabIcon>
+          ),
         }}
       />
       <Tab.Screen
@@ -160,7 +267,12 @@ const BottomTabNavigator = () => {
         component={ChatListScreen}
         options={{
           tabBarLabel: 'Chats',
-          tabBarIcon: ({ focused }) => <IconChat active={focused} />,
+          sceneStyle: { backgroundColor: '#050816' },
+          tabBarIcon: ({ focused }) => (
+            <AnimatedTabIcon focused={focused}>
+              <IconChat active={focused} />
+            </AnimatedTabIcon>
+          ),
         }}
       />
       <Tab.Screen
@@ -168,7 +280,12 @@ const BottomTabNavigator = () => {
         component={ProfileScreen}
         options={{
           tabBarLabel: 'Profile',
-          tabBarIcon: ({ focused }) => <IconProfile active={focused} />,
+          sceneStyle: { backgroundColor: '#FAF8FF' },
+          tabBarIcon: ({ focused }) => (
+            <AnimatedTabIcon focused={focused}>
+              <IconProfile active={focused} />
+            </AnimatedTabIcon>
+          ),
         }}
       />
     </Tab.Navigator>

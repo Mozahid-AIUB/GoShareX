@@ -71,15 +71,15 @@ export const TrustChip = ({
       style={{
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
+        gap: 3,
         backgroundColor: cfg.bg,
-        borderRadius: 20,
-        paddingHorizontal: 8,
-        paddingVertical: 3,
+        borderRadius: 18,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
       }}
     >
-      <MaterialCommunityIcons name={cfg.icon} size={11} color={cfg.text} />
-      <Text style={{ fontSize: 10, fontWeight: '700', color: cfg.text, letterSpacing: 0.3 }}>
+      <MaterialCommunityIcons name={cfg.icon} size={9} color={cfg.text} />
+      <Text style={{ fontSize: 9, fontWeight: '700', color: cfg.text, letterSpacing: 0.2 }}>
         {confirmed ? 'Confirmed' : badge}
       </Text>
     </View>
@@ -94,21 +94,21 @@ export const MatchRing = ({ score }: { score: number }) => {
       style={{
         alignItems: 'center',
         justifyContent: 'center',
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        borderWidth: 2.5,
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        borderWidth: 2,
         borderColor: color,
         backgroundColor: color + '18',
       }}
     >
-      <Text style={{ fontSize: 13, fontWeight: '800', color }}>{score}</Text>
+      <Text style={{ fontSize: 11, fontWeight: '800', color }}>{score}%</Text>
       <Text
         style={{
-          fontSize: 7,
+          fontSize: 6,
           color,
           fontWeight: '700',
-          letterSpacing: 0.3,
+          letterSpacing: 0.2,
           marginTop: -1,
         }}
       >

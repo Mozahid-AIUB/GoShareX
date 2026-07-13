@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Animated,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,23 +16,26 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
 import { RootNavProp } from '@/navigation/types';
-import authService from '@/services/firebase/authService';
-import googleAuthService from '@/services/firebase/googleAuthService';
+import authService from '@/services/authService';
+import googleAuthService from '@/services/googleAuthService';
 import { useAuthStore } from '@/store';
 import { getFCMToken, saveFCMToken } from '@/services/firebase/messaging';
-import { checkSuspension } from '@/services/firebase/badgeService';
+import { checkSuspension } from '@/services/badgeService';
+import { FEATURE_FLAGS } from '@/config/featureFlags';
 import { isValidEmail } from '@/utils/validators';
 import { useAnimatedPress } from '@/hooks/useAnimatedPress';
 import { C, ONE_DAY_MS } from '@/components/auth/authColors';
-import { LogoMark, IconEmail, IconLock, IconArrow, IconGoogle } from '@/components/auth/AuthIcons';
+import { IconEmail, IconLock, IconArrow, IconGoogle } from '@/components/auth/AuthIcons';
 import FormField from '@/components/auth/FormField';
 import { useScreenTracking } from '@/hooks/useScreenTracking';
+import { useSystemBars } from '@/hooks/useSystemBars';
 import { trackEvent } from '@/services/analytics/analyticsService';
 
 type SuspendedError = { code: 'USER_SUSPENDED'; suspendedUntil?: number };
 
 export default function LoginScreen() {
   useScreenTracking('Login');
+  useSystemBars(C.bg, 'dark');
   const navigation = useNavigation<RootNavProp>();
   const { setUser } = useAuthStore();
 
@@ -57,6 +61,12 @@ export default function LoginScreen() {
   };
 
   const afterAuth = async (uid: string, suspendedUntil?: number) => {
+    // Supabase auth mode-এ suspension চেক authService.login()-এই হয়ে যায়
+    // (USER_SUSPENDED throw করে), আর FCM token পরে Supabase-এ আনব (ধাপ ৬)।
+    // তাই এখানে Firebase কল skip করি — নাহলে permission_denied-এ আটকায়।
+    if (FEATURE_FLAGS.USE_SUPABASE_AUTH) {
+      return true;
+    }
     const status = await checkSuspension(uid);
     if (status.suspended) {
       handleSuspended(suspendedUntil ?? Date.now() + ONE_DAY_MS, status.reason);
@@ -117,34 +127,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleForgotPassword = async () => {
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!normalizedEmail) {
-      Alert.alert('Enter email first', 'Please type your email address so we can send the reset link.');
-      return;
-    }
-
-    if (!isValidEmail(normalizedEmail)) {
-      setEmailError('Please enter a valid email address');
-      Alert.alert('Invalid email', 'Please enter a valid email address first.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await authService.resetPassword(normalizedEmail);
-      Alert.alert(
-        'Reset link sent',
-        `We sent a password reset email to ${normalizedEmail}. Please check your inbox and spam folder.`
-      );
-    } catch (error: any) {
-      Alert.alert('Reset failed', error?.message ?? 'Could not send password reset email.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleGoogleSignIn = async () => {
     setEmailError('');
     setGoogleLoading(true);
@@ -182,7 +164,7 @@ export default function LoginScreen() {
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
           <View style={s.logoArea}>
-            <LogoMark size={64} />
+            <Image source={require('../../../assets/images/gosharex-logo-transparent.png')} style={s.logoImg} resizeMode="contain" />
             <View style={s.logoTextWrap}>
               <Text style={s.logoName}>Go<Text style={s.logoAccent}>Share</Text>X</Text>
               <Text style={s.logoSub}>Smart Ride Sharing</Text>
@@ -269,11 +251,12 @@ const s = StyleSheet.create({
   radial1: { position: 'absolute', top: -60, right: -50, width: 260, height: 260, borderRadius: 130, backgroundColor: 'rgba(124,58,237,0.10)' },
   radial2: { position: 'absolute', bottom: -50, left: -40, width: 220, height: 220, borderRadius: 110, backgroundColor: 'rgba(13,148,136,0.07)' },
   scroll: { flexGrow: 1, padding: 24, justifyContent: 'center' },
-  logoArea: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 32, alignSelf: 'center' },
-  logoTextWrap: { gap: 2 },
-  logoName: { fontSize: 28, fontWeight: '900', color: C.text, letterSpacing: -0.8 },
+  logoArea: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 40, alignSelf: 'center' },
+  logoImg: { width: 84, height: 84 },
+  logoTextWrap: { gap: 3 },
+  logoName: { fontSize: 32, fontWeight: '900', color: C.text, letterSpacing: -0.8 },
   logoAccent: { color: C.primary },
-  logoSub: { fontSize: 12, color: C.textSub, fontWeight: '500' },
+  logoSub: { fontSize: 13, color: C.textSub, fontWeight: '500' },
   card: {
     backgroundColor: C.white, borderWidth: 1, borderColor: '#EDE9FE',
     shadowColor: C.primary, shadowOpacity: 0.07, shadowRadius: 16,

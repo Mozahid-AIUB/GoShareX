@@ -4,11 +4,21 @@ import { RTDB_PATHS, COLLECTIONS } from '@/constants/firebaseKeys';
 import { haversineDistance } from '@/utils/haversine';
 import { PROXIMITY_ZONES } from '@/constants/locations';
 import type { ActiveRider, NearbyRider } from '@/types';
+import { FEATURE_FLAGS } from '@/config/featureFlags';
+import { supabasePresenceService } from '@/services/supabase/presenceService';
 
 export function subscribeToNearbyRiders(
-  currentUser: { uid: string; lat: number; lng: number; destination: string },
+  currentUser: {
+    uid: string; lat: number; lng: number; destination: string;
+    destLat?: number; destLng?: number;   // নিজের গন্তব্যের coordinate (geo-match)
+    getLatest?: () => { lat: number; lng: number; destLat?: number; destLng?: number } | null;
+  },
   onUpdate: (riders: NearbyRider[]) => void
 ): () => void {
+  // Supabase mode-এ presence service ব্যবহার করি (একই behavior)।
+  if (FEATURE_FLAGS.USE_SUPABASE_PRESENCE) {
+    return supabasePresenceService.subscribeToNearbyRiders(currentUser, onUpdate);
+  }
   const dbRef = ref(rtdb, RTDB_PATHS.ACTIVE_RIDERS);
 
   const handler = (snapshot: any) => {

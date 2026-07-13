@@ -12,16 +12,14 @@ import {
 import { Text } from 'react-native-paper';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { collection, doc, getDocs, onSnapshot, orderBy, query, where, limit } from 'firebase/firestore';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
-import { db } from '@/config/firebase.config';
 import PremiumScreen from '@/components/common/PremiumScreen';
 import { premiumTheme } from '@/design/premium';
 import { useAuthStore } from '@/store/authStore';
 import { storage, STORAGE_KEYS } from '@/utils/storage';
 import { useNavigation } from '@react-navigation/native';
-import chatService, { type Chat } from '@/services/firebase/chatService';
+import chatService, { type Chat } from '@/services/chatService';
 import { logger } from '@/utils/logger';
 
 import {
@@ -45,6 +43,7 @@ import {
   type GroupRoom,
 } from './utils/chatHelpers';
 import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 const C = {
   bg: premiumTheme.bg,
@@ -66,6 +65,10 @@ const C = {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ChatListScreen() {
   useScreenFocusTracking('ChatList');
+  // System nav bar এই screen-এর নিজের background-এর উপর না, বরং শেয়ার করা
+  // সাদা tab bar-এর padding-এর উপর বসে (edge-to-edge) — তাই 'dark' icon
+  // ব্যবহার করি (HomeScreen-এর মতো), 'light' সাদার উপর অদৃশ্য হয়ে যেত।
+  useSystemBars(C.bg, 'dark');
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { user } = useAuthStore();
@@ -98,22 +101,13 @@ export default function ChatListScreen() {
     });
   };
 
-  // ── Live chats listener ──
+  // ── Live chats listener (router → Supabase/Firebase by flag) ──
   useEffect(() => {
     if (!user?.uid) return;
-    const q = query(
-      collection(db, 'chats'),
-      where('participants', 'array-contains', user.uid),
-      orderBy('lastMessageTime', 'desc')
-    );
-    return onSnapshot(
-      q,
-      (snap) => {
-        setChats(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatItem)));
-      },
-      (error) => {
-        logger.warn('ChatListScreen.liveChats', error);
-      },
+    return chatService.listenToUserChats(
+      user.uid,
+      (rooms) => setChats(rooms.map((c) => ({ id: c.chatId, ...c } as unknown as ChatItem))),
+      (error) => logger.warn('ChatListScreen.liveChats', error),
     );
   }, [user?.uid]);
 
@@ -257,9 +251,10 @@ export default function ChatListScreen() {
       }, delay);
     };
 
-    unsubRef.current = onSnapshot(doc(db, 'chats', chatId), (snap) => {
-      const data = snap.data();
-      if (data && (data.participants?.length ?? 0) >= 2) handleMatch();
+    // chat row live শুনি (router → Supabase/Firebase); partner join করলে
+    // (participants ≥ 2) match। আগে সরাসরি Firestore onSnapshot ছিল।
+    unsubRef.current = chatService.listenToChat(chatId, (chat) => {
+      if ((chat.participants?.length ?? 0) >= 2) handleMatch();
     });
 
     // 30s timeout (or whatever SEARCH_TIMEOUT_MS is)
@@ -289,34 +284,16 @@ export default function ChatListScreen() {
     // whenever showGroupModal is true), so what user sees is always live.
   };
 
-  // Real-time group room list — fires while modal is open
+  // Real-time group room list — fires while modal is open (router → Supabase/Firebase)
   useEffect(() => {
     if (!showGroupModal || !user?.uid) return;
-    const q = query(
-      collection(db, 'chats'),
-      where('mode', '==', 'anonymous_group'),
-      where('searching', '==', true),
-      limit(20),
+    return chatService.listenToOpenGroupRooms(
+      user.uid,
+      (rooms) => setGroupRooms(
+        rooms.map((r) => ({ id: r.chatId, participants: r.participants ?? [], expiresAt: r.expiresAt })),
+      ),
+      (error) => logger.warn('ChatListScreen.groupRooms', error),
     );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const now = Date.now();
-        const available = snap.docs
-          .map((d) => ({ id: d.id, ...d.data() } as Chat & { id: string }))
-          .filter((r) =>
-            !r.participants?.includes(user.uid) &&
-            (r.expiresAt ?? 0) > now &&
-            (r.participants?.length ?? 0) < 10
-          )
-          .map((r) => ({ id: r.id, participants: r.participants ?? [], expiresAt: r.expiresAt }));
-        setGroupRooms(available);
-      },
-      (error) => {
-        logger.warn('ChatListScreen.groupRooms', error);
-      },
-    );
-    return () => unsub();
   }, [showGroupModal, user?.uid]);
 
   // 10-second watchdog: if join/create promise never settles, dismiss modal
@@ -512,7 +489,7 @@ export default function ChatListScreen() {
             <View style={s.matchBtnIcon}><IconGhost /></View>
             <View style={{ flex: 1 }}>
               <Text style={s.matchBtnTitle}>Anonymous 1:1</Text>
-              <Text style={s.matchBtnSub}>Private · 10 min · History auto-deleted</Text>
+              <Text style={s.matchBtnSub}>Private · 5 min · History auto-deleted</Text>
             </View>
             <View style={s.matchBtnBadge}>
               <IconShield />

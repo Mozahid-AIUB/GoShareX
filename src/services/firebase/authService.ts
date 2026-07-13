@@ -426,6 +426,17 @@ class AuthService {
       throw new Error(error.message || 'Password reset failed');
     }
   }
+
+  // OTP-based reset শুধু Supabase mode-এ ব্যবহার হয়। Firebase mode-এ
+  // password reset হয় email link দিয়ে (resetPassword উপরে)। এই দুইটা
+  // method router-এর type মেলাতে আছে — Firebase mode-এ ডাকা হলে error।
+  async verifyResetCode(_email: string, _code: string): Promise<void> {
+    throw new Error('Code-based reset is not available in this mode.');
+  }
+
+  async setNewPassword(_newPassword: string): Promise<void> {
+    throw new Error('Code-based reset is not available in this mode.');
+  }
 }
 
 export default new AuthService();
