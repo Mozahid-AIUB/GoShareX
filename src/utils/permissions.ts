@@ -1,55 +1,17 @@
 /**
  * RideShare AIUB — Runtime Permission Helpers
+ *
+ * NOTE: location permission এখানে নেই — আসল app flow location-এর জন্য
+ * expo-location ব্যবহার করে (locationService.ts/gpsService.ts), এই ফাইলের
+ * পুরনো location function দুটো কোথাও call হত না (dead code, সরানো হলো)।
+ * react-native-permissions Expo Go-তে native module link না থাকায়
+ * import-time-ই crash করে (TurboModuleRegistry.getEnforcing) — তাই এখানে
+ * সরিয়ে খাঁটি expo-notifications দিয়ে replace করা হলো, যেটা Expo Go-তেও
+ * নিরাপদে চলে (messaging.ts-এর requestNotificationPermissions-এর মতোই)।
  */
 import { Linking, Platform } from 'react-native';
-import {
-  check,
-  PERMISSIONS,
-  request,
-  requestNotifications,
-  RESULTS,
-  Permission,
-} from 'react-native-permissions';
+import * as Notifications from 'expo-notifications';
 import { logger } from './logger';
-
-// ------------------------------------------------------------------
-// Location
-// ------------------------------------------------------------------
-
-const LOCATION_PERMISSION: Permission =
-  Platform.OS === 'ios'
-    ? PERMISSIONS.IOS.LOCATION_WHEN_IN_USE
-    : PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION;
-
-/**
- * Request location permission from the OS.
- * Returns true if GRANTED or LIMITED (iOS).
- */
-export async function requestLocationPermission(): Promise<boolean> {
-  try {
-    const result = await request(LOCATION_PERMISSION);
-    const granted =
-      result === RESULTS.GRANTED || result === RESULTS.LIMITED;
-    logger.info('permissions.requestLocation', result);
-    return granted;
-  } catch (err) {
-    logger.error('permissions.requestLocation', err);
-    return false;
-  }
-}
-
-/**
- * Check current location permission status without prompting.
- */
-export async function checkLocationPermission(): Promise<boolean> {
-  try {
-    const result = await check(LOCATION_PERMISSION);
-    return result === RESULTS.GRANTED || result === RESULTS.LIMITED;
-  } catch (err) {
-    logger.error('permissions.checkLocation', err);
-    return false;
-  }
-}
 
 // ------------------------------------------------------------------
 // Notifications (Android 13 / iOS)
@@ -63,19 +25,14 @@ export async function checkLocationPermission(): Promise<boolean> {
  */
 export async function requestNotificationPermission(): Promise<boolean> {
   try {
-    if (Platform.OS === 'ios') {
-      const { status } = await requestNotifications(['alert', 'sound', 'badge']);
-      return status === RESULTS.GRANTED || status === RESULTS.LIMITED;
-    }
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    if (existingStatus === 'granted') return true;
 
-    // Android 13+
-    if (Platform.OS === 'android' && Platform.Version >= 33) {
-      const { status } = await requestNotifications(['alert', 'sound', 'badge']);
-      return status === RESULTS.GRANTED;
-    }
+    // Android < 13: permission not required by the OS.
+    if (Platform.OS === 'android' && Platform.Version < 33) return true;
 
-    // Android < 13: permission not required
-    return true;
+    const { status } = await Notifications.requestPermissionsAsync();
+    return status === 'granted';
   } catch (err) {
     logger.error('permissions.requestNotification', err);
     return false;

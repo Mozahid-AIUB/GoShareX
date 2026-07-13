@@ -10,8 +10,6 @@ export { logger } from './logger';
 export { handleError, parseFirebaseError, isNetworkError } from './errorHandler';
 export { storage, STORAGE_KEYS } from './storage';
 export {
-  requestLocationPermission,
-  checkLocationPermission,
   requestNotificationPermission,
   openAppSettings,
 } from './permissions';

@@ -87,17 +87,74 @@ export default function LiveMapScreen() {
   // এটা flash-এর মতো লাগত। Map-এর নিজস্ব গাঢ় থিম না বদলিয়ে, বরং screen
   // focus হওয়ার সাথে সাথেই একটা হালকা overlay ধীরে fade-out করি — এতে
   // transition চোখে softer লাগে, কোনো tab-navigator animation-এ হাত পড়ে না।
+  //
+  // BUG (আগে): fade fixed 320ms পর শেষ হয়ে যেত, MapView আসলে ready কিনা
+  // তা দেখত না। native GoogleMap surface tile আঁকার আগে নিজে থেকেই কালো
+  // থাকে (react-native-maps-এর নিজস্ব behaviour) — cold start ধীর হলে
+  // 320ms-এর মধ্যে map ready না হয়েই overlay সরে যেত, তখন এই raw কালো
+  // surface দেখা যেত ("black layer")। এখন overlay MapView-এর onMapLoaded
+  // event পর্যন্ত থাকে + একটা settle window (নিচে দেখুন)।
   const entryFade = useRef(new Animated.Value(1)).current;
+  // BUG (আসল, log দিয়ে verify করা): onMapLoaded প্রথমবার আসতেই ৪৮৮-৭৫০ms
+  // লাগে, minTimer (320ms) তার আগেই fire করে fade-out শুরু করে দিত →
+  // overlay সরে যাচ্ছিল map আসলে load হওয়ার আগেই — এটাই "black" flash।
+  // fix: hasLoadedOnceEverRef দিয়ে শুধু সত্যিকারের onMapLoaded event
+  // ট্র্যাক করি, fade-out তখনই শুরু হয় যখন load-এর প্রমাণ আছে + ১৫০ms
+  // settle window (double-render ধরার জন্য, react-native-maps#4631)।
+  //
+  // BUG #2: bottom-tab screen unmount হয় না, তাই native MapView একবারই
+  // তৈরি হয় → onMapLoaded জীবনে একবারই fire করে (প্রথম visit-এ)। কিন্তু
+  // hasLoadedRef আগে প্রতি focus-এ reset হত (hasLoadedRef.current = false)
+  // — তাই দ্বিতীয়/পরের visit-এ onMapLoaded আর কখনো না এসে overlay ২.৫s
+  // maxTimer পর্যন্ত আটকে থাকত ("onno screen theke Map-এ আসলে load হতে
+  // সময় নিচ্ছে")। hasLoadedOnceEverRef কখনো reset হয় না (session-lifetime)
+  // — দ্বিতীয় visit থেকে সাথে সাথেই জানি map আগেই loaded, fade instant শুরু।
+  const hasLoadedOnceEverRef = useRef(false);
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startEntryFadeOut = useCallback(() => {
+    Animated.timing(entryFade, {
+      toValue: 0,
+      duration: 320,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [entryFade]);
+  const scheduleSettleFadeOut = useCallback(() => {
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = setTimeout(() => {
+      settleTimerRef.current = null;
+      startEntryFadeOut();
+    }, 150);
+  }, [startEntryFadeOut]);
+  const handleMapLoaded = useCallback(() => {
+    hasLoadedOnceEverRef.current = true;
+    if (maxTimerRef.current) { clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
+    scheduleSettleFadeOut();
+  }, [scheduleSettleFadeOut]);
   useFocusEffect(
     useCallback(() => {
       entryFade.setValue(1);
-      Animated.timing(entryFade, {
-        toValue: 0,
-        duration: 320,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start();
-    }, [entryFade]),
+      // ইতিমধ্যে (আগের কোনো visit-এ) একবার loaded হয়ে থাকলে — আর অপেক্ষা
+      // না করে সাথে সাথেই fade-out শুরু করি, onMapLoaded আবার আসার জন্য
+      // অপেক্ষা করি না (আসবেই না, native map remount হয় না)।
+      if (hasLoadedOnceEverRef.current) {
+        startEntryFadeOut();
+        return;
+      }
+      // Safety net — প্রথম visit-এ onMapLoaded কোনো কারণে না এলে
+      // (platform/provider quirk) overlay চিরকাল আটকে থাকবে না, 2.5s পর
+      // জোর করেই সরাই।
+      maxTimerRef.current = setTimeout(() => {
+        maxTimerRef.current = null;
+        if (settleTimerRef.current) { clearTimeout(settleTimerRef.current); settleTimerRef.current = null; }
+        startEntryFadeOut();
+      }, 2500);
+      return () => {
+        if (maxTimerRef.current) { clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
+        if (settleTimerRef.current) { clearTimeout(settleTimerRef.current); settleTimerRef.current = null; }
+      };
+    }, [entryFade, startEntryFadeOut]),
   );
   const route = useRoute<any>();
   const routeParams = route?.params as { destination?: string; pickup?: string } | undefined;
@@ -155,6 +212,22 @@ export default function LiveMapScreen() {
   // auto-select (list বদলে প্রথম rider) হলে false → map নড়ে না (লাফায় না)।
   const userTappedRider = useRef(false);
   const scanAnim = useRef(new Animated.Value(0)).current;
+  // selectedRider null → value হলে (auto-select বা tap) SelectedSheet card
+  // আগে সরাসরি mount হয়ে যেত — কোনো transition ছাড়া হঠাৎ পপ করত, একই
+  // সাথে scanChip/Speedometer-এর bottom offset instant snap করত (8 → 120/
+  // 185) — দুটো মিলিয়ে screen "১ সেকেন্ডে ২ বার লাফায়" এমন লাগত (route
+  // ready হলেই auto-select হয়, যা mount-এর প্রায় সাথে সাথেই ঘটে)। এই
+  // animated value দিয়ে card slide-up+fade করে ঢোকে/বেরোয়, আর offset-ও
+  // smooth glide করে — কোনো hard snap থাকে না।
+  const cardPresence = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(cardPresence, {
+      toValue: selectedRider ? 1 : 0,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [selectedRider, cardPresence]);
   // map wide (দূর থেকে) শুরু হয় → intro effect-এ smooth zoom in হয়ে user-এর
   // location-এ settle করে (cinematic establishing shot)।
   const initialRegion = useRef({
@@ -617,6 +690,7 @@ export default function LiveMapScreen() {
         showsUserLocation={false}
         showsMyLocationButton={false}
         mapPadding={{ top: 0, right: 0, bottom: 20, left: 0 }}
+        onMapLoaded={handleMapLoaded}
       >
         {routeOrigin && (
           <Marker coordinate={{ latitude: routeOrigin.lat, longitude: routeOrigin.lng }} pinColor={C.primary} title={routeOrigin.label} description="Pickup" />
@@ -762,7 +836,12 @@ export default function LiveMapScreen() {
       </View>
 
       {!showNoRidersSheet ? (
-        <View style={[s.scanChip, { bottom: selectedRider ? 120 : 8 }]}>
+        <Animated.View style={[s.scanChip, {
+          bottom: 8,
+          transform: [{
+            translateY: cardPresence.interpolate({ inputRange: [0, 1], outputRange: [0, -112] }),
+          }],
+        }]}>
           <Animated.View style={[s.scanDot, {
             opacity: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.2, 1] }),
             transform: [{ scale: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.6, 1] }) }],
@@ -774,15 +853,31 @@ export default function LiveMapScreen() {
                 : `Searching within ${userAccuracyRadius}m…`
               : 'Getting your location…'}
           </RNText>
-        </View>
+        </Animated.View>
       ) : null}
 
-      <View style={{ position: 'absolute', bottom: selectedRider ? 185 : 8, right: 12, zIndex: 10 }}>
+      <Animated.View style={{
+        position: 'absolute',
+        bottom: 8,
+        right: 12,
+        zIndex: 10,
+        transform: [{
+          translateY: cardPresence.interpolate({ inputRange: [0, 1], outputRange: [0, -177] }),
+        }],
+      }}>
         <Speedometer speedKmh={hasLoc ? (speedKmh ?? 0) : null} />
-      </View>
+      </Animated.View>
 
       {selectedRider ? (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 8 }}>
+        <Animated.View
+          style={{
+            position: 'absolute', left: 0, right: 0, bottom: 8,
+            opacity: cardPresence,
+            transform: [{
+              translateY: cardPresence.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }),
+            }],
+          }}
+        >
           <SelectedSheet
             rider={selectedRider}
             meetupRoute={meetupRoute}
@@ -790,7 +885,7 @@ export default function LiveMapScreen() {
             onOffer={handleOffer}
             onClose={() => setSelectedRider(null)}
           />
-        </View>
+        </Animated.View>
       ) : null}
 
       {showNoRidersSheet && !selectedRider ? (
@@ -854,7 +949,16 @@ const userDot = StyleSheet.create({
 
 // ─── Screen styles ─────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg },
+  // BUG: root-এর background আগে গাঢ় (C.bg, প্রায় কালো) ছিল। MapView normal
+  // সময়ে এটা পুরো ঢেকে রাখে (absoluteFillObject) তাই দেখা যায় না — কিন্তু
+  // tab navigator-এর নিজস্ব crossfade animation (ShiftTransition) পুরো
+  // screen-এর (root সহ, ভিতরের entryFade overlay-ও) opacity একসাথে dip
+  // করে। fast switch-এ সেই মুহূর্তে এই গাঢ় root bleed করে "কালো layer
+  // flash" দেখাত — entryFade overlay সেটা ঠেকাতে পারত না কারণ ওটাও একই
+  // scene-এর অংশ, একসাথেই fade হয়। root-কে navigator-এর হালকা theme রঙে
+  // (#FAF8FF, AppNavigator.tsx-এর APP_NAV_THEME-এর সাথে মেলে) রাখলে
+  // crossfade dip-এ আর গাঢ়/কালো bleed করে না।
+  root: { flex: 1, backgroundColor: '#FAF8FF' },
 
   // ── Top bar
   topBar: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 10 },

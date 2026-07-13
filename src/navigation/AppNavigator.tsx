@@ -10,6 +10,7 @@ import { useRequestStore } from '@/store/requestStore';
 import IncomingRequestOverlay from '@/components/common/IncomingRequestOverlay';
 import { useUnratedRideReminder } from '@/hooks/useUnratedRideReminder';
 import { useLivePresence } from '@/hooks/useLivePresence';
+import { useNotification } from '@/hooks/useNotification';
 import { handleNotificationResponse } from '@/services/notifications/pushHandler';
 import { logger } from '@/utils/logger';
 
@@ -118,6 +119,21 @@ const AppNavigator = () => {
   // screen থেকে নিজের location active_riders-এ broadcast করে (আগে শুধু Live Map
   // screen-এ হত → দুজন Home-এ থাকলে কেউ কাউকে পেত না)। single owner।
   useLivePresence();
+
+  // Push token registration — এই hook-টা আগে কোথাও call-ই হত না, তাই
+  // users.push_token কখনো save হত না → server-side push infrastructure
+  // (Edge Function + DB trigger) থাকা সত্ত্বেও device-এ কোনো real push
+  // পৌঁছাত না (app বন্ধ থাকলে কিছুই আসত না)। login হলেই এখানে token
+  // register করি (আগে permission দেওয়া থাকলে চুপচাপ) + যদি permission
+  // কখনো চাওয়াই না হয়ে থাকে, একবার contextual prompt দেখাই (app খোলার
+  // সাথে সাথে না, বরং login সম্পূর্ণ হওয়ার পরে — এই app-এর established
+  // pattern, যেমন location permission-ও eager না)।
+  const { hasPermission: hasNotifPermission, requestPermission: requestNotifPermission } = useNotification();
+  useEffect(() => {
+    if (isAuthenticated && !hasNotifPermission) {
+      requestNotifPermission();
+    }
+  }, [isAuthenticated, hasNotifPermission, requestNotifPermission]);
 
   // Notification tap → ঠিক screen-এ নিয়ে যাই। আগে listener register-ই হত না
   // (App.tsx শুধু Firebase configureNotificationHandler ডাকত) → tap-এ কিছু

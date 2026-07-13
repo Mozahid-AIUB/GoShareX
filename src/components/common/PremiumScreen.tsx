@@ -25,6 +25,12 @@ export default function PremiumScreen({ children, style }: PremiumScreenProps) {
 }
 
 const styles = StyleSheet.create({
+  // NOTE: এটা #FAF8FF (হালকা) করার চেষ্টা হয়েছিল tab-transition flash কমাতে,
+  // কিন্তু SafeAreaView-এর bottom safe-area padding strip-এ orb/tint
+  // layer-গুলো (সব position:absolute, SafeAreaView-এর ভিতরে) পৌঁছায় না —
+  // ফলে ওই padding strip root-এর রঙ দেখাত, যা হালকা করায় tab bar-এর ঠিক
+  // উপরে একটা দৃশ্যমান ধূসর/হালকা ব্যান্ড হিসেবে ফুটে উঠত (আগে গাঢ় থাকায়
+  // বাকি dark screen-এর সাথে মিশে অদৃশ্য ছিল)। তাই আসল রঙে ফেরত।
   root: {
     flex: 1,
     backgroundColor: premiumTheme.bg,

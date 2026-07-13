@@ -19,13 +19,23 @@ export function useNotification(): UseNotificationResult {
 
   const registerToken = useCallback(async () => {
     try {
-      // getDevicePushTokenAsync is not available in Expo Go (SDK 53+)
-      // The Expo Go app logs an ERROR for this — skip entirely in that environment
+      // getDevicePushTokenAsync/getExpoPushTokenAsync is not available in
+      // Expo Go (SDK 53+) — skip entirely in that environment.
       const isExpoGo = Constants.executionEnvironment === 'storeClient';
       if (isExpoGo) return;
 
-      const devicePushToken = await Notifications.getDevicePushTokenAsync();
-      const pushToken = devicePushToken.data ?? null;
+      // send-push Edge Function শুধু "ExponentPushToken..." format accept
+      // করে (Expo push API-তে পাঠায়, কোনো FCM/APNs credential ছাড়াই)।
+      // getDevicePushTokenAsync() raw platform token (FCM registration id/
+      // APNs device token) দেয় — ওই format-এ token পাঠালে Edge Function
+      // "not an Expo token" বলে চুপচাপ skip করত (push কখনো পৌঁছাত না)।
+      // getExpoPushTokenAsync() সঠিক "ExponentPushToken[...]" format দেয়।
+      const projectId =
+        Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId;
+      const expoPushToken = await Notifications.getExpoPushTokenAsync(
+        projectId ? { projectId } : undefined,
+      );
+      const pushToken = expoPushToken.data ?? null;
       setToken(pushToken);
 
       if (pushToken) {
