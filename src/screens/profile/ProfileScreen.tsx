@@ -363,6 +363,7 @@ export default function ProfileScreen() {
   const [disclaimerVisible, setDisclaimerVisible] = useState(false);
   const fadeAnim  = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
+  const lastFetchedAtRef = useRef(0);
 
   useEffect(() => { setProfile(user); }, [user]);
 
@@ -373,9 +374,18 @@ export default function ProfileScreen() {
     ]).start();
   }, []);
 
+  // ride শেষ হলে badge/trustScore/totalRides বদলে যেতে পারে, তাই focus-এ
+  // refresh দরকার — কিন্তু আগে প্রতিটা focus-এই (এমনকি কয়েক সেকেন্ড আগে
+  // tab পাল্টে আবার ফিরলেও) দুটো network round-trip চালাত, যা tab-switch-কে
+  // ধীর করত। ৩০ সেকেন্ডের বেশি পুরনো হলেই শুধু আবার fetch করি।
+  const PROFILE_REFRESH_STALE_MS = 30_000;
   useFocusEffect(useCallback(() => {
     let active = true;
     if (!user?.uid) return () => { active = false; };
+    if (Date.now() - lastFetchedAtRef.current < PROFILE_REFRESH_STALE_MS) {
+      return () => { active = false; };
+    }
+    lastFetchedAtRef.current = Date.now();
     Promise.all([
       getUser(user.uid),
       getTrustBreakdown(user.uid),
