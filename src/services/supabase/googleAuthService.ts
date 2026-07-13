@@ -108,6 +108,14 @@ class SupabaseGoogleAuthService {
           await this.signOut();
           throw { code: 'USER_SUSPENDED', suspendedUntil: u.suspendedUntil };
         }
+        // safety net: পুরনো user যাদের row আগেই তৈরি হয়েছে (photo_url
+        // ছাড়া migration চালানোর আগে) — এখন Google photo পাওয়া গেলে
+        // একবার db-তে backfill করে দিই, পরের বার আর খালি না দেখায়।
+        const googlePhoto = googleUser?.photo ?? null;
+        if (!u.photoURL && googlePhoto) {
+          await supabase.from('users').update({ photo_url: googlePhoto }).eq('id', authUser.id).then(() => {}, () => {});
+          u.photoURL = googlePhoto;
+        }
         return u;
       }
 

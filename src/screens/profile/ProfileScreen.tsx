@@ -3,6 +3,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Image,
   Linking,
   Modal,
   Pressable,
@@ -28,6 +29,7 @@ import type { User } from '@/types/auth.types';
 import PremiumIcon from '@/components/common/PremiumIcon';
 import { logger } from '@/utils/logger';
 import { useScreenFocusTracking } from '@/hooks/useScreenTracking';
+import { useSystemBars } from '@/hooks/useSystemBars';
 
 const SW = Dimensions.get('window').width;
 
@@ -349,6 +351,7 @@ function isRecoverable(err: unknown) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   useScreenFocusTracking('Profile');
+  useSystemBars(C.bg, 'dark');
   const navigation = useNavigation<MainTabNavProp>();
   const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
@@ -432,18 +435,24 @@ export default function ProfileScreen() {
               {/* Avatar */}
               <View style={s.avatarWrap}>
                 <View style={[s.avatarRing, { borderColor: badgeMeta.color }]}>
-                  <Svg width={76} height={76} viewBox="0 0 76 76" style={StyleSheet.absoluteFillObject}>
-                    <Defs>
-                      <LinearGradient id="av" x1="0" y1="0" x2="1" y2="1">
-                        <Stop offset="0" stopColor={badgeMeta.color} stopOpacity="0.25" />
-                        <Stop offset="1" stopColor={badgeMeta.color} stopOpacity="0.05" />
-                      </LinearGradient>
-                    </Defs>
-                    <Circle cx="38" cy="38" r="38" fill="url(#av)" />
-                  </Svg>
-                  <Text style={[s.avatarLetter, { color: badgeMeta.color }]}>
-                    {(profile?.name ?? 'U').charAt(0).toUpperCase()}
-                  </Text>
+                  {profile?.photoURL ? (
+                    <Image source={{ uri: profile.photoURL }} style={s.avatarImage} />
+                  ) : (
+                    <>
+                      <Svg width={76} height={76} viewBox="0 0 76 76" style={StyleSheet.absoluteFillObject}>
+                        <Defs>
+                          <LinearGradient id="av" x1="0" y1="0" x2="1" y2="1">
+                            <Stop offset="0" stopColor={badgeMeta.color} stopOpacity="0.25" />
+                            <Stop offset="1" stopColor={badgeMeta.color} stopOpacity="0.05" />
+                          </LinearGradient>
+                        </Defs>
+                        <Circle cx="38" cy="38" r="38" fill="url(#av)" />
+                      </Svg>
+                      <Text style={[s.avatarLetter, { color: badgeMeta.color }]}>
+                        {(profile?.name ?? 'U').charAt(0).toUpperCase()}
+                      </Text>
+                    </>
+                  )}
                 </View>
                 <View style={s.onlineDot} />
               </View>
@@ -667,6 +676,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
   avatarLetter: { fontSize: 30, fontWeight: '900', zIndex: 1 },
+  avatarImage: { width: 76, height: 76, borderRadius: 38 },
   onlineDot: {
     position: 'absolute', bottom: 2, right: 2,
     width: 14, height: 14, borderRadius: 7,
