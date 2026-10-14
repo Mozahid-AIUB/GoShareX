@@ -5,13 +5,6 @@ export type Coords = { lat: number; lng: number; accuracy?: number; speed?: numb
 
 let locationSubscription: Location.LocationSubscription | null = null;
 
-export async function requestLocationPermissions(): Promise<boolean> {
-  const { status: fg } = await Location.requestForegroundPermissionsAsync();
-  if (fg !== 'granted') return false;
-  const { status: bg } = await Location.requestBackgroundPermissionsAsync();
-  return bg === 'granted';
-}
-
 export async function getCurrentLocation(): Promise<Coords> {
   const loc = await Location.getCurrentPositionAsync({
     accuracy: Location.Accuracy.High,

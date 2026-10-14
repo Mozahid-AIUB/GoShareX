@@ -40,9 +40,18 @@ export default {
             permissions: [
                 "ACCESS_FINE_LOCATION",
                 "ACCESS_COARSE_LOCATION",
-                "ACCESS_BACKGROUND_LOCATION",
                 "VIBRATE",
                 "RECEIVE_BOOT_COMPLETED"
+            ],
+            // Play policy: no background location (needs a declaration video),
+            // and expo-camera / expo-image-picker are installed but unused —
+            // strip the permissions their library manifests merge in.
+            blockedPermissions: [
+                "android.permission.ACCESS_BACKGROUND_LOCATION",
+                "android.permission.CAMERA",
+                "android.permission.RECORD_AUDIO",
+                "android.permission.READ_EXTERNAL_STORAGE",
+                "android.permission.WRITE_EXTERNAL_STORAGE"
             ],
             googleServicesFile: "./google-services.json",
             intentFilters: [],
@@ -55,7 +64,15 @@ export default {
             }
         },
         plugins: [
-            "expo-location",
+            [
+                "expo-location",
+                {
+                    locationWhenInUsePermission: "GoShareX uses your location while the app is open to show nearby riders, match you with co-riders and share your live location with your ride partner.",
+                    isAndroidBackgroundLocationEnabled: false,
+                    isAndroidForegroundServiceEnabled: false,
+                    isIosBackgroundLocationEnabled: false
+                }
+            ],
             "expo-notifications",
             "expo-secure-store",
             "expo-updates",
@@ -102,9 +119,9 @@ export default {
                 "expo-build-properties",
                 {
                     android: {
-                        compileSdkVersion: 35,
-                        targetSdkVersion: 35,
-                        buildToolsVersion: "35.0.0"
+                        compileSdkVersion: 36,
+                        targetSdkVersion: 36,
+                        buildToolsVersion: "36.0.0"
                     }
                 }
             ]

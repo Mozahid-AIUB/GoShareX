@@ -7,7 +7,7 @@ import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '@/config/firebase.config';
 import { useRideStore } from '@/store/rideStore';
 import rideService from '@/services/rideService';
-import { startGeofencingForDestination, startGeofencingAtCoords, stopGeofencing, registerGeofenceTask } from '@/services/location/geofenceService';
+import { resolveArrivalTarget, watchArrival } from '@/services/location/geofenceService';
 import { startMovementDetection } from '@/services/location/movementDetector';
 import type { RideRoutePreview } from '@/types/ride.types';
 import { logger } from '@/utils/logger';
@@ -166,8 +166,7 @@ export default function RideActiveScreen() {
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(30)).current;
 
-  // Stable ref so the geofence background task always calls the latest version
-  // of handleCompleteRide without needing it to be defined before the useEffect
+  // Assigned every render so the arrival watcher always calls the latest handleCompleteRide
   const handleCompleteRideRef = useRef<() => Promise<void>>(async () => { });
 
   useEffect(() => {
@@ -228,51 +227,41 @@ export default function RideActiveScreen() {
     return () => unsub();
   }, [rideId]);
 
-  // Register geofence task and start geofencing — Uber/Pathao-style auto-complete.
-  // গন্তব্যে পৌঁছালে geofence Enter fire করে → ride নিজে complete হয়।
+  // Auto-complete on arrival (Uber/Pathao-style) while this screen is open.
+  // custom গন্তব্যেও কাজ করাতে coordinate-প্রথম; নাহলে preset নাম দিয়ে resolve।
   useEffect(() => {
     const destination = rider?.destination;
-    // custom গন্তব্যেও কাজ করাতে coordinate-প্রথম: rider payload-এ destLat/
-    // destLng থাকলে সরাসরি সেই point-এ geofence; নাহলে preset নাম দিয়ে resolve
-    // (পুরোনো fallback)। তাই preset + custom — দুটোতেই auto-complete কাজ করে।
     const destLat = rider?.destLat ?? rider?.destinationLat;
     const destLng = rider?.destLng ?? rider?.destinationLng;
 
-    const setupGeofence = async () => {
-      if (!destination && destLat == null) return;
+    const target =
+      typeof destLat === 'number' && typeof destLng === 'number'
+        ? { lat: destLat, lng: destLng, radius: 120 }
+        : destination
+          ? resolveArrivalTarget(destination)
+          : null;
+    if (!target) return;
 
-      // Use the ref so the callback always reaches the latest handleCompleteRide
-      // regardless of when the geofence task fires relative to the render cycle
-      registerGeofenceTask((_destinationId) => {
-        Alert.alert(
-          'Destination Reached! \u{1F389}',
-          "You've arrived at your destination. Completing ride...",
-          [{ text: 'OK' }]
-        );
-        handleCompleteRideRef.current();
-      });
+    let cancelled = false;
+    let stop: (() => void) | null = null;
 
-      try {
-        if (typeof destLat === 'number' && typeof destLng === 'number') {
-          // যেকোনো গন্তব্য (custom বা preset) — coordinate দিয়ে।
-          await startGeofencingAtCoords('ride_destination', destLat, destLng, 120);
-          logger.debug('RideActiveScreen', 'Geofencing started at coords', destLat, destLng);
-        } else if (destination) {
-          // fallback — preset DESTINATIONS তালিকার নাম দিয়ে।
-          await startGeofencingForDestination(destination);
-          logger.debug('RideActiveScreen', 'Geofencing started for', destination);
-        }
-      } catch (error) {
-        logger.warn('RideActiveScreen.geofenceSetup', error);
-      }
-    };
-
-    setupGeofence();
+    watchArrival(target, () => {
+      Alert.alert(
+        'Destination Reached! \u{1F389}',
+        "You've arrived at your destination. Completing ride...",
+        [{ text: 'OK' }]
+      );
+      handleCompleteRideRef.current();
+    })
+      .then((stopWatch) => {
+        if (cancelled) stopWatch();
+        else stop = stopWatch;
+      })
+      .catch((error) => logger.warn('RideActiveScreen.arrivalWatch', error));
 
     return () => {
-      stopGeofencing().catch((error) => {
-        logger.warn('RideActiveScreen.geofenceStop', error);
-      });
+      cancelled = true;
+      stop?.();
     };
   }, [rider?.destination, rider?.destLat, rider?.destLng, rider?.destinationLat, rider?.destinationLng]);
 
@@ -292,7 +281,6 @@ export default function RideActiveScreen() {
   }, []);
 
   const handleCompleteRide = async () => {
-    handleCompleteRideRef.current = handleCompleteRide;
     if (!rideId) return;
     try {
       await rideService.completeRide(rideId);
@@ -309,6 +297,7 @@ export default function RideActiveScreen() {
       logger.warn('RideActiveScreen.completeRide', error);
     }
   };
+  handleCompleteRideRef.current = handleCompleteRide;
 
   const handleShareRide = async () => {
     const destName = rider?.destination ?? 'destination';

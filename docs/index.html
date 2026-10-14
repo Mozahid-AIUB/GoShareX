@@ -279,7 +279,7 @@
 
     <div class="meta">
       <div class="meta-item"><strong>Effective Date:</strong> May 1, 2026</div>
-      <div class="meta-item"><strong>Last Updated:</strong> May 1, 2026</div>
+      <div class="meta-item"><strong>Last Updated:</strong> October 14, 2026</div>
       <div class="meta-item"><strong>Version:</strong> 1.0.0</div>
     </div>
 
@@ -327,12 +327,16 @@
       <h2><span class="num">3</span> Location Data</h2>
       <p>GoShareX requires access to your device location to provide core functionality:</p>
       <ul>
-        <li><strong>Foreground location:</strong> Used while the app is open to show your position and match nearby
-          riders</li>
-        <li><strong>Background location:</strong> Used during active rides only, to track ride progress</li>
+        <li><strong>Foreground location only:</strong> Location is collected only while the app is open and in use — to
+          show your position, find nearby riders going to the same destination, calculate routes and fares, and detect
+          arrival at your destination during a ride</li>
+        <li><strong>No background location:</strong> GoShareX does not collect your location when the app is closed or
+          running in the background</li>
       </ul>
-      <p>Your precise location is <strong>only shared with your confirmed ride partner</strong> — never publicly visible
-        to all users.</p>
+      <p>Before location access is requested, the app shows an in-app notice explaining this, and asks for your
+        consent.</p>
+      <p>Your location is used to show your distance to nearby GoShareX riders for matching, and your live location is
+        shared with your <strong>confirmed ride partner</strong> during a ride. It is never publicly visible.</p>
       <p>You may disable location access in your device settings at any time, but this will prevent the app from
         functioning properly.</p>
       <div class="highlight">We do not store your historical GPS coordinates permanently. Location data is used in

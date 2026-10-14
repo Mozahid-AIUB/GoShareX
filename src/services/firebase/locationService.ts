@@ -4,6 +4,7 @@ import { realtimeDb } from '@/config/firebase.config';
 import { auth } from '@/config/firebase.config';
 import ENV from '@/config/env';
 import type { ActiveRiderRaw } from '@/services/firebase/matchingService';
+import { requestForegroundLocationWithDisclosure } from '@/services/location/locationDisclosure';
 import { logger } from '@/utils/logger';
 
 export interface LocationData {
@@ -35,15 +36,7 @@ class LocationService {
    */
   async requestPermissions(): Promise<boolean> {
     try {
-      const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
-
-      if (foregroundStatus !== 'granted') {
-        return false;
-      }
-
-      // Foreground permission is enough for showing the live map.
-      // Background access can be requested later for ride tracking flows.
-      return true;
+      return await requestForegroundLocationWithDisclosure();
     } catch (error) {
       logger.error('locationService.permissionRequest', error);
       return false;

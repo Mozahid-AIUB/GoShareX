@@ -6,12 +6,12 @@ import { APP_CONFIG } from '@/constants/config';
 import type { ActiveRider } from '@/types';
 import { FEATURE_FLAGS } from '@/config/featureFlags';
 import { supabasePresenceService } from '@/services/supabase/presenceService';
+import { requestForegroundLocationWithDisclosure } from './locationDisclosure';
 
 let watchSubscription: ExpoLocation.LocationSubscription | null = null;
 
 export async function requestLocationPermission(): Promise<boolean> {
-  const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
-  return status === 'granted';
+  return requestForegroundLocationWithDisclosure();
 }
 
 export async function getCurrentLocation(): Promise<ExpoLocation.LocationObject> {

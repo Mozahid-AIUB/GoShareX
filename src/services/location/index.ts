@@ -1,5 +1,4 @@
 export {
-  requestLocationPermissions,
   getCurrentLocation as getCurrentGpsLocation,
   startLocationTracking,
   startHighFrequencyTracking,
