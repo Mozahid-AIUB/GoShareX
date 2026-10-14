@@ -73,6 +73,7 @@ export default {
                     isIosBackgroundLocationEnabled: false
                 }
             ],
+            "./plugins/withoutLocationTaskService",
             "expo-notifications",
             "expo-secure-store",
             "expo-updates",
